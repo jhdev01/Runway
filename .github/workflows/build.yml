@@ -1,0 +1,61 @@
+name: Build
+
+# Runs on every push to main and on version tags (vX.Y.Z), plus a manual
+# trigger from the Actions tab. Produces two artifacts per run:
+#   - Runway-mac : the .dmg installer (Apple Silicon)
+#   - Runway-win : the NSIS .exe installer (x64)
+# Download from the workflow run's Artifacts panel after the run finishes.
+#
+# Builds are unsigned (no Apple Developer ID or Windows code-signing cert
+# configured). macOS will show a Gatekeeper warning on first launch; users
+# can right-click → Open to bypass. Windows SmartScreen may similarly warn.
+# Adding signing later is an env-secret + electron-builder config change.
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      # Don't cancel the other OS's build if one fails — useful when only
+      # one platform has a problem and the other should still ship.
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            artifact-name: Runway-mac
+            package-cmd: package
+            output-glob: release/*.dmg
+          - os: windows-latest
+            artifact-name: Runway-win
+            package-cmd: package:win
+            output-glob: release/*.exe
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build and package
+        run: npm run ${{ matrix.package-cmd }}
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact-name }}
+          path: ${{ matrix.output-glob }}
+          if-no-files-found: error
+          retention-days: 30
