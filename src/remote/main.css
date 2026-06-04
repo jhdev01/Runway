@@ -1,0 +1,1315 @@
+/* Runway Remote — minimal mobile-first stylesheet. Targets iPhone portrait
+   first; iPad landscape gets a media query in a later slice. Designed to
+   match the desktop renderer's color vocabulary so a quick glance reads
+   the same in both places. */
+
+:root {
+  --bg: #06090d;
+  --bg-elev: #0d1117;
+  --bg-elev-2: #161c25;
+  --border: #1f2630;
+  --border-bright: #2a323e;
+  --text: #e6edf3;
+  --text-dim: #97a3b1;
+  --text-faint: #6b7785;
+  --accent: #14b8a6;
+  --accent-bright: #67e8f9;
+  --amber: #fbbf24;
+  --pink: hsl(300, 68%, 75%);
+  --red: #ef4444;
+  --red-bright: #f87171;
+}
+
+* { box-sizing: border-box; }
+
+/* Force [hidden] to win over later display: flex / display: grid rules
+   below — the browser's UA `display: none` for [hidden] otherwise loses
+   to any explicit display value with equal specificity. Without this
+   the PIN overlay, action bar, and now-playing block can't be toggled. */
+[hidden] { display: none !important; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  height: 100%;
+  overscroll-behavior: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  touch-action: manipulation;
+}
+
+#app {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+
+/* Header */
+.hdr {
+  padding: 14px 20px 12px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  position: relative;
+}
+
+.hdr-row-top {
+  display: flex;
+  align-items: stretch;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+/* Left column: brand on top, service meta on bottom. Stretches to the
+   full height of the row so the meta's baseline matches the Lock
+   button on the right column. */
+.hdr-left {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.hdr-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--accent-bright);
+}
+.hdr-mark {
+  width: 38px;
+  height: 38px;
+  filter: drop-shadow(0 0 8px rgba(20, 184, 166, 0.5));
+  flex-shrink: 0;
+}
+.hdr-wordmark {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text);
+}
+
+.hdr-status-col {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+/* Top-right Lock button — flat lock icon, sits under the status
+   lights. Only visible while unlocked (toggled via the `hidden`
+   attribute by main.js). Bigger than the old inline "Lock now"
+   pill so it's easy to thumb-tap from the corner. */
+.hdr-lock-btn {
+  margin-top: 6px;
+  min-height: 44px;
+  padding: 0 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border-bright);
+  border-radius: 10px;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.hdr-lock-btn:active,
+.hdr-lock-btn:hover {
+  background: var(--bg-elev-2);
+  border-color: var(--accent);
+}
+.hdr-lock-btn svg { display: block; }
+.hdr-lock-label { line-height: 1; }
+
+.hdr-time {
+  font-size: 11px;
+  color: var(--text-faint);
+  font-family: 'SF Mono', 'IBM Plex Mono', ui-monospace, monospace;
+  letter-spacing: 0.04em;
+  text-align: right;
+  min-height: 14px;
+}
+
+.hdr-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.hdr-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.hdr-status {
+  font-size: 11px;
+  color: var(--text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+/* Status lights (mirrors the desktop top bar) */
+.hdr-status-lights {
+  display: flex;
+  gap: 6px;
+}
+.hdr-light {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 3px 6px 3px 16px;
+  border-radius: 999px;
+  position: relative;
+  border: 1px solid var(--border-bright);
+  color: var(--text-faint);
+  background: var(--bg-elev);
+}
+.hdr-light::before {
+  content: '';
+  position: absolute;
+  left: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-faint);
+}
+.hdr-light[data-state="on"],
+.hdr-light[data-state="ok"] {
+  border-color: rgba(20, 184, 166, 0.5);
+  color: var(--accent-bright);
+}
+.hdr-light[data-state="on"]::before,
+.hdr-light[data-state="ok"]::before {
+  background: var(--accent-bright);
+  box-shadow: 0 0 6px rgba(20, 184, 166, 0.7);
+}
+.hdr-light[data-state="off"],
+.hdr-light[data-state="disabled"],
+.hdr-light[data-state="err"] {
+  border-color: rgba(239, 68, 68, 0.4);
+  color: var(--red-bright);
+}
+.hdr-light[data-state="off"]::before,
+.hdr-light[data-state="disabled"]::before,
+.hdr-light[data-state="err"]::before {
+  background: var(--red-bright);
+}
+.hdr-light[data-state="unknown"] {
+  border-color: rgba(251, 191, 36, 0.45);
+  color: var(--amber);
+}
+.hdr-light[data-state="unknown"]::before {
+  background: var(--amber);
+}
+.hdr-light[data-state="absent"] {
+  opacity: 0.5;
+}
+
+
+/* Timer */
+.timer-wrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 20px;
+  gap: 14px;
+}
+
+.timer-label {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.timer {
+  font-family: 'SF Mono', 'IBM Plex Mono', ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: clamp(56px, 17vw, 96px);
+  font-weight: 700;
+  color: var(--accent-bright);
+  text-shadow:
+    0 0 14px rgba(103, 232, 249, 0.55),
+    0 0 30px rgba(20, 184, 166, 0.35);
+  letter-spacing: -0.02em;
+  line-height: 1;
+  text-align: center;
+  white-space: nowrap;
+}
+
+/* When the countdown is over an hour out the string becomes HH:MM:SS.cs
+   (11 chars) which overflows narrow phones at the default 17vw size.
+   Shrink so it fits without dropping centiseconds. */
+.timer-wrap[data-has-hours="true"] .timer {
+  font-size: clamp(40px, 12vw, 72px);
+}
+
+.timer-wrap[data-state="pre-music"] .timer {
+  color: var(--pink);
+  text-shadow:
+    0 0 14px hsla(300, 68%, 70%, 0.55),
+    0 0 30px hsla(300, 68%, 60%, 0.3);
+}
+.timer-wrap[data-state="pre-music"] .timer-label { color: hsla(300, 68%, 75%, 0.75); }
+
+.timer-wrap[data-state="pad-finishing"] .timer,
+.timer-wrap[data-state="post-service"] .timer {
+  color: var(--pink);
+  text-shadow:
+    0 0 14px hsla(300, 68%, 70%, 0.6),
+    0 0 30px hsla(300, 68%, 60%, 0.35);
+}
+
+.timer-meta {
+  font-size: 12px;
+  color: var(--text-faint);
+  font-family: 'SF Mono', 'IBM Plex Mono', ui-monospace, monospace;
+  letter-spacing: 0.04em;
+}
+
+/* Now playing — album art on the left, text on the right. */
+.now-playing {
+  border-top: 1px solid var(--border);
+  padding: 14px 20px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 14px;
+}
+.np-art, .np-art-placeholder {
+  width: 64px;
+  height: 64px;
+  border-radius: 8px;
+  flex-shrink: 0;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+}
+
+/* ─── Locked view ───────────────────────────────────────────────────
+   When the remote hasn't been unlocked yet, scale the album artwork
+   up and stack it under the timer so the page reads as an ambient
+   "now playing" display from across the room. The action surface is
+   hidden anyway (lock-bar takes its place), so we have the vertical
+   real estate to enlarge the art without crowding controls. */
+body.locked-view .now-playing {
+  flex-direction: column;
+  align-items: center;
+  padding: 20px 20px 28px;
+  gap: 12px;
+}
+body.locked-view .np-art,
+body.locked-view .np-art-placeholder {
+  width: min(58vw, 320px);
+  height: min(58vw, 320px);
+  border-radius: 14px;
+}
+body.locked-view .np-art-placeholder { font-size: 56px; }
+body.locked-view .np-text {
+  text-align: center;
+  width: 100%;
+}
+body.locked-view .np-title { font-size: 18px; font-weight: 600; }
+body.locked-view .np-pos,
+body.locked-view .np-next { justify-content: center; }
+.np-art { object-fit: cover; }
+.np-art-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  color: var(--text-faint);
+}
+.np-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.np-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-faint);
+}
+
+.np-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.np-pos {
+  font-size: 12px;
+  color: var(--text-dim);
+  font-family: 'SF Mono', 'IBM Plex Mono', ui-monospace, monospace;
+}
+
+.np-next {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-top: 6px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--border);
+}
+.np-next-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-faint);
+  font-weight: 600;
+}
+.np-next-title {
+  font-size: 13px;
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Locked footer — swipe-to-unlock track on phones, button on wider
+   screens (mouse + keyboard). */
+.lock-bar {
+  padding: 16px 20px 24px;
+  border-top: 1px solid var(--border);
+}
+/* "Forget saved PIN" — secondary, low-emphasis. Only rendered when
+   there's actually a cached PIN to clear (toggled by main.js). */
+.forget-pin-btn {
+  display: block;
+  margin: 12px auto 0;
+  background: transparent;
+  border: none;
+  color: var(--text-faint);
+  font-family: inherit;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  cursor: pointer;
+  padding: 6px 10px;
+}
+.forget-pin-btn:active,
+.forget-pin-btn:hover {
+  color: var(--text);
+}
+
+/* Press-and-hold unlock button — used at every viewport size. The
+   progress fill grows from left to right over the hold duration; if
+   the user releases early the fill snaps back to 0. Beats the old
+   swipe-across gesture for thumb ergonomics. */
+.wide-unlock-btn {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 68px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border-bright);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  border-radius: 14px;
+  cursor: pointer;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: border-color 0.12s ease;
+}
+.wide-unlock-inner {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  z-index: 1;
+}
+.wide-unlock-btn svg {
+  width: 20px;
+  height: 20px;
+  color: var(--text-faint);
+  transition: color 0.12s;
+}
+/* Audio-waveform progress indicator. The SVG path animates
+   continuously (translates one period each loop) so it always reads
+   as live moving audio. The whole layer is hidden by default via a
+   clip-path that hides the full width; JS animates the clip from
+   inset(0 100% 0 0) → inset(0 0% 0 0) over HOLD_MS so the wave
+   "travels" across the bar as the user holds. */
+.wide-unlock-wave {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+.wide-unlock-wave svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.wide-unlock-wave rect {
+  fill: rgba(20, 184, 166, 0.15);
+  /* Each bar lives in its own SVG bbox so scaleY is computed against
+     its own height (not the SVG's viewBox). Bars start collapsed and
+     grow when .pressing toggles on. */
+  transform-box: fill-box;
+  transform-origin: center center;
+  transform: scaleY(0);
+}
+/* Press: each bar runs two animations.
+     1. `bar-grow` (120ms, delayed by the per-bar --delay) pops the
+        bar from collapsed to full height in sequence left-to-right.
+     2. `bar-bob` (infinite, starts the instant grow finishes) keeps
+        the bar oscillating between roughly 35% and full height so
+        the row reads as live audio levels rather than a frozen
+        snapshot. `--bob-dur` is set inline per bar so each one
+        cycles at a slightly different speed — phases drift apart
+        over time, killing any visible lockstep. */
+.wide-unlock-btn.pressing .wide-unlock-wave rect {
+  animation:
+    bar-grow 120ms ease-out var(--delay, 0ms) forwards,
+    bar-bob var(--bob-dur, 800ms) ease-in-out calc(var(--delay, 0ms) + 120ms) infinite;
+}
+@keyframes bar-grow {
+  from { transform: scaleY(0); }
+  to   { transform: scaleY(1); }
+}
+@keyframes bar-bob {
+  0%, 100% { transform: scaleY(1); }
+  25%      { transform: scaleY(0.45); }
+  50%      { transform: scaleY(0.9); }
+  75%      { transform: scaleY(0.35); }
+}
+.wide-unlock-btn.pressing { border-color: var(--accent); }
+.wide-unlock-btn.pressing svg.wide-unlock-lock { color: var(--accent-bright); }
+.wide-unlock-btn.pressing .wide-unlock-inner { color: var(--accent-bright); }
+
+/* Swipe track is dead — hidden everywhere. Markup retained so the
+   JS gesture handlers don't crash on missing elements; pointer events
+   never fire on display:none nodes so they're effectively inert. */
+.swipe-track { display: none; }
+
+.swipe-track {
+  position: relative;
+  width: 100%;
+  height: 64px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border-bright);
+  border-radius: 999px;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none; /* let us own the pointer events fully */
+}
+/* Subtle accent fill that follows the thumb so the user sees their
+   progress as they drag. */
+.swipe-fill {
+  position: absolute;
+  inset: 0;
+  width: 0%;
+  background: linear-gradient(90deg, rgba(20, 184, 166, 0.10), rgba(20, 184, 166, 0.4));
+  pointer-events: none;
+}
+.swipe-text {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  pointer-events: none;
+  z-index: 1;
+  /* Subtle shimmer hint that this is interactive. */
+  background: linear-gradient(
+    90deg,
+    var(--text-faint) 0%,
+    var(--text-dim) 40%,
+    var(--text) 50%,
+    var(--text-dim) 60%,
+    var(--text-faint) 100%
+  );
+  background-size: 200% 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  animation: swipe-shimmer 2.4s linear infinite;
+}
+@keyframes swipe-shimmer {
+  0%   { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+.swipe-thumb {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #06090d;
+  font-size: 28px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 14px rgba(20, 184, 166, 0.5);
+  z-index: 2;
+  cursor: grab;
+  transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.4, 1);
+  touch-action: none;
+}
+.swipe-thumb.dragging {
+  transition: none;
+  cursor: grabbing;
+}
+.swipe-thumb.complete {
+  background: var(--accent-bright);
+}
+
+/* Action grid (unlocked) */
+.action-bar {
+  padding: 14px 16px 22px;
+  border-top: 1px solid var(--border);
+}
+.lock-now-btn {
+  background: transparent;
+  border: 1px solid var(--border-bright);
+  color: var(--text-dim);
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.lock-now-btn:active { background: var(--bg-elev-2); color: var(--text); }
+.action-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+/* Mini-row: Music Early + Shuffle. Only rendered during the pre-service
+   queued window; smaller than the main grid since these are setup
+   adjustments, not live-service controls. */
+.action-mini-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 8px;
+}
+.action-btn-mini {
+  height: 52px;
+  gap: 3px;
+  border-radius: 10px;
+  font-size: 10px;
+}
+.action-btn-mini .action-icon { width: 18px; height: 18px; }
+.action-btn-mini .action-label { font-size: 10px; }
+/* Stop All — always last, always full width. */
+.action-btn-wide {
+  display: flex;
+  width: 100%;
+  margin-top: 10px;
+  flex-direction: row;
+  gap: 10px;
+  height: 56px;
+  border-radius: 12px;
+}
+.action-btn-wide .action-icon { width: 20px; height: 20px; }
+.action-btn-wide .action-label { font-size: 12px; }
+/* Two-tap confirm state for Stop All — mirrors arm/disarm confirm. */
+.action-btn-wide.confirm-stop {
+  border-color: var(--red);
+  background: rgba(239, 68, 68, 0.28);
+  animation: confirm-pulse 1s ease-in-out infinite;
+}
+.action-btn-wide.confirm-stop .action-icon,
+.action-btn-wide.confirm-stop .action-label {
+  color: var(--red-bright);
+}
+.action-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 78px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border-bright);
+  border-radius: 14px;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.action-btn:active { background: var(--bg-elev-2); border-color: var(--accent); }
+.action-icon {
+  width: 26px;
+  height: 26px;
+  color: var(--text);
+  display: block;
+}
+.action-label { font-size: 11px; color: var(--text-dim); }
+.action-btn.flash { border-color: var(--accent-bright); background: rgba(20, 184, 166, 0.18); }
+.action-btn-danger { border-color: rgba(239, 68, 68, 0.4); }
+.action-btn-danger:active { border-color: var(--red); background: rgba(239, 68, 68, 0.18); }
+.action-btn-danger .action-icon { color: var(--red-bright); }
+
+/* Armed state — Arm button shows the disarm color (teal). */
+.action-btn.armed {
+  border-color: var(--accent);
+  background: rgba(20, 184, 166, 0.12);
+}
+.action-btn.armed .action-icon { color: var(--accent-bright); }
+
+/* Confirm-disarm pulse — second-click warning, mirroring the desktop. */
+.action-btn.confirm-disarm {
+  border-color: var(--red);
+  background: rgba(239, 68, 68, 0.18);
+  animation: confirm-pulse 1s ease-in-out infinite;
+}
+.action-btn.confirm-disarm .action-icon,
+.action-btn.confirm-disarm .action-label {
+  color: var(--red-bright);
+}
+@keyframes confirm-pulse {
+  0%, 100% { background: rgba(239, 68, 68, 0.18); }
+  50% { background: rgba(239, 68, 68, 0.32); }
+}
+
+/* Pad playing — different visual so the button reads as "tap to fade." */
+.action-btn.playing {
+  border-color: var(--pink);
+  background: hsla(300, 68%, 60%, 0.12);
+}
+.action-btn.playing .action-icon { color: var(--pink); }
+
+/* MIDI monitor — compact preview row, expandable full screen */
+.midi-monitor {
+  border-top: 1px solid var(--border);
+  padding: 12px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.mm-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.mm-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-faint);
+  font-weight: 600;
+}
+.mm-head-actions { display: flex; gap: 6px; align-items: center; }
+.mm-view-all,
+.mm-clear {
+  background: transparent;
+  border: 1px solid var(--border-bright);
+  color: var(--text-dim);
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  font-family: inherit;
+}
+.mm-view-all:active,
+.mm-clear:active { background: var(--bg-elev-2); color: var(--text); }
+.mm-recent {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.mm-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-family: 'SF Mono', 'IBM Plex Mono', ui-monospace, monospace;
+  font-size: 11px;
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+}
+.mm-row .mm-time {
+  color: var(--text-faint);
+  flex-shrink: 0;
+  width: 56px;
+}
+.mm-row .mm-type {
+  color: var(--accent-bright);
+  font-weight: 600;
+  flex-shrink: 0;
+  width: 50px;
+  text-transform: uppercase;
+  font-size: 10px;
+}
+.mm-row .mm-detail {
+  color: var(--text);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mm-row .mm-action {
+  color: var(--accent-bright);
+  flex-shrink: 0;
+  font-size: 10px;
+  text-transform: uppercase;
+}
+.mm-empty {
+  font-size: 11px;
+  color: var(--text-faint);
+  font-style: italic;
+}
+
+/* MIDI full-screen overlay */
+.midi-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(6, 9, 13, 0.94);
+  backdrop-filter: blur(10px);
+  z-index: 90;
+  display: flex;
+  flex-direction: column;
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.midi-overlay-card {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+.midi-overlay-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border);
+}
+.midi-overlay-title {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--text);
+}
+.midi-overlay-actions { display: flex; gap: 8px; align-items: center; }
+.midi-overlay-close {
+  background: rgba(20, 184, 166, 0.12);
+  border: 1px solid rgba(20, 184, 166, 0.5);
+  color: var(--accent-bright);
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+}
+.midi-overlay-clear {
+  background: transparent;
+  border: 1px solid var(--border-bright);
+  color: var(--text-dim);
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+}
+.midi-overlay-clear:active { background: var(--bg-elev-2); color: var(--text); }
+.midi-overlay-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 16px 24px;
+  display: flex;
+  flex-direction: column-reverse; /* newest on top, scrollable below */
+  gap: 4px;
+}
+
+/* PIN overlay */
+.pin-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(6, 9, 13, 0.92);
+  backdrop-filter: blur(10px);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  padding-top: calc(env(safe-area-inset-top) + 24px);
+  padding-bottom: calc(env(safe-area-inset-bottom) + 24px);
+}
+.pin-card {
+  width: 100%;
+  max-width: 340px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+}
+.pin-title {
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.pin-dots {
+  display: flex;
+  gap: 14px;
+}
+.pin-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 1px solid var(--border-bright);
+}
+.pin-dot.filled {
+  background: var(--accent-bright);
+  border-color: var(--accent-bright);
+  box-shadow: 0 0 8px rgba(103, 232, 249, 0.6);
+}
+.pin-error {
+  font-size: 12px;
+  color: var(--red-bright);
+  letter-spacing: 0.04em;
+  min-height: 16px;
+  text-align: center;
+}
+.pin-keypad {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  width: 100%;
+}
+.pin-key {
+  height: 64px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border-bright);
+  border-radius: 12px;
+  color: var(--text);
+  font-size: 26px;
+  font-weight: 600;
+  font-family: 'SF Mono', 'IBM Plex Mono', ui-monospace, monospace;
+  cursor: pointer;
+}
+.pin-key:active { background: var(--bg-elev-2); border-color: var(--accent); }
+.pin-key-blank {
+  font-size: 14px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+/* The Delete key is the backspace glyph (⌫) — don't shrink it to the
+   text-button size or it gets visually lost next to the 26px digits.
+   Sized to read at the same weight as the numerals without overpowering. */
+.pin-key[data-d="back"] {
+  font-size: 30px;
+  letter-spacing: 0;
+  color: var(--text);
+}
+
+/* Connection pill — sits in the header status column under the status
+   lights. Always visible (not just on disconnect) so the operator can
+   confirm the link at a glance. */
+.hdr-conn {
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--bg-elev);
+  color: var(--text-faint);
+  border: 1px solid var(--border);
+  font-family: 'SF Mono', 'IBM Plex Mono', ui-monospace, monospace;
+  font-weight: 600;
+}
+.hdr-conn.live {
+  color: var(--accent-bright);
+  border-color: rgba(20, 184, 166, 0.5);
+  background: rgba(20, 184, 166, 0.08);
+}
+.hdr-conn.connecting {
+  color: var(--amber);
+  border-color: rgba(251, 191, 36, 0.45);
+  background: rgba(251, 191, 36, 0.08);
+}
+.hdr-conn.lost {
+  color: var(--red-bright);
+  border-color: rgba(239, 68, 68, 0.5);
+  background: rgba(239, 68, 68, 0.08);
+}
+
+/* ─── Time-shift mini buttons (±2 min) ──────────────────────────────────
+   Sit above the action grid and share its 2-column layout + stroke +
+   background so the row visually belongs to the same family. Slimmer
+   height since they're text-only (no icon). Two-step confirm with a
+   red flash mirrors the desktop pattern. */
+.time-shift-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  /* No horizontal padding — `.action-bar` already insets us by 16px,
+     so doubling it here was making the row narrower than the action
+     grid below. Bottom margin separates from the grid. */
+  margin-bottom: 10px;
+}
+.time-shift-mini {
+  background: var(--bg-elev);
+  border: 1px solid var(--border-bright);
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 10px 0;
+  border-radius: 14px;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+}
+.time-shift-mini:active { background: var(--bg-elev-2); border-color: var(--accent); }
+.time-shift-mini[data-confirm='true'] {
+  border-color: #ef4444;
+  background: rgba(239, 68, 68, 0.18);
+  color: #fca5a5;
+  animation: time-shift-pulse 1s ease-in-out infinite;
+}
+.time-shift-mini.flash {
+  border-color: var(--accent-bright);
+  background: rgba(20, 184, 166, 0.18);
+}
+@keyframes time-shift-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.5); }
+  50%      { box-shadow: 0 0 0 4px rgba(239, 68, 68, 0); }
+}
+
+/* Post-service prev/next pair. Sits in the same grid slot as the
+   start button; JS sets `hidden` on whichever isn't appropriate.
+   `display: contents` lets the `[hidden]` attribute win without
+   needing !important — the wrapper is invisible-by-default and only
+   becomes a flex row when explicitly shown via the .visible class
+   (set in main.js next to the `hidden` toggle). */
+.post-transport {
+  display: none;
+  flex-direction: row;
+  align-items: stretch;
+  padding: 0;
+  gap: 10px;
+  background: transparent;
+  border: none;
+}
+.post-transport.visible { display: flex; }
+.post-transport[hidden] { display: none !important; }
+.post-transport-btn {
+  flex: 1;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  color: var(--text);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-family: inherit;
+  padding: 0;
+  border-radius: 14px;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+.post-transport-btn:active {
+  background: var(--bg-elev-2);
+  border-color: var(--accent);
+}
+.post-transport-btn svg { width: 24px; height: 24px; }
+
+/* Pad key chip + picker affordance on the Pad Play button. The chip
+   shows the currently-armed key (if any); the small ▾ in the corner
+   opens the key picker overlay. */
+.action-pad-key {
+  position: absolute;
+  top: 6px;
+  right: 26px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(20, 184, 166, 0.18);
+  color: var(--accent-bright);
+  border: 1px solid rgba(20, 184, 166, 0.4);
+  letter-spacing: 0.04em;
+  pointer-events: none;
+}
+.pad-key-pick {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border-bright);
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+  z-index: 2;
+}
+.pad-key-pick:active { background: rgba(255, 255, 255, 0.18); }
+.action-pad-key {
+  /* Push left edge in so it doesn't collide with the larger chevron. */
+  right: 38px;
+}
+.action-btn { position: relative; }
+
+/* Fade to Pad — pink to match desktop. */
+.action-btn-fade-to-pad {
+  border-color: hsla(300, 60%, 60%, 0.5) !important;
+  background: hsla(300, 60%, 30%, 0.18) !important;
+  color: hsl(300, 68%, 88%) !important;
+}
+.action-btn-fade-to-pad:active {
+  background: hsla(300, 60%, 30%, 0.32) !important;
+}
+/* Engaged — Fade to Pad is currently holding. Filled gradient +
+   pulsing glow so the operator can tell at a glance from across the
+   room that the room is being held. */
+.action-btn-fade-to-pad.engaged {
+  background: linear-gradient(135deg, hsl(300, 70%, 38%) 0%, hsl(300, 80%, 55%) 100%) !important;
+  border-color: hsl(300, 80%, 70%) !important;
+  color: white !important;
+  animation: remote-fade-to-pad-pulse 1.6s ease-in-out infinite;
+}
+@keyframes remote-fade-to-pad-pulse {
+  0%, 100% {
+    box-shadow:
+      0 4px 18px hsla(300, 80%, 60%, 0.35),
+      inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  }
+  50% {
+    box-shadow:
+      0 6px 28px hsla(300, 80%, 60%, 0.7),
+      0 0 0 2px hsla(300, 80%, 70%, 0.45),
+      inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  }
+}
+
+/* Pad key picker overlay — fullscreen modal with a 4×3 key grid. */
+.pad-key-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 16px;
+  z-index: 200;
+}
+.pad-key-card {
+  width: 100%;
+  max-width: 380px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border-bright);
+  border-radius: 14px;
+  padding: 18px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+}
+.pad-key-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+.pad-key-title {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+.pad-key-close {
+  background: transparent;
+  border: 1px solid var(--border-bright);
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 6px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.pad-key-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+.pad-key-btn {
+  background: var(--bg);
+  border: 1px solid var(--border-bright);
+  color: var(--text);
+  padding: 16px 0;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 16px;
+  font-weight: 700;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+.pad-key-btn:active { background: var(--bg-elev-2); }
+.pad-key-btn.active {
+  background: rgba(20, 184, 166, 0.18);
+  border-color: var(--accent-bright);
+  color: var(--accent-bright);
+}
+.pad-key-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+/* Master volume row — mute button + slider + percentage. Slim
+   horizontal strip below the time-shift buttons in the unlocked
+   action bar. The slider is hardware-touch-friendly (28px thumb,
+   tall track) since fat-fingering a small slider mid-service is
+   the most common remote-UI complaint on phones. */
+.master-vol-row {
+  display: grid;
+  grid-template-columns: 36px 1fr 44px;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.master-vol-mute {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  border: 1px solid var(--border-bright);
+  background: var(--bg-elev);
+  color: var(--text-dim);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: color 0.12s ease, border-color 0.12s ease, background 0.12s ease;
+}
+.master-vol-mute:active {
+  background: var(--bg-elev-2);
+  border-color: var(--accent);
+}
+.master-vol-row.muted .master-vol-mute {
+  color: #fca5a5;
+  border-color: #ef4444;
+  background: rgba(239, 68, 68, 0.16);
+}
+.master-vol-row.muted #masterVolWave1,
+.master-vol-row.muted #masterVolWave2 {
+  display: none;
+}
+.master-vol-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 28px;
+  background: transparent;
+  cursor: pointer;
+  margin: 0;
+  padding: 0;
+  /* iOS Safari needs touch-action explicitly set on a horizontal
+     range so vertical-scroll gestures don't steal the drag. */
+  touch-action: pan-y;
+}
+.master-vol-slider::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(
+    to right,
+    var(--accent-bright) 0%,
+    var(--accent-bright) var(--vol-pct, 100%),
+    rgba(255, 255, 255, 0.12) var(--vol-pct, 100%),
+    rgba(255, 255, 255, 0.12) 100%
+  );
+}
+.master-vol-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--accent-bright);
+  border: 3px solid #06090d;
+  margin-top: -11px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+  cursor: grab;
+}
+.master-vol-slider:active::-webkit-slider-thumb { cursor: grabbing; }
+.master-vol-row.muted .master-vol-slider::-webkit-slider-runnable-track {
+  background: linear-gradient(
+    to right,
+    rgba(239, 68, 68, 0.5) 0%,
+    rgba(239, 68, 68, 0.5) var(--vol-pct, 100%),
+    rgba(255, 255, 255, 0.12) var(--vol-pct, 100%),
+    rgba(255, 255, 255, 0.12) 100%
+  );
+}
+.master-vol-row.muted .master-vol-slider::-webkit-slider-thumb {
+  background: #ef4444;
+}
+.master-vol-pct {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+  color: var(--text-dim);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}

@@ -1,0 +1,28 @@
+RUNWAY — INSTALL STEPS
+========================
+
+1. Drag Runway.app to the Applications folder.
+
+2. Open Terminal:
+   Spotlight (Cmd+Space) → type "Terminal" → press Return.
+
+3. Paste this line and press Return:
+
+   xattr -cr /Applications/Runway.app
+
+   (You can copy it from this file or from the DMG window.)
+
+4. Open Runway from /Applications, the Dock, or Launchpad.
+
+
+WHY THE TERMINAL STEP?
+----------------------
+Runway isn't yet signed with an Apple Developer ID, so macOS
+Gatekeeper attaches a "quarantine" flag to the app when you
+download the DMG. The xattr command clears that flag.
+
+You only run it once per install. New versions need it again.
+
+If macOS says "Runway.app is damaged and can't be opened":
+that's Gatekeeper, not corruption — run the xattr command
+above and try opening the app again.

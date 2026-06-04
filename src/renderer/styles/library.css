@@ -1,0 +1,1243 @@
+/* Library — flat table of every imported track. The visual vocabulary
+   matches the Playlists track row so the operator's eye doesn't have
+   to retrain when switching between the two surfaces. */
+
+.library-view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  position: relative;
+}
+
+.library-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px 26px;
+  background: var(--bg-elev);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.library-title {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-shrink: 0;
+}
+.library-title strong {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+.library-count {
+  font-size: 12px;
+  color: var(--text-faint);
+  font-family: 'IBM Plex Mono', monospace;
+}
+
+.library-upload {
+  background: var(--accent, #14b8a6);
+  border: 1px solid var(--accent-bright, #14b8a6);
+  color: #0a0a0a;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+  transition: background 0.12s ease, opacity 0.12s ease;
+}
+.library-upload:hover { background: var(--accent-bright, #14b8a6); }
+.library-upload:disabled { opacity: 0.6; cursor: progress; }
+
+.library-refresh {
+  background: transparent;
+  border: 1px solid var(--border-bright, #2d3748);
+  color: var(--text-dim);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+  transition: color 0.12s, border-color 0.12s;
+}
+.library-refresh:hover {
+  color: var(--accent-bright);
+  border-color: var(--accent-bright);
+}
+/* Toggle-on state — used by the Pad Player button while its drawer
+   is open. Filled treatment so the eye reads it as "active" rather
+   than just hovered. */
+.library-refresh.active {
+  background: var(--accent-bright);
+  color: #0a0a0a;
+  border-color: var(--accent-bright);
+}
+.library-refresh.active:hover {
+  background: var(--accent-bright);
+  color: #0a0a0a;
+}
+
+.library-search {
+  flex: 1;
+  max-width: 360px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--text);
+  padding: 7px 10px;
+  font-size: 13px;
+}
+.library-search:focus { outline: none; border-color: var(--accent-bright); }
+
+.library-orphans-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-dim);
+  cursor: pointer;
+  user-select: none;
+}
+.library-orphans-toggle input { accent-color: var(--accent); }
+
+.library-purge {
+  background: transparent;
+  border: 1px solid var(--red, #ef4444);
+  color: var(--red, #ef4444);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.12s ease;
+  white-space: nowrap;
+}
+.library-purge:hover { background: rgba(239, 68, 68, 0.14); }
+.library-purge.confirm {
+  background: rgba(239, 68, 68, 0.18);
+  animation: arm-confirm-pulse 1s ease-in-out infinite;
+}
+
+.library-table {
+  flex: 1;
+  overflow-y: auto;
+  /* No top padding — that produced an 8px gap above the sticky
+     header that always stayed visible while scrolling. The header
+     itself carries vertical breathing room via its own padding. */
+  padding: 0 26px 32px;
+}
+
+.library-row {
+  display: grid;
+  grid-template-columns: 28px 36px 32px 2fr 1.5fr 72px 72px 84px 84px 2fr 124px;
+  gap: 14px;
+  align-items: center;
+  padding: 14px 14px;
+  border-bottom: 1px solid var(--border);
+  position: relative;
+}
+/* Library mini-player — pinned to the bottom of the library view as
+   a flex child, above the Pad Player drawer (when both are open).
+   Mirrors the Live "now playing" visual language: art on the left,
+   title/artist/album stack with a progress bar underneath, transport
+   controls on the right. The previewing row keeps a subtle accent
+   tint so the operator can correlate which row is feeding the bar. */
+.library-row.previewing { background: rgba(20, 184, 166, 0.04); }
+
+.library-miniplayer {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 26px 14px;
+  background: var(--bg-elev);
+  border-top: 1px solid var(--border-bright, #2d3748);
+  box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.3);
+}
+.library-miniplayer-art {
+  width: 56px;
+  height: 56px;
+  border-radius: 4px;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  display: block;
+}
+/* Clickable wrapper around library-miniplayer-art — opens the
+   album-art lightbox when there's actual art on the track. */
+.library-miniplayer-art-button {
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: zoom-in;
+  flex-shrink: 0;
+  border-radius: 4px;
+}
+.library-miniplayer-art-button:hover .library-miniplayer-art {
+  filter: brightness(1.1);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+}
+.library-miniplayer-art-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-faint);
+  font-size: 24px;
+}
+.library-miniplayer-info {
+  flex: 1;
+  min-width: 0;
+}
+.library-miniplayer-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.library-miniplayer-meta {
+  font-size: 12px;
+  color: var(--text-dim);
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.library-miniplayer-progress {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 6px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  color: var(--text-faint);
+}
+.library-miniplayer-time {
+  font-variant-numeric: tabular-nums;
+  min-width: 36px;
+  text-align: center;
+}
+.library-miniplayer-track {
+  flex: 1;
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+  transition: height 0.12s;
+}
+.library-miniplayer-track:hover { height: 6px; }
+.library-miniplayer-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  background: var(--accent-bright, #14b8a6);
+  pointer-events: none;
+  transition: width 0.05s linear;
+}
+.library-miniplayer-stop {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid var(--border-bright, #2d3748);
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: color 0.12s, border-color 0.12s, background 0.12s;
+}
+.library-miniplayer-stop:hover {
+  color: var(--accent-bright);
+  border-color: var(--accent-bright);
+  background: rgba(20, 184, 166, 0.08);
+}
+.library-cell-num {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+  color: var(--text-faint);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.library-cell-added {
+  font-size: 12px;
+  color: var(--text-dim);
+  font-family: 'IBM Plex Mono', monospace;
+  background: transparent;
+  border: none;
+  text-align: left;
+  padding: 0;
+  cursor: pointer;
+}
+.library-head .library-cell-added:hover { color: var(--text); }
+.library-key-filter {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--text);
+  padding: 7px 10px;
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+}
+.library-key-filter:focus { outline: none; border-color: var(--accent-bright); }
+.library-row:hover:not(.library-head) {
+  background: rgba(255, 255, 255, 0.02);
+}
+.library-row.orphan { opacity: 0.78; }
+.library-row.orphan:hover { opacity: 1; }
+.library-row.selected {
+  background: rgba(20, 184, 166, 0.08);
+}
+.library-row.selected:hover:not(.library-head) {
+  background: rgba(20, 184, 166, 0.12);
+}
+
+.library-cell-check {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.library-cell-check input { accent-color: var(--accent); cursor: pointer; }
+
+.library-cell-preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.library-preview-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-faint);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: color 0.12s ease, border-color 0.12s ease, background 0.12s ease;
+}
+.library-preview-btn:hover {
+  color: var(--text);
+  border-color: var(--accent-bright);
+}
+.library-preview-btn.playing {
+  color: var(--accent-bright, #14b8a6);
+  border-color: var(--accent-bright, #14b8a6);
+  background: rgba(20, 184, 166, 0.16);
+}
+
+.library-bulkbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 26px;
+  background: rgba(20, 184, 166, 0.08);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.library-bulkbar-count {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+  color: var(--text);
+  font-weight: 600;
+}
+.library-bulkbar-link {
+  background: transparent;
+  border: none;
+  color: var(--accent-bright);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+.library-bulkbar-link:hover { background: rgba(20, 184, 166, 0.14); }
+.library-bulkbar-spacer { flex: 1; }
+.library-bulkbar-delete {
+  background: transparent;
+  border: 1px solid var(--red, #ef4444);
+  color: var(--red, #ef4444);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.12s ease;
+}
+.library-bulkbar-delete:hover { background: rgba(239, 68, 68, 0.14); }
+.library-bulkbar-delete.confirm {
+  background: rgba(239, 68, 68, 0.18);
+  animation: arm-confirm-pulse 1s ease-in-out infinite;
+}
+
+.library-head {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  border-bottom: 1px solid var(--border-bright, #2d3748);
+  position: sticky;
+  top: 0;
+  background: var(--bg);
+  z-index: 1;
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+.library-head button {
+  background: transparent;
+  border: none;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  text-align: left;
+  cursor: pointer;
+  padding: 0;
+}
+.library-head button:hover { color: var(--text); }
+
+.library-cell-title {
+  min-width: 0;
+  color: var(--text);
+  font-weight: 600;
+  font-size: 15px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  /* No overflow:hidden here — text truncation is handled by the
+     inner .library-track-name-block / .library-track-name > span,
+     and clipping at this level was hiding the artwork picker
+     popover that anchors to the album thumbnail. */
+}
+.library-art {
+  width: 40px;
+  height: 40px;
+  border-radius: 4px;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: var(--bg);
+  border: 1px solid var(--border);
+}
+.library-art-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-faint);
+  font-size: 18px;
+  font-weight: 400;
+}
+/* Art trigger — wraps the thumbnail in a clickable button so the
+   operator can swap to a different cover. The wrap holds the picker
+   popover positioned absolutely below the thumbnail. */
+.library-art-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+.library-art-trigger {
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  display: block;
+  border-radius: 4px;
+}
+.library-art-trigger:hover .library-art {
+  filter: brightness(1.15);
+  box-shadow: 0 0 0 2px var(--accent-bright);
+}
+.library-art-picker {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 60;
+  width: 360px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border-bright, #2d3748);
+  border-radius: 8px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+  padding: 10px;
+}
+.library-art-picker-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-faint);
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+.library-art-picker-close {
+  background: transparent;
+  border: none;
+  color: var(--text-faint);
+  cursor: pointer;
+  font-size: 13px;
+  padding: 2px 6px;
+}
+.library-art-picker-close:hover { color: var(--text); }
+.library-art-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  max-height: 360px;
+  overflow-y: auto;
+}
+.library-art-picker-loading,
+.library-art-picker-empty {
+  grid-column: 1 / -1;
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-faint);
+  padding: 18px 0;
+}
+.library-art-picker-tile {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  text-align: left;
+  font-family: inherit;
+  color: var(--text);
+  transition: border-color 0.12s, background 0.12s;
+}
+.library-art-picker-tile:hover {
+  border-color: var(--accent-bright);
+  background: rgba(20, 184, 166, 0.06);
+}
+.library-art-picker-tile.current {
+  border-color: var(--accent);
+}
+.library-art-picker-tile img {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  border-radius: 4px;
+  display: block;
+}
+.library-art-picker-meta {
+  font-size: 10px;
+  line-height: 1.3;
+  min-width: 0;
+}
+.library-art-picker-meta strong {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.library-art-picker-meta span {
+  display: block;
+  color: var(--text-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.library-art-picker-clear {
+  margin-top: 8px;
+  width: 100%;
+  background: transparent;
+  border: 1px solid var(--red, #ef4444);
+  color: var(--red, #ef4444);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 6px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.library-art-picker-clear:hover { background: rgba(239, 68, 68, 0.14); }
+.library-track-name-block {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+.library-track-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.library-track-name > span:first-child {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.library-track-tech {
+  margin-top: 2px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  color: var(--text-faint);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Always-visible folder glyph at the end of the tech-info line.
+   Filled = internal library, outlined = external reference. Both
+   share the muted grey color (--text-faint) so the indicator reads
+   as informational, not as a state warning. */
+.library-track-folder {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 6px;
+  vertical-align: middle;
+  color: var(--text-faint);
+}
+.library-track-folder svg { width: 11px; height: 11px; }
+
+/* Expanded path row. Truncates from the left so the filename always
+   stays visible; hovering reveals the full path via the native
+   title-attribute tooltip. */
+.library-track-loc {
+  margin-top: 4px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10.5px;
+  color: var(--text-faint);
+  letter-spacing: 0.02em;
+  min-width: 0;
+}
+.library-track-loc-path {
+  display: block;
+  direction: rtl;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  unicode-bidi: plaintext;
+  min-width: 0;
+}
+
+/* Refresh-metadata hint — small popover that drops below the button
+   when the operator clicks with nothing selected. Auto-clears after
+   a few seconds. */
+.library-refresh-wrap {
+  position: relative;
+  display: inline-flex;
+}
+.library-refresh-hint {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 30;
+  background: var(--bg-elev-2, #11171f);
+  border: 1px solid var(--border-bright, #2a3340);
+  color: var(--text);
+  font-size: 11.5px;
+  padding: 7px 10px;
+  border-radius: 6px;
+  white-space: nowrap;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+  animation: library-refresh-hint-in 0.18s ease-out;
+}
+.library-refresh-hint::before {
+  content: '';
+  position: absolute;
+  top: -5px;
+  left: 50%;
+  transform: translateX(-50%) rotate(45deg);
+  width: 8px;
+  height: 8px;
+  background: var(--bg-elev-2, #11171f);
+  border-left: 1px solid var(--border-bright, #2a3340);
+  border-top: 1px solid var(--border-bright, #2a3340);
+}
+@keyframes library-refresh-hint-in {
+  from { opacity: 0; transform: translate(-50%, -4px); }
+  to   { opacity: 1; transform: translate(-50%, 0); }
+}
+
+.library-cell-artist {
+  color: var(--text-dim);
+  font-size: 14px;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+/* Inline-editable artist + album stack. Artist line uses the cell's
+   inherited font-size (14px); album line is smaller and dimmer so
+   the visual hierarchy stays clear. */
+.library-artistalbum {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.library-artist-line {
+  font-size: 14px;
+  color: var(--text-dim);
+}
+.library-album-line {
+  font-size: 11px;
+  color: var(--text-faint);
+  font-style: italic;
+}
+.library-inlinetext-trigger {
+  cursor: pointer;
+  border-bottom: 1px dashed transparent;
+  transition: border-color 0.12s, color 0.12s;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: inline-block;
+  max-width: 100%;
+  padding: 1px 2px;
+  border-radius: 2px;
+}
+.library-inlinetext-trigger:hover {
+  border-bottom-color: var(--border-bright, #2d3748);
+  color: var(--text);
+}
+.library-inlinetext-placeholder {
+  color: var(--text-faint);
+  opacity: 0.6;
+}
+.library-inlinetext-input {
+  background: var(--bg);
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  color: var(--text);
+  padding: 3px 6px;
+  font: inherit;
+  width: 100%;
+  min-width: 0;
+}
+.library-inlinetext-input:focus { outline: none; border-color: var(--accent-bright); }
+
+.library-cell-key { font-size: 13px; color: var(--text-faint); }
+
+/* Inline-edit triggers for key + BPM. They look like the static
+   pill / number until hovered or focused, at which point they hint
+   that they're clickable. The dropdown anchors to the cell. */
+.library-key-edit-wrap { position: relative; }
+.library-key-edit-trigger,
+.library-bpm-trigger {
+  background: transparent;
+  border: 1px dashed transparent;
+  padding: 2px 4px;
+  border-radius: 4px;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+.library-key-edit-trigger:hover,
+.library-bpm-trigger:hover { border-color: var(--border-bright, #2d3748); }
+.library-key-empty { color: var(--text-faint); font-size: 14px; }
+.library-bpm-trigger {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 14px;
+  color: var(--text-dim);
+}
+.library-bpm-input {
+  width: 60px;
+  background: var(--bg);
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  color: var(--text);
+  padding: 4px 6px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 14px;
+}
+.library-bpm-input:focus { outline: none; border-color: var(--accent-bright); }
+
+.library-title-trigger {
+  cursor: pointer;
+  border-bottom: 1px dashed transparent;
+  transition: border-color 0.12s;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.library-title-trigger:hover {
+  border-bottom-color: var(--border-bright, #2d3748);
+}
+.library-title-input {
+  flex: 1;
+  background: var(--bg);
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  color: var(--text);
+  padding: 4px 8px;
+  font: inherit;
+  font-weight: 600;
+  min-width: 0;
+}
+.library-title-input:focus { outline: none; border-color: var(--accent-bright); }
+
+/* Dropdown — 24-key grid, popped over the row. Camelot ordering
+   means relatives sit next to each other. */
+.library-key-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 30;
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 4px;
+  width: 280px;
+  padding: 8px;
+  background: var(--bg-elev, #1a1f24);
+  border: 1px solid var(--border-bright, #2d3748);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+.library-key-option {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 6px 4px;
+  border-radius: 4px;
+  border: 1px solid;
+  cursor: pointer;
+}
+.library-key-option:hover { filter: brightness(1.25); }
+.library-key-option.active { box-shadow: 0 0 0 2px var(--text); }
+.library-key-option-clear {
+  grid-column: 1 / -1;
+  background: transparent !important;
+  border-color: var(--border) !important;
+  color: var(--text-faint) !important;
+  font-weight: 500;
+}
+.library-key-option-clear:hover {
+  color: var(--red-bright, #f87171) !important;
+  border-color: var(--red, #ef4444) !important;
+}
+.library-key-tag {
+  display: inline-flex;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 3px;
+  border: 1px solid;
+}
+
+.library-cell-bpm {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 14px;
+  color: var(--text-dim);
+}
+
+.library-cell-time {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 14px;
+  color: var(--text-dim);
+}
+
+.library-cell-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+  min-width: 0;
+}
+
+.library-playlist-pill {
+  font-size: 12px;
+  font-weight: 500;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: transparent;
+  border: 1px solid var(--border-bright, #2d3748);
+  color: var(--text-dim);
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+}
+/* Color by playlist kind so the library tag matches the pre/post/special
+   dot color used in the playlist sidebar. */
+.library-playlist-pill.kind-pre {
+  background: rgba(20, 184, 166, 0.12);
+  border-color: rgba(20, 184, 166, 0.45);
+  color: var(--accent-bright, #14b8a6);
+}
+.library-playlist-pill.kind-pre:hover {
+  background: rgba(20, 184, 166, 0.22);
+  border-color: var(--accent-bright);
+}
+.library-playlist-pill.kind-post {
+  background: rgba(103, 232, 249, 0.12);
+  border-color: rgba(103, 232, 249, 0.45);
+  color: var(--amber, #67e8f9);
+}
+.library-playlist-pill.kind-post:hover {
+  background: rgba(103, 232, 249, 0.22);
+  border-color: var(--amber, #67e8f9);
+}
+.library-playlist-pill.kind-special {
+  background: rgba(16, 185, 129, 0.12);
+  border-color: rgba(16, 185, 129, 0.45);
+  color: var(--green, #10b981);
+}
+.library-playlist-pill.kind-special:hover {
+  background: rgba(16, 185, 129, 0.22);
+  border-color: var(--green, #10b981);
+}
+
+.library-orphan-label {
+  font-size: 12px;
+  color: var(--text-faint);
+  font-style: italic;
+  letter-spacing: 0.04em;
+}
+
+/* Trim / Timer pills — match the playlist track-row badges so the
+   operator sees the same visual vocabulary across views. */
+.library-pill {
+  font-size: 9px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 1px 5px;
+  border-radius: 3px;
+  border: 1px solid;
+  background: transparent;
+  flex-shrink: 0;
+}
+.library-pill.trimmed {
+  color: var(--accent-bright, #14b8a6);
+  border-color: var(--accent-bright, #14b8a6);
+}
+.library-pill.timer {
+  color: hsl(280, 80%, 75%);
+  border-color: hsl(280, 80%, 75%);
+}
+
+.library-cell-actions {
+  display: flex;
+  gap: 4px;
+  justify-content: flex-end;
+}
+.library-action {
+  width: 30px;
+  height: 30px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-faint);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-family: inherit;
+  transition: color 0.12s ease, border-color 0.12s ease, background 0.12s ease;
+}
+.library-action:hover {
+  color: var(--text);
+  border-color: var(--border-bright, #2d3748);
+}
+.library-action.danger:hover {
+  color: var(--red, #ef4444);
+  border-color: var(--red, #ef4444);
+}
+.library-action.danger.confirm {
+  color: var(--red, #ef4444);
+  border-color: var(--red, #ef4444);
+  background: rgba(239, 68, 68, 0.14);
+  animation: arm-confirm-pulse 1s ease-in-out infinite;
+}
+.library-action.active {
+  color: var(--accent-bright, #14b8a6);
+  border-color: var(--accent-bright, #14b8a6);
+  background: rgba(20, 184, 166, 0.14);
+}
+
+.library-action-pop {
+  position: relative;
+  display: inline-flex;
+}
+
+.library-checklist {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 30;
+  min-width: 240px;
+  max-width: 320px;
+  max-height: 320px;
+  overflow-y: auto;
+  background: var(--bg-elev, #1a1f24);
+  border: 1px solid var(--border-bright, #2d3748);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  padding: 6px 0;
+}
+.library-checklist-empty {
+  padding: 12px 14px;
+  font-size: 12px;
+  color: var(--text-faint);
+  font-style: italic;
+}
+.library-checklist-section {
+  padding: 6px 12px 4px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+.library-checklist-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--text);
+  user-select: none;
+}
+.library-checklist-row:hover { background: rgba(255, 255, 255, 0.04); }
+.library-checklist-row input { accent-color: var(--accent); cursor: pointer; }
+.library-checklist-row .pl-name {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.library-checklist-row .pl-kind {
+  font-size: 9px;
+  font-family: 'IBM Plex Mono', monospace;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.library-empty {
+  padding: 64px 0;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-faint);
+}
+
+/* Pad Player drawer — sits at the bottom of the Library as a regular
+   flex child. The library-table above is flex:1 so it shrinks to make
+   room when the drawer mounts (no overlay, no hidden rows). The slide
+   animation still gives the "rises from below" feel. */
+.key-tester-drawer {
+  flex-shrink: 0;
+  background: var(--bg-elev);
+  border-top: 1px solid var(--border-bright, #2d3748);
+  box-shadow: 0 -16px 48px rgba(0, 0, 0, 0.5);
+  padding: 14px 22px 18px;
+  animation: key-tester-rise 0.18s ease-out;
+}
+@keyframes key-tester-rise {
+  from { transform: translateY(100%); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.key-tester-head {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 18px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.key-tester-titlewrap h2 {
+  margin: 0 0 2px 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: 0.01em;
+}
+.key-tester-titlewrap p {
+  margin: 0;
+  font-size: 11px;
+  color: var(--text-faint);
+  line-height: 1.4;
+}
+
+/* Crossfader — Pad on the left, Music on the right, center = both
+   full. Center detent indicated by a dot tick on the track itself.
+   Double-click to recenter is wired in JS. */
+.key-tester-crossfade {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 11px;
+  color: var(--text-faint);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.key-tester-crossfade input[type='range'] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 200px;
+  height: 22px;
+  background: transparent;
+  cursor: pointer;
+}
+/* Track with a center mark — uses a 3-stop gradient so the middle
+   sliver is brighter than the ends, telegraphing the "both buses
+   full" detent. */
+.key-tester-crossfade input[type='range']::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(
+    to right,
+    rgba(20, 184, 166, 0.35) 0%,
+    rgba(255, 255, 255, 0.18) 47%,
+    rgba(20, 184, 166, 0.6) 50%,
+    rgba(255, 255, 255, 0.18) 53%,
+    rgba(20, 184, 166, 0.35) 100%
+  );
+}
+.key-tester-crossfade input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--accent-bright);
+  border: 3px solid var(--bg);
+  margin-top: -9px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+}
+.key-tester-crossfade-end {
+  color: var(--text-dim);
+}
+
+.key-tester-close {
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-faint);
+  cursor: pointer;
+  font-size: 13px;
+}
+.key-tester-close:hover {
+  color: var(--text);
+  border-color: var(--border-bright, #2d3748);
+}
+
+/* Stop button in the pad-player drawer header. */
+.key-tester-stop {
+  background: transparent;
+  border: 1px solid var(--border-bright, #2d3748);
+  color: var(--text-dim);
+  padding: 6px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  transition: color 0.12s, border-color 0.12s, opacity 0.12s;
+}
+.key-tester-stop:hover:not(:disabled) {
+  color: var(--red-bright, #f87171);
+  border-color: var(--red, #ef4444);
+}
+.key-tester-stop:disabled { opacity: 0.4; cursor: default; }
+.key-tester-stop.active {
+  color: var(--red-bright, #f87171);
+  border-color: var(--red, #ef4444);
+}
+
+/* 12-pad grid — Camelot order, each cell shows the key letter + a
+   small status line ("playing" / "ready" / "no pad"). */
+.key-tester-padgrid {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 6px;
+  margin-top: 4px;
+}
+.key-tester-pad {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 14px 0 10px;
+  border: 1px solid;
+  border-radius: 8px;
+  background: var(--bg);
+  border-color: var(--border);
+  color: var(--text-faint);
+  font-family: 'IBM Plex Mono', monospace;
+  cursor: pointer;
+  transition: filter 0.12s, transform 0.06s, box-shadow 0.18s;
+}
+.key-tester-pad:hover:not(:disabled) { filter: brightness(1.18); }
+.key-tester-pad:active:not(:disabled) { transform: translateY(1px); }
+.key-tester-pad:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+.key-tester-pad.armed {
+  box-shadow: 0 0 0 1px var(--text), inset 0 0 0 1px rgba(255,255,255,0.12);
+}
+.key-tester-pad.playing {
+  box-shadow: 0 0 0 2px currentColor, 0 0 24px currentColor;
+  filter: brightness(1.25);
+}
+.key-tester-pad-letter {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+.key-tester-pad-state {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  opacity: 0.85;
+}
+.key-tester-pad:disabled .key-tester-pad-state {
+  font-style: italic;
+  opacity: 0.7;
+}
+
+.library-attribution {
+  padding: 12px 26px 18px;
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--text-faint);
+  text-align: center;
+}
+.library-attribution a {
+  color: var(--text-dim);
+  text-decoration: underline;
+  text-decoration-color: var(--border-bright);
+}
+.library-attribution a:hover { color: var(--accent-bright); }

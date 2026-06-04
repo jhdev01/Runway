@@ -1,0 +1,19 @@
+{
+  "name": "Runway Remote",
+  "short_name": "Runway",
+  "description": "LAN remote for Runway worship audio control.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#06090d",
+  "background_color": "#06090d",
+  "icons": [
+    {
+      "src": "./icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

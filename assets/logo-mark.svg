@@ -1,0 +1,22 @@
+<!--
+  Runway — icon-only mark. Square viewBox suitable for buttons, favicons,
+  or any spot where the wordmark won't fit. Uses currentColor.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+  <!-- Tapering waveform leading in from the left edge -->
+  <path
+    d="M 4 32
+       Q 8 23 12 32
+       Q 16 41 20 32
+       Q 23 26 26 32
+       Q 29 38 32 32
+       L 38 32"
+    stroke-width="2.6"
+  />
+  <!-- Clock face -->
+  <circle cx="48" cy="32" r="12" stroke-width="2.6" />
+  <!-- 12-o'clock tick -->
+  <line x1="48" y1="22" x2="48" y2="25" stroke-width="2.6" />
+  <!-- Countdown hand -->
+  <line x1="48" y1="32" x2="53" y2="27" stroke-width="2.6" />
+</svg>

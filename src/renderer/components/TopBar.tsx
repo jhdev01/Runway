@@ -1,0 +1,185 @@
+import React, { useEffect, useRef, useState } from 'react';
+import { useAppStore, type ViewName } from '../state/store';
+import { useEngines } from '../state/engines';
+
+const NAV_ITEMS: { id: ViewName; label: string }[] = [
+  { id: 'live', label: 'Live' },
+  { id: 'schedule', label: 'Schedule' },
+  { id: 'playlists', label: 'Playlists' },
+  { id: 'library', label: 'Library' },
+  { id: 'actions', label: 'Actions' },
+  { id: 'editor', label: 'Editor' },
+  { id: 'settings', label: 'Settings' },
+];
+
+export function TopBar() {
+  const view = useAppStore(s => s.view);
+  const setView = useAppStore(s => s.setView);
+  const midiConnected = useAppStore(s => s.midiConnected);
+  const midiEnabled = useAppStore(s => s.midiEnabled);
+  const setMidiEnabled = useAppStore(s => s.setMidiEnabled);
+  const ppStatus = useAppStore(s => s.ppStatus);
+  const ppEnabled = useAppStore(s => s.config.proPresenterSync.enabled);
+  const updateConfig = useAppStore(s => s.updateConfig);
+  const setPpStatus = useAppStore(s => s.setPpStatus);
+  const ppConfig = useAppStore(s => s.config.proPresenterSync);
+  const [confirmDisablePp, setConfirmDisablePp] = useState(false);
+  const [audioMuted, setAudioMuted] = useState(false);
+  const [confirmMuteAudio, setConfirmMuteAudio] = useState(false);
+  const { midi, audio } = useEngines();
+  const [confirmDisable, setConfirmDisable] = useState(false);
+  const [midiBlink, setMidiBlink] = useState(false);
+  const blinkTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    // Flash the indicator on every meaningful incoming message. Skip 'system'
+    // (MIDI clock fires 24x/beat — would strobe constantly).
+    const unsub = midi.subscribeLog(entry => {
+      if (entry.direction !== 'in') return;
+      if (entry.type === 'system') return;
+      setMidiBlink(true);
+      if (blinkTimerRef.current !== null) window.clearTimeout(blinkTimerRef.current);
+      blinkTimerRef.current = window.setTimeout(() => setMidiBlink(false), 140);
+    });
+    return () => {
+      unsub();
+      if (blinkTimerRef.current !== null) window.clearTimeout(blinkTimerRef.current);
+    };
+  }, [midi]);
+
+  const onMidiToggle = () => {
+    if (!midiConnected) return; // can't disable what isn't connected
+    if (midiEnabled) {
+      // Two-click confirm before disabling, since MIDI carries live show triggers.
+      if (!confirmDisable) {
+        setConfirmDisable(true);
+        window.setTimeout(() => setConfirmDisable(false), 3000);
+        return;
+      }
+      midi.setEnabled(false);
+      setMidiEnabled(false);
+      setConfirmDisable(false);
+    } else {
+      // Re-enabling is benign — one click.
+      midi.setEnabled(true);
+      setMidiEnabled(true);
+    }
+  };
+
+  const onAudioToggle = () => {
+    if (!audioMuted) {
+      // Two-click confirm before muting — silencing audio mid-service is bad.
+      if (!confirmMuteAudio) {
+        setConfirmMuteAudio(true);
+        window.setTimeout(() => setConfirmMuteAudio(false), 3000);
+        return;
+      }
+      audio.setMasterMuted(true);
+      setAudioMuted(true);
+      setConfirmMuteAudio(false);
+    } else {
+      // Re-enabling is benign — one click.
+      audio.setMasterMuted(false);
+      setAudioMuted(false);
+    }
+  };
+
+  const onPpToggle = () => {
+    if (ppEnabled) {
+      // Two-click confirm before disabling — matches MIDI behavior since PP
+      // sync drives live timer + slide changes during a service.
+      if (!confirmDisablePp) {
+        setConfirmDisablePp(true);
+        window.setTimeout(() => setConfirmDisablePp(false), 3000);
+        return;
+      }
+      updateConfig({ proPresenterSync: { ...ppConfig, enabled: false } });
+      // Don't wait up to 10s for the next heartbeat — flip status now so the
+      // indicator turns red immediately.
+      setPpStatus('disabled');
+      setConfirmDisablePp(false);
+    } else {
+      updateConfig({ proPresenterSync: { ...ppConfig, enabled: true } });
+      // Show "checking" until the heartbeat returns the real result.
+      setPpStatus('unknown');
+    }
+  };
+
+  const midiLabel = confirmDisable ? 'Click Again to Disable' : 'MIDI';
+
+  return (
+    <div className="topbar">
+      <div className="logo">
+        <svg className="logo-mark" viewBox="0 0 783.556 648.039" fill="currentColor" aria-hidden="true">
+          <path d="M188.896,194.967c4.872-10.913,10.864-25.166,16.198-37.867,2.043-4.872,3.815-8.903,5.314-12.092,2.583-5.471,4.145-10.452,6.837-16.257.589-1.27,2.881-6.46,6.876-15.569,3.124-7.112,5.53-13.831,9.047-21.119,3.32-6.886,6.493-15.363,10.108-23.693,8.448-19.456,16.787-38.905,25.019-58.348,2.777-6.568,7.947-9.898,15.51-9.99,7.773-.092,13.775.016,18.005.324,6.945.501,12.043,7.298,9.558,14.184-39.999,110.989-76.599,216.212-130.674,370.834-30.169,86.265-58.315,167.009-84.438,242.233-2.953,8.5-4.62,12.983-5,13.448-2.01,2.475-4.594,4.42-7.75,5.835-1.709.766-4.862,1.149-9.459,1.149-39.848,0-60.859-.036-63.034-.108-7.406-.236-12.583-8.084-10.579-15.334.805-2.908,2.475-5.727,3.566-8.261,8.985-20.811,16.136-37.448,21.453-49.91,5.363-12.563,7.004-17.249,12.2-28.673,1.244-2.718,3.039-6.86,5.383-12.426,5.625-13.359,11.889-27.917,18.791-43.673,2.22-5.082,4.705-10.88,7.456-17.396,3.91-9.273,6.906-15.815,10.029-23.182,8.264-19.534,14.954-35.123,20.068-46.767,2.76-6.267,5.353-13.025,8.291-18.84,1.267-2.505,2.122-5.118,3.703-8.811,5.114-11.932,10.917-25.422,17.406-40.47,14.08-32.684,26.034-60.201,35.863-82.552.38-.864,1.159-2.659,2.338-5.383,8.061-18.69,12.187-28.27,12.377-28.742,2.993-7.485,6.172-15,9.538-22.544Z"/>
+          <path d="M511.559,125.097c-.046-.426-.334-1.323-.864-2.691-.995-2.567-3.481-9.564-7.456-20.992-.91-2.613-1.405-4.008-1.483-4.185-.917-2.174-1.473-3.543-1.67-4.106-4.866-14.289-13.68-39.076-26.443-74.359-.786-2.187-1.356-4.126-1.709-5.815-1.513-7.289,3.939-12.239,10.884-12.799.943-.072,4.528-.092,10.756-.059,5.953.026,9.541.2,10.766.521,5.186,1.342,8.814,4.42,10.884,9.234,18.46,42.906,34.023,79.156,46.688,108.749,2.528,5.907,4.905,11.257,7.131,16.051,2.583,5.55,6.051,14.705,9.538,22.819,73.583,171.361,138.493,320.246,161.695,374.587,18.123,42.445,28.536,65.98,41.394,97.139,1.244,3.012,1.873,5.272,1.886,6.778.059,7.21-5.687,12.004-12.76,12.013-31.315.066-52.7.072-64.153.02-5.056-.02-9.158-1.667-12.308-4.941-1.735-1.801-3.657-5.881-5.766-12.239-3.661-11.061-7.348-21.787-11.061-32.18-3.837-10.759-6.545-18.385-8.124-22.878-6.201-17.681-12.694-36.446-19.479-56.295-3.058-8.952-6.323-18.287-9.793-28.005-3.32-9.292-6.627-18.611-9.921-27.956-10.366-29.41-22.079-62.876-35.137-100.4-1.198-3.438-2.109-6.064-2.731-7.878-2.541-7.439-5.406-15.668-8.595-24.685-5.612-15.848-11.047-31.365-16.306-46.551-3.281-9.469-13.205-37.707-29.773-84.713-2.279-6.473-4.194-12.927-6.67-19.459-1.473-3.877-2.731-7.472-3.772-10.786-.766-2.436-2.069-6.008-3.909-10.717-1.925-4.925-3.739-10.402-5.442-16.434-.007-.02-.03-.031-.05-.024-.003.001-.006.003-.009.004-.072.052-.125.121-.157.206-.012.024-.041.035-.066.023-.01-.005-.018-.013-.023-.023l-5.462-14.685c-.274-.737-.452-1.506-.53-2.289Z"/>
+          <path d="M391.788,26.878c6.611.01,13.732,4.911,16.188,11.404.629,1.65.963,4.335,1.002,8.055.02,1.604.02,9.548,0,23.83-.026,14.276-.049,22.219-.069,23.83-.059,3.713-.403,6.398-1.031,8.055-2.485,6.473-9.607,11.365-16.227,11.355-6.621-.02-13.732-4.921-16.188-11.414-.629-1.65-.966-4.335-1.012-8.055-.013-1.604-.01-9.548.01-23.83.02-14.276.043-22.219.069-23.83.052-3.713.396-6.395,1.031-8.045,2.475-6.483,9.607-11.365,16.227-11.355Z"/>
+          <path d="M358.636,382.447c2.253-1.29,4.185-2.397,5.796-3.32,6.198-3.526,9.43-9.008,9.096-16.375-.275-5.982-4.293-10.776-9.774-13.752-6.215-3.366-12.469-5.56-18.762-6.581-16.103-2.626-34.37-5.35-54.802-8.173-4.656-.642-7.757-1.434-9.302-2.377-3.782-2.308-6.503-5.717-6.807-10.412-.498-7.465,2.921-12.606,10.255-15.422,2.809-1.08,6.797-1.09,10.845-1.611,17.851-2.325,35.081-5.091,51.688-8.3,10.304-1.984,25.952-6.915,27.2-19.852,1.12-11.679-14.076-19.832-22.809-23.192-4.217-1.618-6.978-3.003-8.281-4.155-3.896-3.438-5.196-8.042-3.9-13.811,1.454-6.493,8.32-10.206,14.282-11.64.398-.091.784-.233,1.149-.422,8.526-4.371,14.489-7.927,18.025-16.65,1.048-2.587,1.604-6.955,1.67-13.104.092-8.546.147-19.662.167-33.349.007-6.306.501-10.53,1.483-12.672,1.814-3.949,5.006-6.981,9.577-9.096,5.809-2.691,11.421-1.876,16.836,2.446,6.277,5.01,6.886,9.646,6.847,17.976-.059,15.422-.016,28.405.128,38.948.088,5.727,1.267,10.275,5.01,14.833,4.627,5.619,10.216,9.106,17.151,11.414,3.687,1.231,6.103,2.204,7.249,2.917,9.292,5.786,8.163,20.441-2.308,24.538-8.002,3.143-14.577,6.604-19.724,10.383-6.143,4.499-8.343,10.311-6.601,17.436,2.436,9.97,17.436,15.746,26.512,17.279,25.612,4.342,40.952,6.748,46.02,7.22,7.144.668,12.301,1.401,15.471,2.2,16.031,4.047,15.196,25.775-1.719,28.064-22.108,2.98-40.605,5.678-55.49,8.094-8.219,1.336-15.769,4.077-22.652,8.222-6.709,4.037-10.776,11.856-7.514,19.42,1.454,3.373,3.196,5.805,5.226,7.298,5.887,4.322,12.305,7.482,19.253,9.479,2.914.838,6.234,1.771,9.96,2.8,2.554.701,4.663,2.613,6.326,5.737,4.175,7.819.57,18.064-8.065,20.815-2.063.661-5.763,1.785-11.1,3.369-10.147,3.006-17.632,7.416-21.758,17.396-.897,2.181-1.349,5.491-1.356,9.931,0,16.339-.013,26.119-.039,29.341-.069,8.33.796,16.444-4.951,21.414-8.657,7.472-17.128,7.256-25.412-.648-4.067-3.88-4.371-8.467-4.371-14.391.026-22.566-.144-35.981-.511-40.244-1.041-12.141-9.558-17.593-19.842-22.052-1.225-.53-4.699-1.526-10.422-2.986-4.021-1.028-6.801-2.187-8.34-3.477-3.752-3.143-5.281-7.331-4.587-12.563,1.061-8.025,6.277-11.355,13.703-13.33,4.46-1.185,8.936-2.564,13.428-4.135.144-.052.259-.141.344-.265.215-.322.409-.558.501-.609Z"/>
+          <rect x="374.431" y="526.52" width="34.557" height="113.16" rx="17.07" ry="17.07"/>
+        </svg>
+        Runway
+      </div>
+      <div className="topbar-nav">
+        {NAV_ITEMS.map(item => (
+          <button
+            key={item.id}
+            className={`nav-item ${view === item.id ? 'active' : ''}`}
+            onClick={() => setView(item.id)}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
+      <div className="topbar-right">
+        <button
+          className="midi-status midi-status-button"
+          onClick={onMidiToggle}
+          disabled={!midiConnected}
+          data-state={
+            !midiConnected ? 'unavailable'
+              : confirmDisable ? 'confirm'
+              : midiEnabled ? 'on' : 'off'
+          }
+        >
+          <div className={`midi-dot ${
+            !midiConnected ? 'off'
+              : midiEnabled ? ''
+              : 'disabled'
+          } ${midiBlink && midiConnected && midiEnabled ? 'blink' : ''}`} />
+          <span>{midiLabel}</span>
+        </button>
+        <button
+          className="midi-status midi-status-button"
+          onClick={onPpToggle}
+          data-state={
+            confirmDisablePp ? 'confirm'
+              : ppStatus === 'ok' ? 'on'
+              : ppStatus === 'err' ? 'err'
+              : ppStatus === 'unknown' ? 'unknown'
+              : 'off'
+          }
+        >
+          <div className={`midi-dot ${
+            ppStatus === 'ok' ? ''
+              : ppStatus === 'err' ? 'disabled'
+              : ppStatus === 'disabled' ? 'disabled'
+              : 'off'
+          }`} />
+          <span>{confirmDisablePp ? 'Click Again to Disconnect' : 'Pro7'}</span>
+        </button>
+        <button
+          className="midi-status midi-status-button"
+          onClick={onAudioToggle}
+          data-state={
+            confirmMuteAudio ? 'confirm'
+              : audioMuted ? 'off'
+              : 'on'
+          }
+        >
+          <div className={`midi-dot ${audioMuted ? 'disabled' : ''}`} />
+          <span>{confirmMuteAudio ? 'Click Again to Mute' : 'Audio'}</span>
+        </button>
+      </div>
+    </div>
+  );
+}

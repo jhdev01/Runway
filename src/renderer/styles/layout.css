@@ -1,0 +1,151 @@
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* Top bar */
+.topbar {
+  height: 52px;
+  background: var(--bg-elev);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 24px 0 96px; /* leave room for macOS traffic lights */
+  gap: 24px;
+  -webkit-app-region: drag;
+  flex-shrink: 0;
+}
+
+.logo {
+  font-weight: 700;
+  font-size: 17px;
+  letter-spacing: -0.02em;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.logo-mark {
+  height: 18px;
+  width: auto;
+  color: var(--accent);
+  flex-shrink: 0;
+  filter: drop-shadow(0 0 6px rgba(20, 184, 166, 0.35));
+}
+
+.topbar-nav {
+  display: flex;
+  gap: 2px;
+  -webkit-app-region: no-drag;
+}
+
+.nav-item {
+  padding: 7px 14px;
+  font-size: 15px;
+  color: var(--text-dim);
+  cursor: pointer;
+  border-radius: 5px;
+  font-weight: 500;
+  background: none;
+  border: none;
+}
+
+.nav-item.active { background: var(--bg-elev-2); color: var(--text); }
+.nav-item:hover:not(.active) { color: var(--text); }
+
+.topbar-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  -webkit-app-region: no-drag;
+}
+
+.midi-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 11px;
+  background: var(--bg-elev-2);
+  border-radius: 5px;
+  font-size: 14px;
+  font-family: 'IBM Plex Mono', monospace;
+  color: var(--text-dim);
+}
+
+.midi-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 6px var(--green);
+}
+
+.midi-dot.off { background: var(--text-faint); box-shadow: none; }
+.midi-dot.disabled {
+  background: var(--red, #ef4444);
+  box-shadow: 0 0 6px var(--red, #ef4444);
+}
+
+/* Brief pulse when a MIDI message arrives. */
+.midi-dot.blink {
+  background: var(--accent-bright, #2dd4bf);
+  box-shadow: 0 0 14px var(--accent-bright, #2dd4bf), 0 0 4px var(--accent-bright, #2dd4bf);
+  transform: scale(1.5);
+  transition: transform 0.08s ease, box-shadow 0.08s ease, background 0.08s ease;
+}
+
+/* Clickable MIDI toggle */
+.midi-status-button {
+  border: 1px solid transparent;
+  cursor: pointer;
+  font-family: 'IBM Plex Mono', monospace;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+.midi-status-button:hover:not(:disabled) {
+  background: var(--bg-elev);
+  border-color: var(--border-bright);
+}
+.midi-status-button:disabled { cursor: not-allowed; opacity: 0.6; }
+
+.midi-status-button[data-state='off'] {
+  color: var(--text-faint);
+}
+
+.midi-status-button[data-state='err'] {
+  color: var(--red-bright, #f87171);
+}
+.midi-status-button[data-state='err'] .midi-dot {
+  background: var(--red, #ef4444);
+  box-shadow: 0 0 6px var(--red, #ef4444);
+}
+
+.midi-status-button[data-state='unknown'] {
+  color: var(--text-faint);
+}
+
+/* On hover, flash the indicator dot red so the operator sees that clicking
+   will disable / disconnect / mute (a destructive action). */
+.midi-status-button:hover:not(:disabled) .midi-dot {
+  background: var(--red, #ef4444);
+  box-shadow: 0 0 6px var(--red, #ef4444);
+}
+
+.midi-status-button[data-state='confirm'] {
+  border-color: var(--red, #ef4444);
+  background: rgba(239, 68, 68, 0.12);
+  color: var(--red, #ef4444);
+  animation: arm-confirm-pulse 1s ease-in-out infinite;
+}
+.midi-status-button[data-state='confirm']:hover {
+  background: rgba(239, 68, 68, 0.22);
+}
+
+/* Main view container */
+.view-container {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+}

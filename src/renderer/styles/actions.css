@@ -1,0 +1,716 @@
+/* Actions tab — sequence library + per-sequence editor.
+   Mirrors the playlists view's two-pane shape (sidebar + main) so the
+   visual vocabulary stays familiar. */
+
+.actions-view {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  position: relative;
+}
+
+/* Floating "What can I do with actions?" affordance — bottom-right
+   over the main editor area. Quiet teal so it doesn't compete with
+   the action editor controls but is discoverable when the user is
+   sitting on an empty sequence wondering what to put in it. */
+.actions-examples-btn {
+  position: absolute;
+  bottom: 20px;
+  right: 24px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px 8px 10px;
+  background: rgba(20, 184, 166, 0.08);
+  border: 1px solid rgba(20, 184, 166, 0.4);
+  border-radius: 999px;
+  color: var(--accent-bright, #2dd4bf);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: inherit;
+  z-index: 5;
+  transition: background 0.12s, border-color 0.12s;
+}
+.actions-examples-btn:hover {
+  background: rgba(20, 184, 166, 0.18);
+  border-color: var(--accent-bright);
+}
+.actions-examples-btn span:first-child {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(20, 184, 166, 0.25);
+  color: var(--accent-bright);
+  font-weight: 700;
+  font-size: 11px;
+}
+
+.actions-examples-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 32px;
+}
+.actions-examples-modal {
+  background: var(--bg-elev, #1a1f24);
+  border: 1px solid var(--border-bright, #2d3748);
+  border-radius: 10px;
+  width: 100%;
+  max-width: 720px;
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
+}
+.actions-examples-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 22px 26px 18px;
+  border-bottom: 1px solid var(--border);
+}
+.actions-examples-header h2 {
+  margin: 0 0 8px 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.01em;
+}
+.actions-examples-header p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text-dim);
+}
+.actions-examples-close {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-faint);
+  cursor: pointer;
+  font-size: 13px;
+}
+.actions-examples-close:hover {
+  color: var(--text);
+  border-color: var(--border-bright, #2d3748);
+}
+.actions-examples-body {
+  padding: 18px 26px 24px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.actions-example-card {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px 16px;
+}
+.actions-example-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 10px;
+  letter-spacing: 0.01em;
+}
+.actions-example-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.actions-example-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+.actions-example-when {
+  flex-shrink: 0;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  color: var(--accent-bright, #2dd4bf);
+  background: rgba(20, 184, 166, 0.08);
+  border: 1px solid rgba(20, 184, 166, 0.25);
+  padding: 2px 7px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+.actions-example-arrow {
+  color: var(--text-faint);
+  font-weight: 600;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.actions-example-what {
+  color: var(--text-dim);
+  flex: 1;
+  min-width: 0;
+}
+.actions-example-note {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--border);
+  font-size: 11.5px;
+  color: var(--text-faint);
+  font-style: italic;
+  line-height: 1.45;
+}
+.actions-examples-footnote {
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--text-faint);
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 6px;
+}
+.actions-examples-footnote code {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  color: var(--accent-bright);
+  background: rgba(20, 184, 166, 0.08);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+
+.actions-sidebar {
+  background: var(--bg-elev);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.actions-sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 18px 12px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--text-faint);
+  font-weight: 600;
+}
+
+.actions-add-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  background: rgba(20, 184, 166, 0.08);
+  color: var(--accent-bright);
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+.actions-add-btn:hover {
+  background: rgba(20, 184, 166, 0.18);
+  border-color: var(--accent-bright);
+}
+
+.actions-empty {
+  padding: 28px 18px;
+  font-size: 13px;
+  color: var(--text-faint);
+  text-align: center;
+}
+
+.actions-sidebar-list {
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  padding: 0 8px 24px;
+  gap: 4px;
+}
+
+.actions-sidebar-item {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 10px 12px;
+  text-align: left;
+  cursor: pointer;
+  color: var(--text);
+  transition: background 0.1s ease, border-color 0.1s ease;
+  font-family: inherit;
+}
+.actions-sidebar-item:hover {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: var(--border);
+}
+.actions-sidebar-item.active {
+  background: rgba(20, 184, 166, 0.12);
+  border-color: rgba(20, 184, 166, 0.45);
+}
+
+.actions-sidebar-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.actions-sidebar-meta {
+  font-size: 11px;
+  color: var(--text-faint);
+  margin-top: 2px;
+  font-family: 'IBM Plex Mono', monospace;
+  letter-spacing: 0.04em;
+}
+
+/* ─── Main editor pane ─────────────────────────────────────────────── */
+.actions-main {
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  padding: 24px 32px 48px;
+  gap: 18px;
+}
+
+.actions-empty-main {
+  color: var(--text-faint);
+  font-size: 14px;
+  padding: 48px 0;
+  text-align: center;
+}
+
+.actions-main-header {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+
+.actions-name-input {
+  flex: 1;
+  min-width: 240px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text);
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  padding: 6px 8px;
+  border-radius: 6px;
+}
+.actions-name-input:hover { border-color: var(--border); }
+.actions-name-input:focus {
+  outline: none;
+  border-color: var(--accent-bright);
+  background: var(--bg-elev);
+}
+
+.actions-main-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.actions-anchor-picker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+}
+.actions-anchor-picker select {
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--text);
+  padding: 6px 8px;
+  font-size: 13px;
+  font-family: inherit;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.actions-linked {
+  font-size: 12px;
+  color: var(--text-faint);
+  padding: 6px 10px;
+  background: rgba(20, 184, 166, 0.06);
+  border: 1px solid rgba(20, 184, 166, 0.2);
+  border-radius: 5px;
+}
+
+/* ─── Action rows ──────────────────────────────────────────────────── */
+.actions-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.action-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 14px;
+  align-items: center;
+  padding: 10px 14px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.action-row.disabled { opacity: 0.45; }
+
+.action-row-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.action-offset-input {
+  width: 80px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: 14px;
+  text-align: center;
+  background: rgba(0, 0, 0, 0.18);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--accent-bright);
+  padding: 6px 8px;
+  font-weight: 600;
+}
+.action-offset-input:focus {
+  outline: none;
+  border-color: var(--accent-bright);
+}
+
+.action-row-mid {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.action-type-select {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--text);
+  padding: 6px 8px;
+  font-size: 13px;
+  font-family: inherit;
+}
+
+.action-label-input {
+  flex: 1;
+  min-width: 160px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--text);
+  padding: 6px 8px;
+  font-size: 12px;
+}
+.action-label-input::placeholder { color: var(--text-faint); }
+.action-label-input:focus {
+  outline: none;
+  border-color: var(--accent-bright);
+}
+
+.action-id-input {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--text);
+  padding: 6px 8px;
+  font-size: 12px;
+  font-family: 'IBM Plex Mono', monospace;
+  width: 200px;
+}
+
+.action-row-right {
+  display: flex;
+  align-items: center;
+}
+
+.action-row-delete {
+  width: 26px;
+  height: 26px;
+  border-radius: 5px;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-faint);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.12s ease, border-color 0.12s ease;
+}
+.action-row-delete:hover {
+  color: var(--red, #ef4444);
+  border-color: var(--red, #ef4444);
+}
+
+/* ─── Payload row (the type-specific params block) ─────────────────── */
+.payload-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.payload-row select {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--text);
+  padding: 6px 8px;
+  font-size: 12px;
+  font-family: inherit;
+}
+
+.payload-hint {
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.action-num-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+}
+
+.action-toggle-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+  cursor: pointer;
+  user-select: none;
+}
+.action-toggle-field input {
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.action-num-field input {
+  width: 64px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--text);
+  padding: 5px 6px;
+  font-size: 13px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-variant-numeric: tabular-nums;
+  text-transform: none;
+}
+
+/* Full-width "+ Add action" button — also serves as the empty state.
+   When the rows list is empty the button is the only thing on screen
+   so the click target is unambiguous; once rows exist it sits below
+   them as the same visual element. */
+.actions-add-action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  padding: 18px 24px;
+  border-radius: 8px;
+  border: 1px dashed var(--border);
+  background: transparent;
+  color: var(--accent-bright);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+}
+.actions-add-action-btn:hover {
+  background: rgba(20, 184, 166, 0.08);
+  border-color: var(--accent-bright);
+}
+
+.actions-add-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 1px solid currentColor;
+  font-size: 16px;
+  line-height: 1;
+  font-weight: 600;
+}
+
+/* Per-row anchor picker — sits next to the offset input in the row's
+   left zone, reads as a quiet "from X" qualifier. Default is whatever
+   the sequence-level Default anchor is set to. */
+.action-anchor-select {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: var(--text-faint);
+  font-size: 11px;
+  font-family: inherit;
+  padding: 4px 6px;
+  text-transform: lowercase;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: color 0.12s ease, border-color 0.12s ease;
+}
+.action-anchor-select:hover {
+  color: var(--text);
+  border-color: var(--border);
+}
+.action-anchor-select:focus {
+  outline: none;
+  border-color: var(--accent-bright);
+  color: var(--text);
+}
+
+/* Sidebar row holds the click-to-select button + an X delete that uses
+   the second-click confirm pattern. The row tints when the contained
+   item is active so the X reads as part of "this row." */
+.actions-sidebar-row {
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  transition: background 0.1s ease, border-color 0.1s ease;
+}
+.actions-sidebar-row:hover {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: var(--border);
+}
+.actions-sidebar-row.active {
+  background: rgba(20, 184, 166, 0.12);
+  border-color: rgba(20, 184, 166, 0.45);
+}
+.actions-sidebar-row .actions-sidebar-item {
+  flex: 1;
+  border: none;
+  background: transparent;
+  border-radius: 0;
+}
+.actions-sidebar-row .actions-sidebar-item:hover {
+  background: transparent;
+  border-color: transparent;
+}
+
+.actions-sidebar-x {
+  width: 26px;
+  background: transparent;
+  border: none;
+  color: var(--text-faint);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 0 4px;
+  border-radius: 0 5px 5px 0;
+  transition: color 0.12s ease, background 0.12s ease;
+}
+.actions-sidebar-x:hover {
+  color: var(--red, #ef4444);
+  background: rgba(239, 68, 68, 0.08);
+}
+.actions-sidebar-x.confirm {
+  color: var(--red, #ef4444);
+  background: rgba(239, 68, 68, 0.18);
+  animation: arm-confirm-pulse 1s ease-in-out infinite;
+}
+
+/* Per-row type icon — a small glyph in the action's color, clarifies
+   action type at a glance. Pairs with the colored left border so the
+   row reads as belonging to one type. */
+.action-row-icon {
+  font-size: 18px;
+  line-height: 1;
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-weight: 700;
+}
+
+/* Song-count input — replaces the MM:SS magnitude when the row's
+   direction is song-based. Compact integer + "songs" label. */
+.action-song-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.action-song-count input { width: 56px; }
+.action-song-count-label {
+  font-size: 11px;
+  color: var(--text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+}
+
+/* Volume slider for audio_fade — 0..100% capped at unity, no boost.
+   Sits in the row's payload area next to the bus picker. */
+.action-volume-slider {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+}
+.action-volume-slider input[type="range"] {
+  width: 140px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.action-volume-readout {
+  font-family: 'IBM Plex Mono', monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  color: var(--text);
+  min-width: 36px;
+  text-align: right;
+  text-transform: none;
+}

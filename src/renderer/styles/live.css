@@ -1,0 +1,2232 @@
+.live-view {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  height: 100%;
+  width: 100%;
+}
+
+.stage {
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+/* Service tabs */
+.service-header {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 0 32px;
+  background: var(--bg-elev);
+  border-bottom: 1px solid var(--border);
+  min-height: 56px;
+  flex-shrink: 0;
+}
+
+.arm-toggle.arm-toggle-compact {
+  padding: 7px 14px;
+  font-size: 13px;
+  margin-left: 8px;
+}
+.arm-toggle.arm-toggle-compact .arm-toggle-dot {
+  width: 8px;
+  height: 8px;
+}
+
+.service-header-empty {
+  color: var(--text-faint);
+  font-size: 14px;
+}
+
+.service-header-active {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 15px;
+  color: var(--text);
+  font-weight: 600;
+}
+
+.service-header-time {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.service-header-status {
+  font-size: 12px;
+  font-family: 'IBM Plex Mono', monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 3px 8px;
+  border-radius: 3px;
+  background: rgba(16, 185, 129, 0.15);
+  color: var(--green);
+  font-weight: 600;
+}
+
+.service-header-status.queued {
+  background: rgba(20, 184, 166, 0.1);
+  color: var(--accent-bright);
+}
+
+.service-header-next {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  color: var(--text-dim);
+  font-size: 13px;
+  font-family: 'IBM Plex Mono', monospace;
+}
+
+.service-header-next-label {
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 12px;
+  color: var(--text-faint);
+  font-weight: 600;
+}
+
+.service-header-next-item { font-weight: 500; }
+
+/* Hero countdown */
+.hero {
+  padding: 36px 40px 28px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.hero-label {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--text-faint);
+  font-weight: 600;
+  margin-bottom: 14px;
+}
+
+/* Auto-arm-scheduled banner. Replaces the scary "not armed" banner
+   during the back-to-back-services gap when auto-arm is enabled and
+   the system has the next-service arm scheduled for music fire time.
+   Calm teal — same vocabulary as Armed states elsewhere — to read as
+   "this is fine, system has it" rather than "operator must intervene."*/
+.auto-arm-pending {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 18px 32px 0;
+  padding: 12px 16px;
+  background: hsla(300, 60%, 30%, 0.12);
+  border: 1px solid hsla(300, 68%, 60%, 0.4);
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--text);
+}
+.auto-arm-pending-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: hsl(300, 68%, 70%);
+  box-shadow: 0 0 8px hsl(300, 68%, 70%);
+  flex-shrink: 0;
+}
+.auto-arm-pending-text strong {
+  color: hsl(300, 68%, 78%);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+/* Post-service status pill — only visible when a previous service's
+   post-service music is still rolling AND a future service's countdown
+   is also showing. Sits above the countdown so it's the first thing
+   the operator sees: "post-service is still playing, here's how long
+   until it ends, here's a Stop button." Pink to match the post-service
+   accent used in MediumCountdown. */
+.post-service-pill-row {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 14px;
+}
+/* Variant when the pill sits *below* the countdown (back-to-back gap)
+   instead of above. Top + bottom spacing so it reads as a separate
+   block, not crammed against the meta row above or the runway header
+   below. */
+.post-service-pill-row.post-service-pill-row-below {
+  margin-top: 28px;
+  margin-bottom: 16px;
+}
+.post-service-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 22px 12px 20px;
+  background: hsla(300, 60%, 30%, 0.18);
+  border: 1px solid hsla(300, 68%, 60%, 0.5);
+  border-radius: 999px;
+  font-size: 13px;
+  color: hsl(300, 68%, 88%);
+  font-family: 'IBM Plex Mono', monospace;
+}
+.post-service-pill-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: hsl(300, 68%, 70%);
+  box-shadow: 0 0 8px hsl(300, 68%, 70%);
+  animation: pulse-dot 1.4s ease-in-out infinite;
+  flex-shrink: 0;
+}
+@keyframes pulse-dot {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+.post-service-pill-label {
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+.post-service-pill-clock {
+  color: hsl(300, 30%, 78%);
+  font-variant-numeric: tabular-nums;
+}
+.post-service-pill-stop {
+  margin-left: 4px;
+  background: transparent;
+  border: 1px solid hsla(300, 68%, 60%, 0.6);
+  color: hsl(300, 68%, 88%);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 4px 10px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.post-service-pill-stop:hover {
+  background: hsla(300, 68%, 60%, 0.22);
+}
+.post-service-pill-stop.confirm {
+  background: hsla(300, 68%, 60%, 0.32);
+  border-color: hsl(300, 68%, 70%);
+  animation: arm-confirm-pulse 1s ease-in-out infinite;
+}
+
+/* Post-service-ready prompt — replaces the dead "Service has started"
+   text once the target time has passed. Shifts the operator's focus
+   to firing the post-service playlist whenever they're ready. */
+.post-ready-hero {
+  padding: 24px 0 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+.post-ready-eyebrow {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--text-faint);
+}
+.post-ready-name {
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: -0.01em;
+}
+.post-ready-cta {
+  margin-top: 6px;
+  background: var(--accent);
+  color: #0a0a0a;
+  border: none;
+  padding: 14px 32px;
+  font-size: 16px;
+  font-weight: 700;
+  border-radius: 8px;
+  cursor: pointer;
+  letter-spacing: 0.02em;
+  transition: background 0.15s, transform 0.05s;
+  font-family: inherit;
+}
+.post-ready-cta:hover:not(:disabled) {
+  background: var(--accent-bright);
+}
+.post-ready-cta:active:not(:disabled) {
+  transform: translateY(1px);
+}
+.post-ready-cta:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.post-ready-hint {
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+.midi-clock {
+  display: inline-flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 2px;
+  padding: 8px 0;
+}
+
+.midi-clock-digit {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 88px;
+  font-weight: 600;
+  /* Match the ARMED pill's teal so the countdown reads as part of
+     the same "this service is armed" visual story. */
+  color: var(--accent-bright);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  letter-spacing: -0.05em;
+  text-shadow: 0 0 32px rgba(20, 184, 166, 0.55);
+  min-width: 50px;
+  text-align: center;
+}
+
+.midi-clock-sep {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 88px;
+  font-weight: 600;
+  color: var(--accent-bright);
+  opacity: 0.55;
+  line-height: 1;
+  margin: 0 4px;
+}
+
+/* "Pre-music" variant — armed but music hasn't started. Light purple
+   digits with a stronger purple glow for a calmer "waiting" feel. */
+.midi-clock-pre-music .midi-clock-digit {
+  color: var(--purple-light);
+  text-shadow: 0 0 36px rgba(168, 85, 247, 0.7);
+}
+.midi-clock-pre-music .midi-clock-sep { color: var(--purple-light); }
+.midi-clock-pre-music .midi-clock-ms {
+  color: var(--purple-light);
+  opacity: 0.85;
+  text-shadow: 0 0 16px rgba(168, 85, 247, 0.4);
+}
+
+/* "Not armed" variant — service is upcoming but no runway is loaded.
+   Matches the red alert banner above so the operator's eye lands on
+   the same color story across both elements. */
+.midi-clock-not-armed .midi-clock-digit {
+  color: #fca5a5;
+  text-shadow: 0 0 36px rgba(239, 68, 68, 0.7);
+}
+.midi-clock-not-armed .midi-clock-sep { color: #fca5a5; }
+.midi-clock-not-armed .midi-clock-ms {
+  color: #fca5a5;
+  opacity: 0.85;
+  text-shadow: 0 0 16px rgba(239, 68, 68, 0.4);
+}
+
+/* "Idle" variant — countdown is supplementary info while post-service
+   music is the actual focus. Soft purple/pink that harmonizes with
+   the post-service pill's hue (HSL 300) instead of clashing like the
+   alarming red of "not-armed." Reads as "info, not alarm." */
+.midi-clock-idle .midi-clock-digit {
+  color: hsl(300, 50%, 80%);
+  text-shadow: 0 0 32px hsla(300, 60%, 60%, 0.45);
+}
+.midi-clock-idle .midi-clock-sep { color: hsl(300, 50%, 80%); }
+.midi-clock-idle .midi-clock-ms {
+  color: hsl(300, 50%, 80%);
+  opacity: 0.7;
+  text-shadow: 0 0 12px hsla(300, 60%, 60%, 0.3);
+}
+
+.midi-clock-ms {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 36px;
+  font-weight: 500;
+  color: var(--accent-bright);
+  opacity: 0.6;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  margin-left: 8px;
+  min-width: 70px;
+  text-align: left;
+  text-shadow: 0 0 16px rgba(20, 184, 166, 0.4);
+}
+
+.hero-meta {
+  display: flex;
+  justify-content: center;
+  gap: 36px;
+  margin-top: 20px;
+}
+
+.hero-meta-item { display: flex; align-items: center; gap: 8px; }
+
+.hero-meta-label {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--text-faint);
+  font-weight: 600;
+}
+
+.hero-meta-value {
+  font-family: 'IBM Plex Mono', monospace;
+  font-weight: 600;
+  color: var(--text);
+  font-size: 16px;
+}
+
+.hero-meta-value.key { color: var(--accent-bright); }
+/* Mute the land-in key to match the rest of the post-service color
+   story when previous-service music is rolling and the next-service
+   countdown is just info. */
+.hero-meta-value.key.idle { color: hsl(300, 50%, 80%); }
+
+/* Pre-music tinting — applied to the whole hero while the service is armed
+   but pre-service music hasn't fired yet. Mix of purple accents and white
+   text so the readout doesn't feel monochrome. */
+.hero.is-pre-music .hero-label { color: var(--purple); }
+.hero.is-pre-music .hero-meta-label { color: var(--purple-dim); }
+.hero.is-pre-music .hero-meta-value { color: #fff; }
+.hero.is-pre-music .hero-meta-value.key { color: var(--purple); }
+.hero.is-pre-music .sub-countdown {
+  border-color: rgba(168, 85, 247, 0.45);
+  background: rgba(168, 85, 247, 0.1);
+}
+.hero.is-pre-music .sub-countdown-label { color: var(--purple-dim); }
+.hero.is-pre-music .sub-countdown-value { color: #fff; }
+
+/* Start-music-early button container. */
+.hero-early {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  margin-top: 22px;
+}
+.hero-early-buttons {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.hero-early-sub {
+  font-size: 12px;
+  color: var(--text-faint);
+}
+.hero.is-pre-music .hero-early-sub { color: var(--purple-dim); }
+
+/* Cancel button visually distinct from the start-early one. */
+.hero-early-cancel {
+  border-color: rgba(168, 85, 247, 0.5) !important;
+  color: var(--purple) !important;
+  background: rgba(168, 85, 247, 0.08) !important;
+}
+.hero-early-cancel:hover:not(:disabled) {
+  border-color: var(--purple) !important;
+  color: #fff !important;
+  background: rgba(168, 85, 247, 0.18) !important;
+}
+
+/* Auto-start status */
+.sub-countdown-row {
+  display: flex;
+  justify-content: center;
+  margin-top: 14px;
+}
+
+.sub-countdown {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 6px 14px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 15px;
+  color: var(--text-dim);
+}
+
+.sub-countdown-label {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+.sub-countdown-value {
+  font-weight: 600;
+  font-size: 16px;
+  color: var(--text);
+}
+
+/* "Music · Playing" / "Pad · Bridging" status pill — recolored to
+   match the countdown's teal accent so the running-state visual
+   story is consistent across both elements. */
+.sub-countdown-amber {
+  border-color: rgba(20, 184, 166, 0.4);
+  background: rgba(20, 184, 166, 0.06);
+}
+.sub-countdown-amber .sub-countdown-value { color: var(--accent-bright); }
+
+.sub-countdown-green {
+  border-color: rgba(16, 185, 129, 0.4);
+  background: rgba(16, 185, 129, 0.06);
+}
+.sub-countdown-green .sub-countdown-value { color: var(--green); }
+
+.auto-start {
+  padding: 16px 40px;
+  background: var(--bg-elev);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-shrink: 0;
+}
+
+.auto-start-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 8px var(--green);
+  animation: pulse 2s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+.auto-start-indicator.idle {
+  background: var(--text-faint);
+  box-shadow: none;
+  animation: none;
+}
+
+.auto-start-text { flex: 1; font-size: 15px; min-width: 0; }
+
+.auto-start-text strong { color: var(--text); font-weight: 600; }
+.auto-start-text span { color: var(--text-dim); }
+
+.auto-start-detail {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 13px;
+  color: var(--text-faint);
+  margin-top: 3px;
+}
+
+.arm-warning-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(245, 158, 11, 0.5);
+  background: rgba(245, 158, 11, 0.10);
+  color: #f59e0b;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  flex-shrink: 0;
+  align-self: center;
+}
+
+.arm-warning-chip:hover {
+  background: rgba(245, 158, 11, 0.18);
+  border-color: rgba(245, 158, 11, 0.8);
+}
+
+.arm-warning-chip svg { flex-shrink: 0; }
+
+.arm-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 18px;
+  border-radius: 7px;
+  border: 1px solid var(--accent-bright, #14b8a6);
+  background: rgba(20, 184, 166, 0.08);
+  color: var(--accent-bright, #14b8a6);
+  font-family: inherit;
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease;
+  flex-shrink: 0;
+}
+
+.arm-toggle:hover { background: rgba(20, 184, 166, 0.18); }
+
+.arm-toggle-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 8px currentColor;
+}
+
+.arm-toggle[data-armed='true'] {
+  border-color: var(--accent-bright, #14b8a6);
+  background: rgba(20, 184, 166, 0.16);
+  color: var(--accent-bright, #14b8a6);
+}
+
+.arm-toggle[data-armed='true']:hover { background: rgba(20, 184, 166, 0.28); }
+
+.arm-toggle[data-confirm='true'],
+.arm-toggle[data-armed='true'][data-confirm='true'] {
+  border-color: var(--red, #ef4444);
+  background: rgba(239, 68, 68, 0.14);
+  color: var(--red, #ef4444);
+  animation: arm-confirm-pulse 1s ease-in-out infinite;
+}
+
+.arm-toggle[data-confirm='true']:hover,
+.arm-toggle[data-armed='true'][data-confirm='true']:hover {
+  background: rgba(239, 68, 68, 0.26);
+}
+
+@keyframes arm-confirm-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.45); }
+  50% { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); }
+}
+
+.arm-toggle-err {
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 400;
+  color: var(--red, #ef4444);
+  margin-left: 4px;
+}
+
+/* Timeline */
+.runway {
+  padding: 22px 40px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.runway-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.arm-err-inline {
+  margin-left: auto;
+  font-size: 13px;
+  color: var(--red, #ef4444);
+  font-family: 'IBM Plex Mono', monospace;
+}
+
+.runway-title {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--text-faint);
+  font-weight: 600;
+}
+
+/* Pinned under the runway title when a change_setlist swap is queued
+   in the current sequence — tells the operator at a glance "this leg
+   ends with a swap to X" so they can match the truncated count + time
+   they see in the title against what's actually scheduled. Fuchsia
+   matches the change_setlist action color. */
+.runway-swap-footer {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-dim);
+  font-family: inherit;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.runway-swap-arrow {
+  color: #e879f9;
+  font-weight: 700;
+}
+.runway-swap-label { color: var(--text-faint); }
+.runway-swap-target {
+  color: #f0abfc;
+  font-weight: 600;
+}
+
+/* Warning variant — the truncating action has no playlist configured.
+   The runway still ends at the action's fire point, but there's no
+   follow-on audio. Amber so it reads as "fix this in the editor". */
+.runway-swap-footer.missing .runway-swap-arrow { color: var(--amber-true, #fbbf24); }
+.runway-swap-footer.missing .runway-swap-target {
+  color: var(--amber-true, #fbbf24);
+  font-style: italic;
+  font-weight: 500;
+}
+
+.timeline {
+  position: relative;
+  /* Min height keeps a few rows visible; flex children determine actual.
+     Extra bottom padding reserves a strip below the segments so the
+     horizontal scrollbar (when it appears) doesn't overlap each chip's
+     progress bar at the bottom of the segment. */
+  height: 98px;
+  padding-bottom: 8px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  display: flex;
+  /* The runway IS the page — chips share the row and the row scrolls
+     horizontally when the count exceeds what fits. */
+  overflow-x: auto;
+  overflow-y: hidden;
+  /* Standardized `scrollbar-color` honours macOS "Always show scroll
+     bars" + dark mode, where Chromium's ::-webkit-scrollbar rules
+     sometimes get overridden by the OS native chunky scrollbar
+     (white-grey track + light thumb). Setting both properties is
+     belt-and-suspenders: scrollbar-color for spec compliance,
+     ::-webkit-scrollbar-* for older Chromium fallback. */
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-bright, #2a3340) transparent;
+  scrollbar-gutter: stable;
+}
+.timeline::-webkit-scrollbar { height: 8px; background: transparent; }
+.timeline::-webkit-scrollbar-track {
+  background: transparent;
+  /* Box-shadow inset on a transparent track stops macOS from drawing
+     its own white inset under the styled track when "Always show" is on. */
+  box-shadow: none;
+  border: none;
+}
+.timeline::-webkit-scrollbar-thumb {
+  background: var(--border-bright, #2a3340);
+  border-radius: 4px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+.timeline::-webkit-scrollbar-thumb:hover {
+  background: var(--text-faint, #4a5568);
+  background-clip: padding-box;
+}
+.timeline::-webkit-scrollbar-corner { background: transparent; }
+
+.timeline-segment {
+  position: relative;
+  border-right: 1px solid var(--bg);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.timeline-segment:last-child { border-right: none; }
+
+.tl-seg-top {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 8px 12px;
+  cursor: default;
+  min-height: 0;
+  gap: 1px;
+}
+
+.timeline-segment.clickable .tl-seg-top { cursor: pointer; }
+.timeline-segment.clickable .tl-seg-top:hover { background: rgba(255, 255, 255, 0.06); }
+.timeline-segment.current.clickable .tl-seg-top:hover { background: rgba(255, 255, 255, 0.10); }
+
+.tl-seg-scrub {
+  position: relative;
+  height: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  cursor: default;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.timeline-segment.clickable .tl-seg-scrub { cursor: pointer; }
+.timeline-segment.clickable .tl-seg-scrub:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.tl-seg-scrub-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--accent-bright, #14b8a6);
+  pointer-events: none;
+  transition: width 0.15s linear;
+  box-shadow: 0 0 4px currentColor;
+}
+/* Pad progress fill — pink to match the pad-finishing countdown color
+   in the hero so the eye links the two surfaces. */
+.tl-seg-scrub-fill.pad {
+  background: hsl(300, 68%, 70%);
+  box-shadow: 0 0 4px hsla(300, 68%, 60%, 0.6);
+}
+
+.timeline-segment.played {
+  background: rgba(20, 184, 166, 0.1);
+  opacity: 0.55;
+}
+
+.timeline-segment.current {
+  background: rgba(20, 184, 166, 0.18);
+  border-top: 2px solid var(--accent-bright);
+}
+
+.timeline-segment.target {
+  background: rgba(20, 184, 166, 0.08);
+  border-top: 2px solid var(--accent);
+}
+
+/* Pad segment stays neutral until it fires. The shared .current style handles
+   the active highlight; a small left divider keeps it visually distinct. */
+.timeline-segment.pad-segment {
+  border-left: 1px dashed var(--border);
+}
+.timeline-segment.pad-segment.current {
+  border-top-color: var(--amber);
+  background: rgba(103, 232, 249, 0.10);
+}
+
+.tl-seg-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  letter-spacing: -0.01em;
+}
+
+/* Hover any segment → marquee just the title so long names can be read.
+   Artist line stays put. Tooltip works as a faster fallback. */
+.timeline-segment .tl-seg-top:hover .tl-seg-name {
+  overflow: visible;
+  text-overflow: clip;
+  animation: marquee-scroll 10s linear infinite;
+}
+@keyframes marquee-scroll {
+  0%, 10% { transform: translateX(0); }
+  85%, 100% { transform: translateX(calc(-100% + 80px)); }
+}
+
+.tl-seg-artist {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-top: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 500;
+}
+
+.tl-seg-meta {
+  font-size: 11px;
+  color: var(--text-faint);
+  font-family: 'IBM Plex Mono', monospace;
+  margin-top: 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tl-seg-key {
+  position: absolute;
+  bottom: 5px;
+  right: 5px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0;
+  /* Portrait orientation — taller than wide */
+  padding: 5px 3px;
+  min-width: 16px;
+  text-align: center;
+  border-radius: 3px;
+  border: 1px solid;
+  line-height: 1;
+  z-index: 1;
+}
+
+.tl-seg-key.match {
+  outline: 1px solid var(--accent-bright);
+  outline-offset: 1px;
+}
+
+.playhead {
+  position: absolute;
+  top: -4px;
+  bottom: -4px;
+  width: 2px;
+  background: var(--amber);
+  box-shadow: 0 0 8px rgba(103, 232, 249, 0.8);
+  z-index: 10;
+  pointer-events: none;
+}
+
+.playhead::before {
+  content: '';
+  position: absolute;
+  top: -2px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 6px solid var(--amber);
+}
+
+.timeline-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  font-size: 14px;
+  color: var(--text-faint);
+  font-family: 'IBM Plex Mono', monospace;
+}
+
+/* Now playing */
+.now-playing {
+  padding: 18px 40px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  flex-shrink: 0;
+}
+
+.np-info { flex: 1; min-width: 0; }
+
+.np-art {
+  width: 96px;
+  height: 96px;
+  border-radius: 8px;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.35);
+  display: block;
+}
+/* Clickable wrapper around np-art that opens the album-art
+   lightbox. Pure pass-through styling so the visual size matches
+   the non-clickable placeholder branch. */
+.np-art-button {
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: zoom-in;
+  flex-shrink: 0;
+  border-radius: 8px;
+  transition: transform 0.12s, box-shadow 0.12s;
+}
+.np-art-button:hover .np-art {
+  filter: brightness(1.1);
+  box-shadow: 0 6px 22px rgba(0,0,0,0.5);
+}
+.np-art-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-faint);
+  font-size: 42px;
+}
+
+.np-label {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--text-faint);
+  font-weight: 600;
+  margin-bottom: 5px;
+}
+
+.np-title {
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.np-progress {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 13px;
+  color: var(--text-dim);
+  margin-top: 6px;
+}
+
+.np-progress-bar {
+  flex: 1;
+  height: 3px;
+  background: var(--border);
+  border-radius: 2px;
+  position: relative;
+  overflow: hidden;
+}
+
+.np-progress-fill {
+  position: absolute;
+  top: 0; left: 0;
+  height: 100%;
+  background: var(--accent-bright);
+}
+
+.np-key {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px 14px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border-bright);
+  border-radius: 6px;
+}
+
+.np-key-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-faint);
+  font-weight: 600;
+}
+
+.np-key-value {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--accent-bright);
+  line-height: 1.1;
+}
+
+/* Action buttons — a single horizontal row across the bottom. Each
+   button (and the post-service picker) flexes equally so they fill
+   the available width without stacking. */
+.actions {
+  display: flex;
+  gap: 12px;
+  padding: 18px 40px 26px;
+  background: var(--bg);
+  flex-shrink: 0;
+  align-items: stretch;
+}
+
+.action-btn {
+  flex: 1 1 0;
+  min-width: 0;
+  border: none;
+  border-radius: 10px;
+  padding: 14px 16px;
+  font-family: inherit;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-align: left;
+}
+
+.action-btn:active { transform: translateY(1px); }
+.action-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* Allow positioned children inside an action button (post-service
+   chevron + popover, fade engaged hint, etc). */
+.action-btn { position: relative; }
+
+/* Post-service playlist chevron — small ▾ in the upper-right corner
+   of the Start Post-Service button. Tap it to open the picker
+   without firing the button's main click action. Modeled on the
+   remote's pad-key-pick chevron so the gesture is consistent across
+   surfaces. */
+.post-pick-chevron {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  background: rgba(0, 0, 0, 0.18);
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+  z-index: 2;
+  transition: background 0.12s;
+}
+.post-pick-chevron:hover { background: rgba(0, 0, 0, 0.32); }
+.post-pick-chevron:focus-visible { outline: 1px solid rgba(255,255,255,0.5); outline-offset: 1px; }
+
+/* Dropdown popover that drops down from the chevron — anchored to
+   the action button via position:absolute. */
+.post-pick-pop {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 240px;
+  max-width: 320px;
+  background: var(--bg-elev-2, #11171f);
+  border: 1px solid var(--border-bright, #2d3748);
+  border-radius: 8px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+  z-index: 30;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  font-family: inherit;
+  text-align: left;
+}
+.post-pick-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: 5px;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+}
+.post-pick-row:hover { background: rgba(255, 255, 255, 0.05); }
+.post-pick-row.active { background: rgba(20, 184, 166, 0.12); color: var(--accent-bright); }
+.post-pick-check {
+  width: 14px;
+  text-align: center;
+  color: var(--accent-bright);
+  font-size: 11px;
+}
+.post-pick-name {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.post-pick-empty {
+  padding: 12px;
+  text-align: center;
+  color: var(--text-faint);
+  font-size: 12px;
+}
+
+.action-btn-icon {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+.action-btn-icon svg { width: 16px; height: 16px; }
+
+.action-btn-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  /* Truncate long labels/subs so chips of equal width never blow out. */
+  overflow: hidden;
+}
+
+.action-btn-label {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.action-btn-sub {
+  font-size: 11.5px;
+  font-family: 'IBM Plex Mono', monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0.7;
+}
+
+.action-btn.post {
+  background: linear-gradient(135deg, #0d5d56 0%, var(--accent) 100%);
+  color: white;
+  box-shadow: 0 4px 24px rgba(20, 184, 166, 0.18), inset 0 1px 0 rgba(255,255,255,0.1);
+}
+
+.action-btn.post:hover:not(:disabled) {
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-bright) 100%);
+  box-shadow: 0 8px 32px rgba(20, 184, 166, 0.32), inset 0 1px 0 rgba(255,255,255,0.15);
+}
+
+.action-btn.post .action-btn-icon { background: rgba(255,255,255,0.18); color: white; }
+
+.action-btn.post.post-confirm {
+  background: linear-gradient(135deg, #7f1d1d 0%, var(--red) 100%);
+  color: white;
+  animation: arm-confirm-pulse 1s ease-in-out infinite;
+}
+.action-btn.post.post-confirm:hover {
+  background: linear-gradient(135deg, var(--red) 0%, var(--red-bright) 100%);
+}
+
+.action-btn.panic {
+  background: linear-gradient(135deg, #7f1d1d 0%, var(--red) 100%);
+  color: white;
+  box-shadow: 0 4px 24px rgba(244, 63, 94, 0.2), inset 0 1px 0 rgba(255,255,255,0.1);
+}
+
+.action-btn.panic:hover:not(:disabled) {
+  background: linear-gradient(135deg, var(--red) 0%, var(--red-bright) 100%);
+  box-shadow: 0 8px 32px rgba(244, 63, 94, 0.4), inset 0 1px 0 rgba(255,255,255,0.15);
+}
+
+.action-btn.panic .action-btn-icon { background: rgba(255,255,255,0.2); color: white; }
+
+/* Fade to Pad — soft alternative to full panic. Pink/purple to match
+   the pad color story across the app. */
+.action-btn.fade-to-pad {
+  background: linear-gradient(135deg, hsl(300, 50%, 30%) 0%, hsl(300, 60%, 50%) 100%);
+  color: white;
+  box-shadow: 0 4px 24px hsla(300, 60%, 50%, 0.2), inset 0 1px 0 rgba(255,255,255,0.1);
+}
+.action-btn.fade-to-pad:hover:not(:disabled) {
+  background: linear-gradient(135deg, hsl(300, 60%, 40%) 0%, hsl(300, 70%, 60%) 100%);
+  box-shadow: 0 8px 32px hsla(300, 60%, 50%, 0.4), inset 0 1px 0 rgba(255,255,255,0.15);
+}
+.action-btn.fade-to-pad .action-btn-icon { background: rgba(255,255,255,0.2); color: white; }
+
+/* Engaged state — Fade to Pad is currently holding. Persistent
+   pulsing glow + brighter gradient so the operator can tell at a
+   glance the room is being held by a pad. Click will reverse the
+   fade. */
+.action-btn.fade-to-pad.engaged {
+  background: linear-gradient(135deg, hsl(300, 70%, 50%) 0%, hsl(300, 80%, 65%) 100%);
+  animation: fade-to-pad-pulse 1.6s ease-in-out infinite;
+}
+.action-btn.fade-to-pad.engaged:hover:not(:disabled) {
+  background: linear-gradient(135deg, hsl(300, 75%, 55%) 0%, hsl(300, 85%, 70%) 100%);
+}
+@keyframes fade-to-pad-pulse {
+  0%, 100% {
+    box-shadow:
+      0 4px 24px hsla(300, 80%, 65%, 0.35),
+      inset 0 1px 0 rgba(255,255,255,0.1);
+  }
+  50% {
+    box-shadow:
+      0 6px 36px hsla(300, 80%, 65%, 0.7),
+      0 0 0 2px hsla(300, 80%, 70%, 0.45),
+      inset 0 1px 0 rgba(255,255,255,0.15);
+  }
+}
+
+/* When Fade-to-Pad is engaged, recolor the "Now Playing" label as
+   the holding indicator (so we don't have to overlay a second
+   badge that would collide with the KEY pill on the right). The
+   art + title also dim slightly to underline that the music is
+   muted. */
+.now-playing.fade-holding .np-art,
+.now-playing.fade-holding .np-art-button,
+.now-playing.fade-holding .np-title {
+  opacity: 0.55;
+  transition: opacity 0.18s;
+}
+.np-label.holding {
+  color: hsl(300, 80%, 80%);
+  animation: np-label-holding-pulse 1.6s ease-in-out infinite;
+}
+@keyframes np-label-holding-pulse {
+  0%, 100% { opacity: 0.8; }
+  50% { opacity: 1; }
+}
+
+.action-btn.panic.flashing {
+  animation: panic-flash 0.18s ease-in-out 6;
+}
+
+@keyframes panic-flash {
+  0%, 100% {
+    background: linear-gradient(135deg, #7f1d1d 0%, var(--red) 100%);
+    box-shadow: 0 4px 24px rgba(244, 63, 94, 0.2), inset 0 1px 0 rgba(255,255,255,0.1);
+  }
+  50% {
+    background: linear-gradient(135deg, #fca5a5 0%, #fff 100%);
+    box-shadow: 0 0 36px rgba(244, 63, 94, 0.9), inset 0 0 0 2px rgba(255,255,255,0.6);
+  }
+}
+
+/* Post-panic Re-arm state — same slot, different intent. */
+.action-btn.panic.rearm {
+  background: linear-gradient(135deg, #115e59 0%, var(--accent-bright, #14b8a6) 100%);
+  box-shadow: 0 4px 24px rgba(20, 184, 166, 0.25), inset 0 1px 0 rgba(255,255,255,0.1);
+  animation: rearm-pulse 1.6s ease-in-out infinite;
+}
+
+.action-btn.panic.rearm:hover:not(:disabled) {
+  background: linear-gradient(135deg, var(--accent-bright, #14b8a6) 0%, #99f6e4 100%);
+  box-shadow: 0 8px 32px rgba(20, 184, 166, 0.45), inset 0 1px 0 rgba(255,255,255,0.15);
+}
+
+@keyframes rearm-pulse {
+  0%, 100% { box-shadow: 0 4px 24px rgba(20, 184, 166, 0.25), inset 0 1px 0 rgba(255,255,255,0.1); }
+  50% { box-shadow: 0 6px 32px rgba(20, 184, 166, 0.55), inset 0 1px 0 rgba(255,255,255,0.18); }
+}
+
+/* Right panel */
+.right-panel {
+  background: var(--bg-elev);
+  border-left: 1px solid var(--border);
+  overflow-y: auto;
+  padding: 22px 0;
+}
+
+.panel-section { margin-bottom: 28px; position: relative; }
+
+/* Bus level meters — RMS fill + peak-hold tick per bus row. Compact
+   enough to slot in alongside the master fader without crowding.
+   26px horizontal padding matches .panel-header so the row aligns
+   with the section title above. */
+.bus-meter-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 5px 0;
+  padding: 0 26px;
+}
+.bus-meter-label {
+  width: 36px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--text-faint);
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+.bus-meter-track {
+  position: relative;
+  flex: 1;
+  height: 6px;
+  background: var(--bg-elev-2, rgba(0, 0, 0, 0.4));
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+}
+/* Fill spans the full track and uses a static color stop — teal
+   almost the whole way, then a yellow→red tip at the very end. The
+   visible portion is clipped from the right via clip-path so the
+   gradient stays anchored to the track width regardless of fill
+   level. Without this, the gradient would stretch with the fill div
+   and the red tip would show even at low signal levels. */
+.bus-meter-fill {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg,
+    var(--accent) 0%,
+    var(--accent) 88%,
+    #facc15 94%,
+    var(--red-bright) 99%);
+  clip-path: inset(0 100% 0 0);
+  transition: clip-path 0.05s linear;
+}
+.bus-meter-peak {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--text);
+  transform: translateX(-1px);
+  transition: left 0.08s linear;
+}
+
+/* Pad settings gear — bottom-right of the panel. */
+.pad-settings-gear {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 28px;
+  height: 28px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--text-faint);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: color 0.12s ease, border-color 0.12s ease;
+}
+.pad-settings-gear:hover { color: var(--text); border-color: var(--accent); }
+.pad-settings-gear svg { width: 14px; height: 14px; }
+
+.panel-header {
+  padding: 0 26px;
+  margin-bottom: 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* RehearsePanel — section content uses the same horizontal indent as panel-header */
+.rehearse-content {
+  padding: 4px 26px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.panel-title {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--text-faint);
+  font-weight: 600;
+}
+
+.pad-status {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+  color: var(--green);
+  padding: 2px 7px;
+  background: rgba(16, 185, 129, 0.1);
+  border-radius: 3px;
+  font-weight: 600;
+}
+
+.pad-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  padding: 0 26px;
+}
+
+.pad-key {
+  aspect-ratio: 1;
+  background: var(--bg-elev-2);
+  border: 1px solid var(--border-bright);
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-family: 'IBM Plex Mono', monospace;
+  transition: all 0.15s;
+  color: var(--text);
+}
+
+/* Per-key color is applied inline via keyColor() — these states only add
+   non-color treatment (shadow/scale/border-thickness) so they layer on top. */
+.pad-key:hover { filter: brightness(1.18); }
+
+.pad-key.active {
+  border-width: 2px;
+  box-shadow: 0 0 16px rgba(255, 255, 255, 0.12);
+}
+
+.pad-key.compatible { /* visual cue is the inline soft-bg color */ }
+
+.pad-key-name { font-size: 16px; font-weight: 600; }
+.pad-key-num { font-size: 11px; opacity: 0.5; margin-top: 1px; }
+
+.pad-transport {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 14px 26px 0;
+}
+
+.pad-t-btn {
+  width: 38px;
+  height: 38px;
+  background: var(--bg-elev-2);
+  border: 1px solid var(--border-bright);
+  border-radius: 6px;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pad-t-btn:hover { border-color: var(--amber); color: var(--amber); }
+
+.pad-t-btn.primary {
+  background: var(--amber);
+  border-color: var(--amber);
+  color: var(--bg);
+}
+
+.pad-t-btn.primary:hover { background: var(--amber-glow); border-color: var(--amber-glow); }
+
+.pad-t-btn svg { width: 14px; height: 14px; }
+.pad-t-btn.primary svg { width: 16px; height: 16px; }
+.pad-t-btn[data-loop='true'] {
+  border-color: var(--accent);
+  color: var(--accent-bright);
+  background: rgba(20, 184, 166, 0.12);
+}
+
+/* Gear button sits at the far right of the transport row, aligned with the
+   rightmost pad column (F). */
+.pad-t-gear { margin-left: auto; }
+
+.pad-state {
+  margin-left: auto;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 13px;
+  color: var(--amber);
+  font-weight: 600;
+}
+
+.pad-meter {
+  height: 3px;
+  background: var(--border);
+  border-radius: 2px;
+  margin: 12px 22px 0;
+  overflow: hidden;
+}
+
+.pad-meter-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--amber), var(--amber-glow));
+  width: 0%;
+  border-radius: 2px;
+}
+
+.pad-length-row {
+  margin: 18px 26px 0;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.pad-length-label {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-faint);
+  font-weight: 600;
+}
+
+.pad-length-fields {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.pad-length-field {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pad-length-sub {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.pad-length-total {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+  color: var(--text-faint);
+  text-align: right;
+}
+
+.master-fader-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 26px;
+}
+
+/* Main + Pad share the same 3-column grid so labels, sliders, and
+   readouts line up vertically. Reset to default is double-click on
+   the slider itself (Main → 0 dB, Pad → 60%). */
+.master-fader-labeled {
+  display: grid;
+  grid-template-columns: 38px 1fr 60px;
+  gap: 10px;
+  align-items: center;
+}
+.master-fader-channel {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--text-faint);
+  text-transform: uppercase;
+}
+.master-fader-readout {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+  color: var(--text-dim);
+  text-align: right;
+}
+
+.master-fader-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--bg-elev-2);
+  border: none;
+  outline: none;
+}
+.master-fader-slider:focus,
+.master-fader-slider:focus-visible { outline: none; }
+
+.master-fader-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--accent-bright, #14b8a6);
+  cursor: grab;
+  box-shadow: 0 0 0 4px rgba(20, 184, 166, 0.18);
+  transition: box-shadow 0.12s ease;
+}
+.master-fader-slider::-webkit-slider-thumb:hover {
+  box-shadow: 0 0 0 6px rgba(20, 184, 166, 0.30);
+}
+.master-fader-slider::-webkit-slider-thumb:active { cursor: grabbing; }
+
+.master-fader-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.master-fader-unity {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 12px;
+  padding: 3px 8px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+.master-fader-unity:hover { border-color: var(--accent-bright, #14b8a6); color: var(--accent-bright, #14b8a6); }
+
+.eq-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--bg-elev-2);
+  color: var(--text-dim);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+}
+.eq-toggle:hover { border-color: var(--accent); color: var(--text); }
+.eq-toggle.active {
+  border-color: var(--accent-bright, #14b8a6);
+  color: var(--accent-bright, #14b8a6);
+  background: rgba(20, 184, 166, 0.08);
+}
+.eq-toggle-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent-bright, #14b8a6);
+  box-shadow: 0 0 6px var(--accent-bright, #14b8a6);
+}
+
+.eq-panel {
+  margin-top: 8px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.eq-band {
+  display: grid;
+  grid-template-columns: 60px 1fr 60px;
+  align-items: center;
+  gap: 10px;
+}
+
+.eq-band-label {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.eq-band-label > span:first-child {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+.eq-band-hz {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  color: var(--text-faint);
+}
+
+.eq-band-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(90deg,
+    rgba(20, 184, 166, 0.20) 0%,
+    var(--bg-elev-2) 50%,
+    rgba(20, 184, 166, 0.20) 100%);
+  outline: none;
+}
+.eq-band-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--accent-bright, #14b8a6);
+  cursor: grab;
+  box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.18);
+}
+
+.eq-band-value {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  color: var(--text-dim);
+  text-align: right;
+}
+
+.master-fader-hint {
+  padding: 8px 26px 0;
+  font-size: 12px;
+  color: var(--text-faint);
+  line-height: 1.4;
+}
+
+.music-xfade-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 26px;
+  gap: 12px;
+}
+
+.music-xfade-label {
+  font-size: 14px;
+  color: var(--text-dim);
+}
+
+.music-xfade-hint {
+  padding: 8px 26px 0;
+  font-size: 12px;
+  color: var(--text-faint);
+  line-height: 1.4;
+}
+
+/* MIDI Log */
+.midi-log {
+  margin: 6px 18px 4px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-elev);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 13px;
+  color: var(--text-faint);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.midi-log-empty {
+  color: var(--text-faint);
+  font-style: italic;
+  padding: 8px 0;
+  font-size: 13px;
+}
+
+.midi-log-entry {
+  display: grid;
+  grid-template-columns: 70px 80px 1fr;
+  gap: 6px;
+  align-items: baseline;
+}
+
+.midi-log-time { color: var(--text-faint); }
+.midi-log-action.in { color: var(--accent-bright); }
+.midi-log-action.out { color: var(--green); }
+
+/* Schedule items — compact one-line row */
+.schedule-item {
+  padding: 6px 26px;
+  border-left: 2px solid transparent;
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.schedule-item.now {
+  border-left-color: var(--green);
+  background: var(--bg-elev-2);
+}
+
+.schedule-item.next { border-left-color: var(--accent-bright); }
+
+.schedule-time {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.schedule-key {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent-bright);
+  flex: 1;
+}
+
+.schedule-item-empty {
+  padding: 8px 26px;
+  font-size: 13px;
+  color: var(--text-faint);
+}
+
+.schedule-meta {
+  font-size: 11px;
+  color: var(--text-faint);
+  font-family: 'IBM Plex Mono', monospace;
+  letter-spacing: 0.06em;
+  margin-top: 2px;
+}
+
+/* ─── Runway list (vertical, readable for long runways) ─────────────── */
+.runway-list {
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow-y: auto;
+  max-height: 360px;
+  display: flex;
+  flex-direction: column;
+}
+
+.runway-row {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  border-bottom: 1px solid var(--border);
+  border-left: 3px solid transparent;
+}
+.runway-row:last-child { border-bottom: none; }
+
+/* Top half = the readable info row. Click here = play this track from
+   the beginning (when playable). Scrub-seek lives in the strip below. */
+.runway-row-top {
+  display: grid;
+  grid-template-columns: 36px 36px 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 14px;
+  min-height: 44px;
+}
+.runway-row-top.clickable { cursor: pointer; }
+.runway-row-top.clickable:hover { background: rgba(255, 255, 255, 0.03); }
+
+.runway-row.current {
+  background: rgba(20, 184, 166, 0.08);
+  border-left-color: var(--accent-bright);
+}
+.runway-row.current .runway-row-top.clickable:hover { background: rgba(20, 184, 166, 0.14); }
+.runway-row.missing { opacity: 0.45; }
+/* Played rows fade so the eye can pick out current/upcoming first.
+   The .current row keeps full strength even if it also matches .played,
+   because .current is declared after .played by selector specificity. */
+.runway-row.played {
+  opacity: 0.42;
+}
+.runway-row.played.current {
+  opacity: 1;
+}
+
+.runway-row-num {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  color: var(--text-faint);
+  text-align: right;
+}
+
+.runway-row-key {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+  padding: 3px 0;
+  border-radius: 3px;
+  border: 1px solid transparent;
+  min-height: 22px;
+}
+.runway-row-key.match {
+  box-shadow: 0 0 0 1px currentColor, 0 0 8px currentColor;
+}
+
+.runway-row-main { min-width: 0; overflow: hidden; }
+.runway-row-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  letter-spacing: -0.01em;
+}
+.runway-row-artist {
+  font-size: 12px;
+  color: var(--text-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 1px;
+}
+
+.runway-row-meta {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+.runway-row-trimmed { opacity: 0.6; }
+
+/* Scrub strip pinned to the bottom of every row. Always visible (so
+   the progress fill on the currently-playing track has a place to
+   live), but only clickable when the runway is playable (test/rehearsal
+   services). Mirrors the original .tl-seg-scrub vocabulary. */
+.runway-row-scrub {
+  position: relative;
+  height: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.runway-row-scrub.clickable { cursor: pointer; }
+.runway-row-scrub.clickable:hover { background: rgba(255, 255, 255, 0.10); }
+
+.runway-row-progress {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--accent-bright);
+  pointer-events: none;
+  transition: width 0.15s linear;
+  box-shadow: 0 0 6px currentColor;
+}
+
+.runway-row.pad-row {
+  border-top: 1px dashed var(--border);
+}
+/* Pad row's scrub stays decorative — nothing to seek into. */
+.runway-row.pad-row .runway-row-scrub { background: transparent; }
+
+/* ─── Not-armed warning banner ──────────────────────────────────────── */
+.not-armed-banner {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 18px;
+  margin: 14px 40px 12px;
+  padding: 14px 22px;
+  border-radius: 8px;
+  border: 2px solid rgba(239, 68, 68, 0.7);
+  background: rgba(239, 68, 68, 0.16);
+  color: #fca5a5;
+  font-family: -apple-system, system-ui, sans-serif;
+}
+
+.not-armed-banner.pulse {
+  animation: not-armed-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes not-armed-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.55); }
+  50%      { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+}
+
+.not-armed-icon {
+  font-size: 28px;
+  line-height: 1;
+}
+
+.not-armed-title {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: inherit;
+}
+.not-armed-sub {
+  font-size: 12px;
+  color: rgba(252, 165, 165, 0.7);
+  margin-top: 2px;
+}
+
+/* Mirrors .arm-toggle's outlined-pill look so the alert button visually
+   sits in the same family as the rest of the app — just in red instead
+   of teal because this is the "you have a problem" variant. */
+.not-armed-arm {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 18px;
+  border-radius: 7px;
+  border: 1px solid #ef4444;
+  background: rgba(239, 68, 68, 0.14);
+  color: #fca5a5;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+  flex-shrink: 0;
+}
+.not-armed-arm:hover {
+  background: rgba(239, 68, 68, 0.26);
+  border-color: #fca5a5;
+  color: #fee2e2;
+}
+
+/* −2 / +2 time-shift buttons. Pushed to the far right of the service
+   header via margin-left:auto on the wrapping group, neutral light-grey
+   styling so the visual weight stays on Arm. First click flips
+   data-confirm=true → red + pulse; second click commits the shift. */
+.time-shift-group {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.time-shift-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 7px 14px;
+  border-radius: 7px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+  flex-shrink: 0;
+}
+.time-shift-btn:hover {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: var(--border-bright, #2d3748);
+  color: var(--text);
+}
+
+.time-shift-btn[data-confirm='true'] {
+  border-color: var(--red, #ef4444);
+  background: rgba(239, 68, 68, 0.14);
+  color: var(--red, #ef4444);
+  animation: arm-confirm-pulse 1s ease-in-out infinite;
+}
+.time-shift-btn[data-confirm='true']:hover { background: rgba(239, 68, 68, 0.26); }
+
+/* ─── Action markers (horizontal proportional bar) ─────────────────────
+   Vertical lines + icons positioned absolutely over the timeline at
+   percentage-based offsets. Each marker picks up its action type's
+   accent color via inline style. */
+.action-markers {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 5;
+  /* Layout containment keeps descendants' positions from inflating the
+     parent timeline's scrollWidth — without this, an action marker at
+     pct=100 with translateX(-50%) makes the chip row scroll even when
+     all chips fit. */
+  contain: layout paint;
+}
+.action-marker {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  pointer-events: auto;
+  /* Translate so the icon sits centered on the fire-time line. */
+  transform: translateX(-50%);
+}
+.action-marker-icon {
+  font-size: 14px;
+  line-height: 1;
+  padding: 2px 5px;
+  border-radius: 4px;
+  background: var(--bg);
+  border: 1px solid currentColor;
+  color: inherit;
+  font-weight: 700;
+  /* Sits flush against the top of the timeline — no negative margin or
+     it gets clipped by the timeline's overflow-y: hidden. */
+  margin-top: 0;
+  cursor: default;
+  z-index: 1;
+}
+.action-marker-line {
+  flex: 1;
+  width: 1px;
+  background: currentColor;
+  opacity: 0.7;
+  margin-top: -1px;
+}
+.action-marker:hover .action-marker-icon { transform: scale(1.15); }
+.action-marker:hover .action-marker-line { opacity: 1; }
+
+/* ─── Action chip strip (vertical list mode) ─────────────────────────
+   A horizontal row of chips above the runway list, one per action.
+   Compact label + countdown to fire time. Past actions dim. */
+.action-chip-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 14px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  margin-bottom: 10px;
+}
+.action-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid;
+  font-size: 12px;
+  background: rgba(255, 255, 255, 0.02);
+  cursor: default;
+}
+.action-chip.past { opacity: 0.4; }
+.action-chip-icon {
+  font-size: 13px;
+  line-height: 1;
+  font-weight: 700;
+}
+.action-chip-label {
+  color: var(--text);
+  font-weight: 500;
+  white-space: nowrap;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.action-chip-when {
+  font-family: 'IBM Plex Mono', monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+/* ─── Inline action row (vertical list mode) ───────────────────────────
+   A compact one-line entry that sits between song rows at the
+   chronologically correct position. Picks up the action's accent color
+   on the left border + icon. Past actions dim alongside the same
+   "show played" toggle that hides played songs. */
+.runway-action-row {
+  display: grid;
+  grid-template-columns: 22px auto 1fr auto;
+  gap: 12px;
+  align-items: center;
+  padding: 6px 14px;
+  border-bottom: 1px solid var(--border);
+  border-left: 3px solid transparent;
+  background: rgba(255, 255, 255, 0.015);
+  font-size: 12px;
+}
+.runway-action-row.past { opacity: 0.42; }
+.runway-action-icon {
+  font-size: 14px;
+  font-weight: 700;
+  text-align: center;
+  line-height: 1;
+}
+.runway-action-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+.runway-action-detail {
+  font-size: 12px;
+  color: var(--text-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.runway-action-when {
+  font-family: 'IBM Plex Mono', monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
+/* Per-song action marker on the bottom scrub strip — a thin vertical
+   pip in the action's color, positioned by left:%. Stays visible
+   alongside the progress fill on the currently-playing row. */
+.runway-row-action-marker {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: currentColor;
+  pointer-events: none;
+  box-shadow: 0 0 4px currentColor;
+  transform: translateX(-1px);
+  z-index: 2;
+}

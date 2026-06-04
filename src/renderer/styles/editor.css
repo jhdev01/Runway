@@ -1,0 +1,318 @@
+.editor-view {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  background: var(--bg);
+  overflow: hidden;
+}
+
+.editor-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px;
+  padding: 18px 24px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-elev);
+  flex-shrink: 0;
+}
+
+.editor-title {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.editor-subtitle {
+  color: var(--text-faint);
+  font-size: 13px;
+}
+
+.editor-track-select {
+  flex: 1;
+  min-width: 280px;
+  font-size: 14px;
+  padding: 8px 12px;
+}
+
+.editor-show-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.editor-hidden-count {
+  color: var(--text-faint);
+  font-size: 12px;
+}
+
+.editor-status {
+  color: var(--text-dim);
+  font-size: 13px;
+}
+
+.editor-error {
+  color: var(--red, #ef4444);
+  font-size: 13px;
+  max-width: 600px;
+}
+
+/* Big waveform area takes the rest of the space */
+.editor-canvas-wrap {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  padding: 24px;
+}
+
+.editor-canvas-frame {
+  flex: 1;
+  position: relative;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.editor-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-faint);
+  font-size: 14px;
+}
+
+/* Drag handles on the trim region edges — bigger hit area, prominent grip */
+.editor-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 28px;
+  margin-left: -14px;
+  cursor: ew-resize;
+  z-index: 5;
+}
+
+.editor-handle-grip {
+  position: absolute;
+  inset: 0 12px;
+  background: rgba(20, 184, 166, 0.85);
+  border-radius: 2px;
+  pointer-events: none;
+  transition: background 0.1s ease, box-shadow 0.1s ease;
+}
+
+.editor-handle:hover .editor-handle-grip,
+.editor-handle:active .editor-handle-grip {
+  background: var(--accent-bright, #14b8a6);
+  box-shadow: 0 0 12px var(--accent-bright, #14b8a6);
+}
+
+/* Three short horizontal lines at vertical center to read like a grip */
+.editor-handle-grip::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 2px;
+  height: 30px;
+  margin-left: -1px;
+  margin-top: -15px;
+  background:
+    rgba(255,255,255,0.85)
+    linear-gradient(0deg,
+      transparent 0%, transparent 25%,
+      rgba(255,255,255,0.6) 25%, rgba(255,255,255,0.6) 35%,
+      transparent 35%, transparent 65%,
+      rgba(255,255,255,0.6) 65%, rgba(255,255,255,0.6) 75%,
+      transparent 75%);
+  border-radius: 1px;
+}
+
+/* Pointing arrow on the inner edge */
+.editor-handle-left .editor-handle-grip::after,
+.editor-handle-right .editor-handle-grip::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  width: 0;
+  height: 0;
+  border: 7px solid transparent;
+  transform: translateY(-50%);
+}
+
+.editor-handle-left .editor-handle-grip::after {
+  left: 100%;
+  border-left: 8px solid var(--accent-bright, #14b8a6);
+  border-right-width: 0;
+}
+
+.editor-handle-right .editor-handle-grip::after {
+  right: 100%;
+  border-right: 8px solid var(--accent-bright, #14b8a6);
+  border-left-width: 0;
+}
+
+.editor-handle-label {
+  position: absolute;
+  top: 8px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+  font-weight: 600;
+  background: rgba(0, 0, 0, 0.7);
+  color: var(--accent-bright, #14b8a6);
+  padding: 3px 7px;
+  border-radius: 3px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.editor-handle-left .editor-handle-label { left: 24px; }
+.editor-handle-right .editor-handle-label { right: 24px; }
+
+.editor-handle-fade-tag {
+  position: absolute;
+  bottom: 8px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  font-weight: 600;
+  background: rgba(245, 158, 11, 0.85);
+  color: #000;
+  padding: 2px 6px;
+  border-radius: 3px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.editor-handle-left .editor-handle-fade-tag { left: 24px; }
+.editor-handle-right .editor-handle-fade-tag { right: 24px; }
+
+/* Playhead — always visible. Subtle when idle, glowing when previewing. */
+.editor-playhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: rgba(255, 255, 255, 0.6);
+  pointer-events: none;
+  z-index: 4;
+}
+
+.editor-playhead.playing {
+  background: #fff;
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.8);
+}
+
+/* Small triangle at the top, like a real DAW playhead */
+.editor-playhead-triangle {
+  position: absolute;
+  top: -1px;
+  left: 50%;
+  width: 0;
+  height: 0;
+  margin-left: -7px;
+  border-left: 7px solid transparent;
+  border-right: 7px solid transparent;
+  border-top: 9px solid rgba(255, 255, 255, 0.7);
+}
+
+.editor-playhead.playing .editor-playhead-triangle {
+  border-top-color: #fff;
+  filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.7));
+}
+
+/* Big timecode readout in the canvas while previewing */
+.editor-timecode {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 18px;
+  font-weight: 600;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.55);
+  padding: 6px 14px;
+  border-radius: 6px;
+  pointer-events: none;
+  z-index: 6;
+  letter-spacing: 0.04em;
+}
+
+.editor-filter {
+  font-size: 13px;
+  padding: 7px 10px;
+}
+
+.editor-zoom-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--bg-elev-2);
+}
+
+.editor-zoom-label {
+  font-size: 10px;
+  font-family: 'IBM Plex Mono', monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-faint);
+  margin-right: 2px;
+}
+
+.editor-zoom-btn {
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 14px;
+  font-weight: 600;
+  border-radius: 3px;
+  cursor: pointer;
+}
+.editor-zoom-btn:hover {
+  background: var(--bg-elev);
+  color: var(--accent-bright, #14b8a6);
+}
+
+.editor-zoom-value {
+  min-width: 36px;
+  text-align: center;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  color: var(--text);
+}
+
+.editor-footer {
+  flex-shrink: 0;
+  padding: 18px 24px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-elev);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.editor-fields {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(160px, 1fr));
+  gap: 16px;
+}
+
+.editor-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}

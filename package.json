@@ -1,0 +1,110 @@
+{
+  "name": "runway",
+  "version": "10.1.2",
+  "description": "Worship audio control: scheduled pre-service music, key-aware playlist arrangement, pad player, MIDI integration with ProPresenter.",
+  "main": "dist/main/main/main.js",
+  "author": "jhdev",
+  "license": "UNLICENSED",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently -k \"npm:dev:vite\" \"npm:dev:electron\"",
+    "dev:vite": "vite",
+    "dev:electron": "wait-on tcp:5173 && tsc -p tsconfig.main.json && cross-env NODE_ENV=development electron dist/main/main/main.js",
+    "build": "npm run build:renderer && npm run build:main && npm run build:remote",
+    "build:renderer": "vite build",
+    "build:main": "tsc -p tsconfig.main.json",
+    "build:remote": "rm -rf dist/remote && mkdir -p dist/remote && cp src/remote/*.html src/remote/*.css src/remote/*.js src/remote/*.png src/remote/*.json dist/remote/",
+    "package": "npm run build && bash build/make-dmg-background.sh && electron-builder --mac && bash build/make-dmg.sh",
+    "package:win": "npm run build && electron-builder --win",
+    "lint": "echo 'add eslint later'"
+  },
+  "dependencies": {
+    "bonjour-service": "^1.3.0",
+    "multicast-dns": "^7.2.5",
+    "music-metadata": "^10.5.0",
+    "qrcode": "^1.5.4",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "ws": "^8.20.0",
+    "zustand": "^4.5.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/qrcode": "^1.5.6",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "@types/ws": "^8.18.1",
+    "@vitejs/plugin-react": "^4.2.0",
+    "concurrently": "^8.2.2",
+    "cross-env": "^7.0.3",
+    "electron": "^29.0.0",
+    "electron-builder": "^24.13.0",
+    "typescript": "^5.3.0",
+    "vite": "^5.0.0",
+    "wait-on": "^7.2.0"
+  },
+  "build": {
+    "appId": "com.jhdev.runway",
+    "productName": "Runway",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "package.json",
+      "build/trayTemplate.png",
+      "build/trayTemplate@2x.png",
+      "build/icon.ico"
+    ],
+    "mac": {
+      "category": "public.app-category.music",
+      "target": "dmg",
+      "icon": "build/icon.icns",
+      "extendInfo": {
+        "NSMicrophoneUsageDescription": "Runway requests microphone access only to read the names of your audio output devices so they can be selected for routing. No audio is recorded."
+      }
+    },
+    "win": {
+      "target": [
+        { "target": "nsis", "arch": ["x64"] }
+      ],
+      "icon": "build/icon.ico",
+      "artifactName": "Runway-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Runway"
+    },
+    "dmg": {
+      "background": "build/dmg-background.png",
+      "window": {
+        "width": 640,
+        "height": 600
+      },
+      "contents": [
+        {
+          "x": 160,
+          "y": 200,
+          "type": "file"
+        },
+        {
+          "x": 480,
+          "y": 200,
+          "type": "link",
+          "path": "/Applications"
+        },
+        {
+          "x": 320,
+          "y": 460,
+          "type": "file",
+          "path": "build/HOW TO INSTALL.txt",
+          "name": "HOW TO INSTALL.txt"
+        }
+      ]
+    }
+  }
+}

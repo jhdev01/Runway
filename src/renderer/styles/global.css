@@ -1,0 +1,317 @@
+:root {
+  --bg: #06090d;
+  --bg-elev: #0c1116;
+  --bg-elev-2: #11171f;
+  --border: #1a2330;
+  --border-bright: #243142;
+  --text: #e6f0f5;
+  --text-dim: #7a8a98;
+  --text-faint: #4a5868;
+  --accent: #14b8a6;
+  --accent-bright: #2dd4bf;
+  --accent-dim: #0d5d56;
+  --green: #10b981;
+  --amber: #67e8f9;
+  --amber-glow: #22d3ee;
+  /* Real amber/gold for "armed and waiting" states — distinct from --amber
+     which is misnamed (it's actually cyan, kept for backwards compat). */
+  --amber-true: #fbbf24;
+  --amber-true-glow: #f59e0b;
+  /* Purple palette for the "armed and waiting" hero tint. */
+  --purple: #c084fc;
+  --purple-glow: #a855f7;
+  --purple-dim: rgba(192, 132, 252, 0.65);
+  /* Lighter purple for the big countdown digits — needs to read clearly
+     against the dark hero background. */
+  --purple-light: #c084fc;
+  --red: #f43f5e;
+  --red-bright: #fb7185;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body, html, #root {
+  font-family: 'IBM Plex Sans', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 16px;
+  line-height: 1.4;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.mono { font-family: 'IBM Plex Mono', monospace; }
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+}
+
+input, select, textarea {
+  font-family: inherit;
+  background: var(--bg-elev-2);
+  border: 1px solid var(--border-bright);
+  color: var(--text);
+  border-radius: 5px;
+  padding: 7px 11px;
+  font-size: 15px;
+}
+
+input:focus, select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+/* Global scrollbar styling. Both `scrollbar-color` (spec) and the
+   webkit pseudo-elements (legacy) are needed — macOS with "Always
+   show scroll bars" enabled draws its own white-grey overlay scrollbar
+   that ::-webkit-scrollbar alone doesn't always override. */
+html { scrollbar-color: var(--border-bright) transparent; scrollbar-width: thin; }
+::-webkit-scrollbar { width: 8px; height: 8px; background: transparent; }
+::-webkit-scrollbar-track { background: transparent; box-shadow: none; border: none; }
+::-webkit-scrollbar-thumb {
+  background: var(--border-bright);
+  border-radius: 4px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-faint);
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-corner { background: transparent; }
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Shared utility components */
+.btn {
+  font-size: 14px;
+  font-weight: 500;
+  padding: 7px 13px;
+  background: transparent;
+  border: 1px solid var(--border-bright);
+  color: var(--text-dim);
+  border-radius: 5px;
+}
+
+.btn:hover { color: var(--text); border-color: var(--accent); }
+
+.btn-primary {
+  font-size: 14px;
+  font-weight: 500;
+  padding: 7px 13px;
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  color: white;
+  border-radius: 5px;
+}
+
+.btn-primary:hover { background: var(--accent-bright); border-color: var(--accent-bright); }
+
+.btn-secondary {
+  font-size: 14px;
+  font-weight: 500;
+  padding: 7px 13px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border-bright);
+  color: var(--text-dim);
+  border-radius: 5px;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  color: var(--text);
+  border-color: var(--accent);
+  background: var(--bg-elev-2);
+}
+
+.btn-secondary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.btn-secondary.btn-confirm-danger,
+.btn-secondary.btn-confirm-danger:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.12);
+  border-color: var(--red, #ef4444);
+  color: var(--red-bright, #f87171);
+  animation: btn-confirm-danger-pulse 1s ease-in-out infinite;
+}
+
+@keyframes btn-confirm-danger-pulse {
+  0%, 100% { background: rgba(239, 68, 68, 0.12); }
+  50% { background: rgba(239, 68, 68, 0.22); }
+}
+
+.btn-danger {
+  font-size: 14px;
+  font-weight: 500;
+  padding: 7px 13px;
+  background: transparent;
+  border: 1px solid var(--border-bright);
+  color: var(--text-dim);
+  border-radius: 5px;
+}
+
+.btn-danger:hover { color: var(--red-bright); border-color: var(--red); }
+
+/* ─── Toggle switch ───────────────────────────────────────────────────
+   Pill switch used for binary prefs across the app — picks up the
+   accent palette on the on-state so it reads as part of the dark/teal
+   visual family instead of an OS-default blue checkbox. */
+.toggle-switch {
+  display: inline-block;
+  width: 34px;
+  height: 18px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid var(--border);
+  padding: 0;
+  position: relative;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+.toggle-switch:hover { background: rgba(255, 255, 255, 0.12); }
+.toggle-switch.on {
+  background: rgba(20, 184, 166, 0.4);
+  border-color: var(--accent-bright);
+}
+.toggle-switch.on:hover { background: rgba(20, 184, 166, 0.55); }
+.toggle-switch:disabled { opacity: 0.4; cursor: not-allowed; }
+.toggle-switch:focus-visible { outline: 2px solid var(--accent-bright); outline-offset: 2px; }
+
+.toggle-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.85);
+  transition: transform 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+.toggle-switch.on .toggle-thumb {
+  transform: translateX(16px);
+  background: #fff;
+  box-shadow: 0 0 6px rgba(103, 232, 249, 0.55);
+}
+
+
+/* Album art lightbox — full-screen overlay used by the Live now-
+   playing card and the Library mini-player to view artwork at a
+   useful size during a service. Rendered into document.body via
+   portal so parent overflow/stacking can't hide it. */
+.art-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(0, 0, 0, 0.88);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  cursor: zoom-out;
+  animation: art-lightbox-fade 0.16s ease-out;
+}
+@keyframes art-lightbox-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.art-lightbox-img {
+  max-width: 80vmin;
+  max-height: 75vh;
+  border-radius: 8px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.7);
+  cursor: zoom-out;
+}
+.art-lightbox-caption {
+  color: var(--text);
+  text-align: center;
+  font-family: inherit;
+  cursor: default;
+  max-width: 80vmin;
+}
+.art-lightbox-caption strong {
+  display: block;
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.art-lightbox-caption span {
+  color: var(--text-dim);
+  font-size: 13px;
+}
+.art-lightbox-close {
+  position: absolute;
+  top: 18px;
+  right: 22px;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: var(--text);
+  font-size: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.12s, border-color 0.12s;
+}
+.art-lightbox-close:hover {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+
+/* Custom tooltip — portaled from <Tooltip>. left/top are set in JS
+   to the cursor position; transform offsets the bubble down-and-
+   slightly-right of the cursor (matching native OS conventions).
+   `max-content` width with cap keeps single-line tips compact, and
+   the right/bottom margin via max-width + position guard prevents
+   the bubble from escaping the viewport on hovers near the edges. */
+.rw-tip {
+  position: fixed;
+  z-index: 10000;
+  background: var(--bg-elev-2, #11171f);
+  color: var(--text);
+  border: 1px solid var(--border-bright, #2a3340);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 11.5px;
+  font-family: inherit;
+  letter-spacing: 0.01em;
+  max-width: min(460px, calc(100vw - 32px));
+  word-break: break-all;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55);
+  pointer-events: none;
+  animation: rw-tip-in 0.12s ease-out;
+  /* If the cursor is near the right edge, slide left so the bubble
+     stays on-screen. translate(0,0) by default; flips in JS only
+     for now-playing edge cases (handled by max-width clamp above). */
+  transform: translate(8px, 0);
+}
+/* Wrapper around tooltip-anchored children — pass cursor through
+   so an I-beam doesn't appear on hover, and stay out of the layout
+   flow's way (inline-flex keeps children behaving as expected
+   inside flex parents). */
+.rw-tip-anchor {
+  cursor: inherit;
+  display: inline-flex;
+  align-items: center;
+}
+.rw-tip-anchor[class*="block"],
+div.rw-tip-anchor { display: block; }
+
+@keyframes rw-tip-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
