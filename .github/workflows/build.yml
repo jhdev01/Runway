@@ -6,10 +6,16 @@ name: Build
 #   - Runway-win : the NSIS .exe installer (x64)
 # Download from the workflow run's Artifacts panel after the run finishes.
 #
-# Builds are unsigned (no Apple Developer ID or Windows code-signing cert
-# configured). macOS will show a Gatekeeper warning on first launch; users
-# can right-click → Open to bypass. Windows SmartScreen may similarly warn.
-# Adding signing later is an env-secret + electron-builder config change.
+# When the trigger is a `v*` tag (e.g. v10.1.2), a follow-up job also
+# publishes a permanent GitHub Release with the two installers attached
+# as release assets — same files, but the download link doesn't expire
+# after 30 days like regular workflow artifacts do.
+#
+# Builds are unsigned for distribution (no Apple Developer ID or
+# Windows code-signing cert). macOS uses ad-hoc signing so the app
+# launches on Apple Silicon without "damaged" errors. First-launch
+# Gatekeeper warning still appears — right-click → Open to bypass.
+# Windows SmartScreen may also warn.
 
 on:
   push:
@@ -59,3 +65,37 @@ jobs:
           path: ${{ matrix.output-glob }}
           if-no-files-found: error
           retention-days: 30
+
+  release:
+    # Only runs on `v*` tag pushes; not on plain main pushes or manual
+    # dispatch runs. That keeps every commit-to-main from creating a
+    # release — only deliberate `git tag vX.Y.Z && git push origin vX.Y.Z`
+    # actually publishes.
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      # Required for the default GITHUB_TOKEN to create / update releases.
+      contents: write
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: List downloaded files (debug)
+        run: find artifacts -type f | sort
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Runway ${{ github.ref_name }}
+          tag_name: ${{ github.ref_name }}
+          # Auto-generate release notes from commits since the previous tag.
+          generate_release_notes: true
+          # Attach both installers. The double-glob picks up whatever DMG
+          # and EXE filenames electron-builder produced for this version.
+          files: |
+            artifacts/Runway-mac/*.dmg
+            artifacts/Runway-win/*.exe
+          fail_on_unmatched_files: true
