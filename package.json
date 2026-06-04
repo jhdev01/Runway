@@ -13,7 +13,7 @@
     "build": "npm run build:renderer && npm run build:main && npm run build:remote",
     "build:renderer": "vite build",
     "build:main": "tsc -p tsconfig.main.json",
-    "build:remote": "rm -rf dist/remote && mkdir -p dist/remote && cp src/remote/*.html src/remote/*.css src/remote/*.js src/remote/*.png src/remote/*.json dist/remote/",
+    "build:remote": "node build/copy-remote.js",
     "package": "npm run build && bash build/make-dmg-background.sh && electron-builder --mac --publish never && bash build/make-dmg.sh",
     "package:win": "npm run build && electron-builder --win --publish never",
     "lint": "echo 'add eslint later'"
