@@ -36,8 +36,15 @@ fi
 # required. Doesn't quiet the first-launch Gatekeeper warning (still
 # need right-click → Open the first time), but resolves the "damaged"
 # blocker on M-series Macs.
+#
+# NOTE: don't pass `--options runtime` — that enables hardened runtime
+# which blocks JIT / unsigned executable memory / dlopen of unsigned
+# libraries unless we provide signed entitlements granting them. The
+# Electron renderer needs all three, so hardened-runtime + ad-hoc sign
+# kills the app at launch with "Runway cannot be opened because of a
+# problem." Plain ad-hoc (no runtime) is permissive and just works.
 echo "[make-dmg] ad-hoc signing Runway.app"
-codesign --force --deep --sign - --options runtime "$APP_SRC" || {
+codesign --force --deep --sign - "$APP_SRC" || {
   echo "[make-dmg] ad-hoc codesign failed (continuing — DMG will be unsigned)"
 }
 
