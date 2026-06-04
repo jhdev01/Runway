@@ -29,6 +29,18 @@ if [[ ! -d "$APP_SRC" ]]; then
   exit 1
 fi
 
+# Ad-hoc codesign the .app (Apple Silicon requires SOME signature or
+# Gatekeeper refuses with "Runway is damaged and can't be opened" even
+# after right-click → Open). `--sign -` is the codesign convention for
+# ad-hoc signing — no certificate needed, no Apple Developer ID
+# required. Doesn't quiet the first-launch Gatekeeper warning (still
+# need right-click → Open the first time), but resolves the "damaged"
+# blocker on M-series Macs.
+echo "[make-dmg] ad-hoc signing Runway.app"
+codesign --force --deep --sign - --options runtime "$APP_SRC" || {
+  echo "[make-dmg] ad-hoc codesign failed (continuing — DMG will be unsigned)"
+}
+
 echo "[make-dmg] staging contents in $STAGE"
 mkdir -p "$STAGE/.background"
 cp -R "$APP_SRC" "$STAGE/Runway.app"
