@@ -265,6 +265,36 @@ export function EnginesProvider({ children }: { children: React.ReactNode }) {
         await pp.testConnection();
         const wasConnected = useAppStore.getState().ppStatus === 'ok';
         useAppStore.getState().setPpStatus('ok');
+        // PP just came (back) online — first launch after the runway was
+        // already rolling, or a mid-service crash + restart. The countdown
+        // arm is a one-shot at music start and never retries, so if PP was
+        // down at that moment the timer cue was lost for the whole runway.
+        // Re-arm it here: the timer counts down to an absolute wall-clock
+        // time (runway.targetMs), so re-sending the same arm mid-runway
+        // yields the correct remaining time. Only the timer is restored —
+        // slide/playlist hooks are NOT re-fired on reconnect.
+        if (!wasConnected) {
+          const s = useAppStore.getState();
+          const runway = s.currentRunway;
+          if (
+            runway && runway.serviceId && !runway.isPostService
+            && (runway.phase === 'music' || runway.phase === 'pad')
+            && runway.targetMs > Date.now()
+          ) {
+            const svc = s.config.services.find(x => x.id === runway.serviceId);
+            const ov = svc?.proPresenterOverride;
+            const effective = ov ? { ...cfg, ...ov } : cfg;
+            if (effective.timerUuid) {
+              console.log('[pp] reconnected mid-runway — re-arming countdown', {
+                timerUuid: effective.timerUuid,
+                target: new Date(runway.targetMs).toLocaleString(),
+              });
+              void pp.armCountdownToTime(effective.timerUuid, runway.targetMs).catch(err => {
+                console.warn('[pp] reconnect re-arm failed', err);
+              });
+            }
+          }
+        }
         // Pre-fetch timers + playlists on (re)connect so the Settings tab is
         // populated the instant it's opened — no manual Test press needed.
         // Throttle to once per minute on continuous-ok pings.

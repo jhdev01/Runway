@@ -44,6 +44,15 @@ Root-caused the "two songs playing at once but the runway shows one" incident
   its guards at fire time, so it can't double-arm a service the arm_playlist
   action already armed (the other half of the dual-audio race).
 
+### ProPresenter countdown re-arm on reconnect
+The PP countdown was a one-shot at music start with no retry — if Pro7 was
+launched after music started (or crashed and restarted mid-service) the
+timer never appeared. The 10s connection heartbeat now re-arms the countdown
+on the offline→online transition whenever a service runway is in music/pad
+phase with targetMs in the future. Safe because the timer counts to an
+absolute wall-clock time, so a re-arm mid-runway shows the correct remaining
+time. Only the timer re-arms; slide/playlist hooks do not re-fire.
+
 ---
 
 ## Recent work (lead-up to v10.1.2)
