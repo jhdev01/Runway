@@ -995,9 +995,25 @@ export class AudioEngine {
   panicFadeAll(durationSec: number): void {
     this.fadeOutMusic(durationSec);
     this.fadeOutPad(durationSec);
-    // Safety net: sweep every registered music source, not just the slot
-    // owners fadeOutMusic knows about. If a source was ever orphaned from
-    // the slot bookkeeping, panic still silences and stops it.
+    this.sweepMusicNodes(durationSec);
+  }
+
+  /**
+   * Music-bus-only panic: fade + stop the slot owner AND sweep every
+   * registered music source, leaving the pad bus alone. Used by disarm
+   * paths where a manually fired pad should survive but no music may.
+   */
+  panicFadeMusic(durationSec: number): void {
+    this.fadeOutMusic(durationSec);
+    this.sweepMusicNodes(durationSec);
+  }
+
+  /**
+   * Safety net: fade + stop every registered music source, not just the
+   * slot owners fadeOutMusic knows about. If a source was ever orphaned
+   * from the slot bookkeeping, panic/disarm still silences and stops it.
+   */
+  private sweepMusicNodes(durationSec: number): void {
     const now = this.ctx.currentTime;
     for (const { source, gain } of this.liveMusicNodes) {
       try {

@@ -44,6 +44,17 @@ Root-caused the "two songs playing at once but the runway shows one" incident
   its guards at fire time, so it can't double-arm a service the arm_playlist
   action already armed (the other half of the dual-audio race).
 
+### Disarm always silences the music bus
+Operator report: "disarming a service should stop music but didn't."
+`armToggle`'s disarm only faded when the runway phase wasn't `queued`, and
+its arm branch only faded post-service audio — so arming over a playing
+Quick Play left that music rolling under the queued runway, where disarm
+couldn't reach it. Now: disarm always fades the music bus (music-only via
+`panicFadeMusic` in the queued case, so a manually fired pad survives;
+full `panicFadeAll` when the runway is audibly firing), and arming fades
+ANY audible runway (post-service, Quick Play music, lingering pad), not
+just post-service.
+
 ### ProPresenter countdown re-arm on reconnect
 The PP countdown was a one-shot at music start with no retry — if Pro7 was
 launched after music started (or crashed and restarted mid-service) the

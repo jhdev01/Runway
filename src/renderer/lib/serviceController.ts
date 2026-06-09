@@ -1044,9 +1044,15 @@ export class ServiceController {
         return;
       }
       console.log('[armToggle] performing disarm');
-      // If already firing, fade audio so the disarm isn't a hard cut.
+      // Disarm must ALWAYS end with a silent music bus. A queued runway
+      // "shouldn't" have audio, but historically could (e.g. Quick Play
+      // music left rolling under a newly-armed runway) — so the queued
+      // case fades the music bus too (music-only, so a manually fired
+      // pad survives). An audibly-firing runway gets the full panic fade.
       if (state.currentRunway && state.currentRunway.phase !== 'queued') {
         this.audio.panicFadeAll(state.config.defaults.panicFadeSec);
+      } else {
+        this.audio.panicFadeMusic(state.config.defaults.panicFadeSec);
       }
       state.disarmService(activeService.id);
       state.setAutoArmEnabled(false);
@@ -1060,11 +1066,17 @@ export class ServiceController {
 
     // Not armed — arm and re-enable auto-arm so subsequent services follow.
     state.setAutoArmEnabled(true);
-    // If post-service music is currently rolling, fade it out so arming
-    // doesn't leave the old playlist running concurrently with the new
-    // pre-service runway. armService overwrites currentRunway anyway, so
-    // we only need to silence the audio bus here.
-    if (state.currentRunway?.isPostService) {
+    // If ANY audible runway is currently rolling (post-service playlist,
+    // Quick Play/Test music, a lingering pad bridge), fade it out so
+    // arming doesn't leave the old audio running concurrently with the
+    // new pre-service runway. armService overwrites currentRunway but
+    // never touches audio, so the bus must be silenced here. (Previously
+    // only post-service was faded — arming over a playing Quick Play left
+    // its music rolling under the queued runway, where disarm couldn't
+    // reach it either.)
+    const curPhase = state.currentRunway?.phase;
+    if (state.currentRunway
+        && (state.currentRunway.isPostService || curPhase === 'music' || curPhase === 'pad')) {
       this.audio.panicFadeAll(state.config.defaults.panicFadeSec);
     }
     const result = await state.armService(
