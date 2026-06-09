@@ -488,6 +488,18 @@ export function LiveView() {
 
     let cancelled = false;
     const doArm = async () => {
+      if (cancelled) return;
+      // Re-check the guards at FIRE time, not just when the deferred
+      // timer was scheduled. An arm_playlist action (or any other path)
+      // can arm this same service while the timer is pending; React's
+      // effect cleanup usually clears the timer, but if the timer fires
+      // in the same window, a redundant armService here would install a
+      // second runway while the first one's scheduleRunway is still
+      // decoding — the root of the "two songs at once, runway shows one"
+      // incident.
+      const live = useAppStore.getState();
+      if (live.currentRunway?.serviceId === activeService.id) return; // already armed
+      if (live.currentRunway && !live.currentRunway.serviceId && !live.currentRunway.isPostService) return; // operator-launched Quick Play/Test
       // armService overwrites currentRunway directly, but the audio
       // engine doesn't know — any audio left rolling from the previous
       // runway (post-service track OR an unfinished pad bridge from the
@@ -496,7 +508,7 @@ export function LiveView() {
       // currentRunway.serviceId === serviceId and bails when armService
       // swaps the runway, so the pad source kept looping forever.
       // Always fade *both* buses on a bridging arm.
-      const cur = useAppStore.getState().currentRunway;
+      const cur = live.currentRunway;
       if (cur && (cur.isPostService || cur.serviceId !== activeService.id)) {
         const cfg = useAppStore.getState().config.defaults;
         const fade = cfg.postServiceFadeInSec ?? 4;

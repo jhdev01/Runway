@@ -14,6 +14,38 @@ Living doc. Update when something material changes; replace the "Recent work" se
 
 ---
 
+## Recent work (post-v10.1.2, unreleased)
+
+### Dual-audio + late-landing fixes (audio engine / auto-arm)
+Root-caused the "two songs playing at once but the runway shows one" incident
+(back-to-back services, post-service → arm_playlist "music to fill" action):
+
+- **Music-bus claim token (`musicEpoch`)** — `playMusic` / `crossfadeToMusic` /
+  `scheduleRunway` each take a token at entry and re-check it after their
+  decode awaits; a stale call bails without starting sources. Previously two
+  interleaved async starts could both complete, and the loser's sources kept
+  playing — untracked, invisible in the UI, and unreachable by Panic.
+  `fadeOutMusic` / `stopMusic` also bump the token so a panic cancels plays
+  still decoding.
+- **Panic safety net** — every music-bus source is registered in
+  `liveMusicNodes` (auto-removed on end); `panicFadeAll` sweeps the set so
+  no source can outlive a panic even if slot bookkeeping ever loses one.
+- **`loadBuffer` in-flight dedup** — concurrent loads of the same file share
+  one fetch+decode. armService's preloader and `scheduleRunway` used to
+  decode every track twice in parallel on the fill-arm path.
+- **`scheduleRunway` start-latency compensation** — decode time + lead-in is
+  now skipped INTO the first track (same as the reactive path always did)
+  instead of delaying the whole runway. Previously a cold-cache arm (the
+  arm_playlist fill flow) shifted the entire runway — anchor landing
+  included — late by ~2× the decode time, which is why the song didn't end
+  at countdown 0:00. The schedule math itself (track order, transitions,
+  landing) is unchanged; only the start-alignment error is removed.
+- **Deferred auto-arm re-check** — LiveView's musicFireMs `setTimeout` re-runs
+  its guards at fire time, so it can't double-arm a service the arm_playlist
+  action already armed (the other half of the dual-audio race).
+
+---
+
 ## Recent work (lead-up to v10.1.2)
 
 ### Audio engine / runway

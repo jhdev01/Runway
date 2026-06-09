@@ -132,7 +132,26 @@ export class AudioEngine {
   // bus check musicScheduled first and fall back to currentMusic when null.
   private musicScheduled: ScheduledRunway | null = null;
 
+  // Monotonic claim token for the music bus. Every play path (playMusic /
+  // crossfadeToMusic / scheduleRunway) takes a fresh token at entry and
+  // re-checks it after each await: if another call claimed the bus while
+  // this one was decoding, the stale call bails WITHOUT starting sources.
+  // Closes the orphaned-source race where two interleaved async starts both
+  // completed and the loser's sources kept playing — audible, absent from
+  // every UI surface, and unreachable by panic. fadeOutMusic / stopMusic
+  // also bump the token so a panic can cancel a play that's still decoding.
+  private musicEpoch = 0;
+  // Every music-bus source started and not yet ended. Panic sweeps this set
+  // so no music source can outlive a panic even if a future bug orphans one
+  // from the slot bookkeeping above.
+  private liveMusicNodes = new Set<{ source: AudioBufferSourceNode; gain: GainNode }>();
+
   private bufferCache = new Map<string, AudioBuffer>();
+  // In-flight decode promises so concurrent loads of the same file share one
+  // fetch+decode. Without this, armService's preloader and scheduleRunway
+  // raced to decode every track twice in parallel, roughly doubling the
+  // cold-cache arm latency (and the async window the epoch guard protects).
+  private inflightLoads = new Map<string, Promise<AudioBuffer>>();
   private listeners: Set<PlaybackListener> = new Set();
   private rafHandle: number | null = null;
 
@@ -336,17 +355,25 @@ export class AudioEngine {
   // ---- Buffer loading ----
 
   async loadBuffer(filePath: string): Promise<AudioBuffer> {
-    if (this.bufferCache.has(filePath)) {
-      return this.bufferCache.get(filePath)!;
-    }
+    const cached = this.bufferCache.get(filePath);
+    if (cached) return cached;
+    const pending = this.inflightLoads.get(filePath);
+    if (pending) return pending;
     // Use the custom runway-audio:// scheme registered in the main process.
     // Electron blocks fetching file:// URLs from the renderer for security.
-    const url = filePathToUrl(filePath);
-    const res = await fetch(url);
-    const arrayBuf = await res.arrayBuffer();
-    const buffer = await this.ctx.decodeAudioData(arrayBuf);
-    this.bufferCache.set(filePath, buffer);
-    return buffer;
+    const load = (async () => {
+      const url = filePathToUrl(filePath);
+      const res = await fetch(url);
+      const arrayBuf = await res.arrayBuffer();
+      const buffer = await this.ctx.decodeAudioData(arrayBuf);
+      this.bufferCache.set(filePath, buffer);
+      return buffer;
+    })();
+    this.inflightLoads.set(filePath, load);
+    // Clear the in-flight entry on settle so a failed load can be retried
+    // instead of every future caller inheriting the cached rejection.
+    load.finally(() => this.inflightLoads.delete(filePath)).catch(() => {});
+    return load;
   }
 
   evictBuffer(filePath: string) {
@@ -364,6 +391,7 @@ export class AudioEngine {
     /** Buffer offset where the segment begins (= trimStart). Defaults to startAtSec. */
     segmentStartSec?: number;
   }): Promise<void> {
+    const epoch = ++this.musicEpoch;
     // playMusic owns the music bus via the reactive path. If a precise
     // schedule is currently in charge, tear it down first so the two
     // can't fight over the bus.
@@ -377,10 +405,14 @@ export class AudioEngine {
     const callEntryMs = Date.now();
     await this.ensureRunning();
     const buffer = await this.loadBuffer(filePath);
+    // A newer call claimed the bus while we were decoding — bail before
+    // creating sources so the newest caller stays the sole owner.
+    if (epoch !== this.musicEpoch) return;
     const source = this.ctx.createBufferSource();
     source.buffer = buffer;
     const gain = this.ctx.createGain();
     source.connect(gain).connect(this.musicGain);
+    this.registerMusicNode(source, gain);
 
     let startOffset = Math.max(0, opts?.startAtSec ?? 0);
     const endOffset = Math.min(buffer.duration, opts?.endAtSec ?? buffer.duration);
@@ -459,8 +491,11 @@ export class AudioEngine {
         segmentStartSec: opts.segmentStartSec,
       });
     }
+    const epoch = ++this.musicEpoch;
     await this.ensureRunning();
+    if (epoch !== this.musicEpoch) return;
     if (!this.currentMusic) {
+      // Delegation claims its own fresh token inside playMusic.
       return this.playMusic(filePath, {
         fadeInSec: opts.crossfadeSec,
         trackId: opts.trackId,
@@ -472,10 +507,14 @@ export class AudioEngine {
     }
 
     const buffer = await this.loadBuffer(filePath);
+    // A newer call claimed the bus while we were decoding — bail before
+    // touching the old source or starting a new one.
+    if (epoch !== this.musicEpoch) return;
     const source = this.ctx.createBufferSource();
     source.buffer = buffer;
     const gain = this.ctx.createGain();
     source.connect(gain).connect(this.musicGain);
+    this.registerMusicNode(source, gain);
 
     const now = this.ctx.currentTime;
     const fade = opts.crossfadeSec;
@@ -522,6 +561,9 @@ export class AudioEngine {
   }
 
   fadeOutMusic(durationSec: number): void {
+    // Fading out means "the bus ends silent" — invalidate any play call
+    // still awaiting its decode so it can't start after the fade.
+    this.musicEpoch++;
     if (this.musicScheduled) {
       const now = this.ctx.currentTime;
       const g = this.musicScheduled.muteGain.gain;
@@ -598,6 +640,9 @@ export class AudioEngine {
   }
 
   stopMusic(): void {
+    // Same invalidation as fadeOutMusic — a stop must also cancel any
+    // play call still awaiting its decode.
+    this.musicEpoch++;
     if (this.musicScheduled) {
       const now = this.ctx.currentTime;
       for (const t of this.musicScheduled.tracks) {
@@ -631,9 +676,11 @@ export class AudioEngine {
     crossfadeSec: number;
     /** Skip this many seconds of audible content from the FIRST track. */
     firstTrackOffsetSec: number;
-    /** Fade in for the first track. Only applied if firstTrackOffsetSec === 0. */
+    /** Fade-in envelope for the first track (always honored). */
     musicFadeInSec?: number;
   }): Promise<void> {
+    const epoch = ++this.musicEpoch;
+    const callEntryMs = Date.now();
     // Tear down any previous music — scheduleRunway is the new authoritative
     // source on the music bus.
     if (this.currentMusic) {
@@ -650,14 +697,27 @@ export class AudioEngine {
 
     await this.ensureRunning();
 
-    const callEntryMs = Date.now();
     const buffers = await Promise.all(opts.tracks.map(t => this.loadBuffer(t.filePath)));
-    const loadElapsed = (Date.now() - callEntryMs) / 1000;
+    // A newer play call claimed the bus during the decode await. Starting
+    // our sources now would orphan them — playing under whatever the newer
+    // call installs, invisible to the UI and unreachable by panic — so bail.
+    if (epoch !== this.musicEpoch) return;
+    const loadElapsedSec = (Date.now() - callEntryMs) / 1000;
 
-    // Tiny lead-in so the first source.start is reliably in the future
-    // even after the loadBuffer await microtask.
-    const leadIn = Math.max(0.05, loadElapsed + 0.02);
-    const ctxStart = this.ctx.currentTime + leadIn;
+    // Tiny fixed lead so the first source.start is reliably in the future.
+    const leadInSec = 0.05;
+    const ctxStart = this.ctx.currentTime + leadInSec;
+    // The caller computed firstTrackOffsetSec for the wall-clock moment it
+    // invoked us; decode latency + the lead-in push the actual start this
+    // far past that moment. Skip the same amount INTO the first track so
+    // every transition — and the runway's END / anchor landing — stays on
+    // the caller's already-computed schedule. (Previously the load time was
+    // added as extra lead-in with no skip, shifting the entire runway late
+    // by roughly 2× the decode time on a cold cache. The reactive playMusic
+    // path has always compensated this way; this matches it.) Timing of the
+    // schedule itself — track order, transition spacing, landing math — is
+    // unchanged; only the start-alignment error is removed.
+    const startLatencySec = loadElapsedSec + leadInSec;
     const fade = opts.crossfadeSec;
 
     const muteGain = this.ctx.createGain();
@@ -675,7 +735,10 @@ export class AudioEngine {
 
       const trimStart = Math.max(0, t.trimStartSec ?? 0);
       const trimEnd = Math.min(buffer.duration, t.trimEndSec ?? buffer.duration);
-      const offsetInTrack = isFirst ? Math.max(0, opts.firstTrackOffsetSec) : 0;
+      // startLatencySec is absorbed by the first track (clamped below to
+      // its trim end in the pathological case where decoding outlasted the
+      // track's remaining content).
+      const offsetInTrack = isFirst ? Math.max(0, opts.firstTrackOffsetSec + startLatencySec) : 0;
       const startOffset = Math.min(trimEnd - 0.05, trimStart + offsetInTrack);
       const playDuration = Math.max(0.01, trimEnd - startOffset);
 
@@ -686,6 +749,7 @@ export class AudioEngine {
       source.buffer = buffer;
       const gain = this.ctx.createGain();
       source.connect(gain).connect(muteGain);
+      this.registerMusicNode(source, gain);
 
       // Gain envelope. First scheduled track gets the caller's
       // `musicFadeInSec` (no offset gate — the controller decides when
@@ -931,6 +995,18 @@ export class AudioEngine {
   panicFadeAll(durationSec: number): void {
     this.fadeOutMusic(durationSec);
     this.fadeOutPad(durationSec);
+    // Safety net: sweep every registered music source, not just the slot
+    // owners fadeOutMusic knows about. If a source was ever orphaned from
+    // the slot bookkeeping, panic still silences and stops it.
+    const now = this.ctx.currentTime;
+    for (const { source, gain } of this.liveMusicNodes) {
+      try {
+        gain.gain.cancelScheduledValues(now);
+        gain.gain.setValueAtTime(gain.gain.value, now);
+        gain.gain.linearRampToValueAtTime(0, now + durationSec);
+        source.stop(now + durationSec + 0.05);
+      } catch {}
+    }
   }
 
   /**
@@ -1133,6 +1209,13 @@ export class AudioEngine {
 
   private async ensureRunning(): Promise<void> {
     if (this.ctx.state === 'suspended') await this.ctx.resume();
+  }
+
+  /** Track a music-bus source for the panic sweep; auto-untracked on end. */
+  private registerMusicNode(source: AudioBufferSourceNode, gain: GainNode): void {
+    const entry = { source, gain };
+    this.liveMusicNodes.add(entry);
+    source.addEventListener('ended', () => { this.liveMusicNodes.delete(entry); });
   }
 
   private stopSource(active: ActiveSource, fadeSec: number) {

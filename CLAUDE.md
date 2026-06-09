@@ -114,6 +114,8 @@ When proposing changes that visibly affect the UI:
 
 ## Known gotchas
 
+- **Music-bus claim token (`musicEpoch` in audioEngine)**: every play path takes a token at entry and re-checks after its decode awaits; stale calls bail without starting sources. Don't remove the checks — without them, two interleaved starts (e.g. arm_playlist action + deferred auto-arm) both complete and the loser's sources play untracked and panic-proof ("two songs at once"). `panicFadeAll` also sweeps `liveMusicNodes` as a safety net.
+- **`scheduleRunway` skips decode latency into the first track** (`startLatencySec`) so the runway's end lands on the caller's schedule. Don't revert to delaying the start by the load time — that shifted the anchor landing (countdown 0:00) late by ~2× decode time on cold-cache fill arms.
 - **`scheduleRunway` last track** previously had no fade-out applied (designed for pad-bridge handoff). Now the operator's `editFadeOutSec` *is* applied on the last track when set — see `audioEngine.ts`. Don't revert this.
 - **`firstTrackOffsetSec` is preserved** during action-driven `arm_playlist` swaps — small offset is normal (preload + tick lag). Don't round it to 0 (that would shift timing).
 - **`getActiveService()` in serviceController** returns upcoming/running services only. For end-of-service triggers (post-service), use `getMostRecentServiceToday()` so the right service's overrides apply after the service is past.
