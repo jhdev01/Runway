@@ -255,45 +255,59 @@ export function EnginesProvider({ children }: { children: React.ReactNode }) {
     // immediate ping when PP sync is enabled, instead of waiting up to 10s for
     // the next heartbeat tick.
     let lastConnectedAt = 0;
+    // Countdown-arm reconciliation. The PUT that arms PP's countdown can
+    // be lost in ways the status light never sees: PP launched after music
+    // started, PP crashed and relaunched between two pings, or PP's window
+    // closed and reopened while its API stayed up the whole time (no
+    // offline→online transition at all — the operator hit exactly this).
+    // So instead of re-arming only on status transitions, every heartbeat
+    // checks "music/pad is rolling + PP reachable + this arm cycle's
+    // countdown not yet delivered" and re-sends the arm until one PUT
+    // succeeds. Keyed by service|target|timer so a schedule edit (+2/−2)
+    // re-delivers with the new time. Cleared on any failed ping so a PP
+    // that was even briefly unreachable gets the countdown again once
+    // it's back. The timer counts to an absolute wall-clock time, so
+    // re-arming mid-song always yields the correct remaining time.
+    // Slide/playlist hooks are NOT re-fired by this path — only the timer.
+    let timerArmedKey: string | null = null;
     const pingPp = async () => {
       const cfg = useAppStore.getState().config.proPresenterSync;
       if (!cfg.enabled) {
         useAppStore.getState().setPpStatus('disabled');
+        timerArmedKey = null;
         return;
       }
       try {
         await pp.testConnection();
         const wasConnected = useAppStore.getState().ppStatus === 'ok';
         useAppStore.getState().setPpStatus('ok');
-        // PP just came (back) online — first launch after the runway was
-        // already rolling, or a mid-service crash + restart. The countdown
-        // arm is a one-shot at music start and never retries, so if PP was
-        // down at that moment the timer cue was lost for the whole runway.
-        // Re-arm it here: the timer counts down to an absolute wall-clock
-        // time (runway.targetMs), so re-sending the same arm mid-runway
-        // yields the correct remaining time. Only the timer is restored —
-        // slide/playlist hooks are NOT re-fired on reconnect.
-        if (!wasConnected) {
-          const s = useAppStore.getState();
-          const runway = s.currentRunway;
-          if (
-            runway && runway.serviceId && !runway.isPostService
-            && (runway.phase === 'music' || runway.phase === 'pad')
-            && runway.targetMs > Date.now()
-          ) {
-            const svc = s.config.services.find(x => x.id === runway.serviceId);
-            const ov = svc?.proPresenterOverride;
-            const effective = ov ? { ...cfg, ...ov } : cfg;
-            if (effective.timerUuid) {
-              console.log('[pp] reconnected mid-runway — re-arming countdown', {
+        const s = useAppStore.getState();
+        const runway = s.currentRunway;
+        if (
+          runway && runway.serviceId && !runway.isPostService
+          && (runway.phase === 'music' || runway.phase === 'pad')
+          && runway.targetMs > Date.now()
+        ) {
+          const svc = s.config.services.find(x => x.id === runway.serviceId);
+          const ov = svc?.proPresenterOverride;
+          const effective = ov ? { ...cfg, ...ov } : cfg;
+          const key = `${runway.serviceId}|${runway.targetMs}|${effective.timerUuid ?? ''}`;
+          if (effective.timerUuid && timerArmedKey !== key) {
+            try {
+              await pp.armCountdownToTime(effective.timerUuid, runway.targetMs);
+              timerArmedKey = key;
+              console.log('[pp] heartbeat (re)armed countdown', {
                 timerUuid: effective.timerUuid,
                 target: new Date(runway.targetMs).toLocaleString(),
               });
-              void pp.armCountdownToTime(effective.timerUuid, runway.targetMs).catch(err => {
-                console.warn('[pp] reconnect re-arm failed', err);
-              });
+            } catch (err) {
+              console.warn('[pp] heartbeat countdown arm failed — will retry', err);
             }
           }
+        } else {
+          // No armed runway audibly running — the next arm cycle should
+          // deliver its countdown fresh.
+          timerArmedKey = null;
         }
         // Pre-fetch timers + playlists on (re)connect so the Settings tab is
         // populated the instant it's opened — no manual Test press needed.
@@ -313,6 +327,9 @@ export function EnginesProvider({ children }: { children: React.ReactNode }) {
         }
       } catch {
         useAppStore.getState().setPpStatus('err');
+        // PP unreachable — assume it may have lost the timer (crash /
+        // restart) and re-deliver the countdown once it's back.
+        timerArmedKey = null;
       }
     };
 
@@ -474,9 +491,15 @@ export function EnginesProvider({ children }: { children: React.ReactNode }) {
             const uuid = effective.timerUuid;
             const target = runway.targetMs;
             console.log('[pp] arming on music_start', { uuid, target: new Date(target).toLocaleString(), override: !!ov });
-            void pp.armCountdownToTime(uuid, target).catch(err => {
-              console.warn('[pp] armCountdownToTime failed', err);
-            });
+            void pp.armCountdownToTime(uuid, target)
+              // Mark this arm cycle delivered so the heartbeat
+              // reconciliation doesn't immediately re-send the same PUT.
+              // On failure the key stays unset and the heartbeat retries
+              // every 10s until PP accepts it.
+              .then(() => { timerArmedKey = `${armedServiceId}|${target}|${uuid}`; })
+              .catch(err => {
+                console.warn('[pp] armCountdownToTime failed', err);
+              });
           }
           runAction(
             'music_start',

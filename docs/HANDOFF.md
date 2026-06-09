@@ -55,14 +55,19 @@ full `panicFadeAll` when the runway is audibly firing), and arming fades
 ANY audible runway (post-service, Quick Play music, lingering pad), not
 just post-service.
 
-### ProPresenter countdown re-arm on reconnect
+### ProPresenter countdown delivery is now reconciled, not one-shot
 The PP countdown was a one-shot at music start with no retry — if Pro7 was
-launched after music started (or crashed and restarted mid-service) the
-timer never appeared. The 10s connection heartbeat now re-arms the countdown
-on the offline→online transition whenever a service runway is in music/pad
-phase with targetMs in the future. Safe because the timer counts to an
-absolute wall-clock time, so a re-arm mid-runway shows the correct remaining
-time. Only the timer re-arms; slide/playlist hooks do not re-fire.
+launched after music started, crashed mid-service, or had its window closed
+and reopened while its API stayed up (macOS keeps PP running with the
+window closed, so the status light correctly stays green and there is no
+offline→online transition to react to), the timer never appeared. The 10s
+heartbeat now reconciles: while a service runway is in music/pad phase with
+targetMs in the future, it re-sends the countdown arm until one PUT
+succeeds, keyed by service|target|timer (so +2/−2 schedule edits
+re-deliver). The key clears on any failed ping so a briefly-unreachable PP
+gets the countdown again. Safe because the timer counts to an absolute
+wall-clock time — re-arming mid-song shows the correct remaining time.
+Only the timer re-arms; slide/playlist hooks do not re-fire.
 
 ---
 
