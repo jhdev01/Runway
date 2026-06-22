@@ -757,6 +757,22 @@ export class AudioEngine {
       startedAtCtx: ctxStart,
       endsAtCtx: scheduled[scheduled.length - 1].scheduledEndCtx,
     };
+    // Diagnostic — captures the engine-side wall-clock schedule so any
+    // discrepancy between "scheduled to end" and "actually ended"
+    // surfaces in console logs.
+    const ctxNow = this.ctx.currentTime;
+    const endsAtCtx = scheduled[scheduled.length - 1].scheduledEndCtx;
+    console.log('[scheduleRunway] scheduled', {
+      trackCount: opts.tracks.length,
+      crossfadeSec: opts.crossfadeSec,
+      firstTrackOffsetSec: +opts.firstTrackOffsetSec.toFixed(2),
+      musicFadeInSec: +(opts.musicFadeInSec ?? 0).toFixed(2),
+      loadElapsedSec: +loadElapsed.toFixed(3),
+      leadInSec: +leadIn.toFixed(3),
+      ctxStartFromNowSec: +(ctxStart - ctxNow).toFixed(2),
+      cumWallclockSec: +cumWallclock.toFixed(2),
+      endsAtCtxFromNowSec: +(endsAtCtx - ctxNow).toFixed(2),
+    });
     this.notify();
   }
 

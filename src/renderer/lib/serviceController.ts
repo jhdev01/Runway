@@ -42,6 +42,16 @@ export class ServiceController {
   // changes so re-arming runs the sequence fresh.
   private firedActionIds: Set<string> = new Set();
   private lastRunwaySig: string = '';
+  // Wall-clock failsafes installed when a real pre-service runway arms.
+  // Independent of audio-engine timing — pure setTimeout against the
+  // runway's known targetMs / padStartMs. If music timing drifts for
+  // any reason (preload delay, scheduling miss, math bug we haven't
+  // found yet), the watchdog at targetMs force-fades music and starts
+  // the pad so service still gets clean handoff. Cleared whenever the
+  // runway is replaced or the controller stops.
+  private padFailsafeTimer: number | null = null;
+  private serviceStartFailsafeTimer: number | null = null;
+  private installedFailsafeKey: string = '';
   // Filled by the EnginesProvider after construction.
   private engines: ControllerEngineRefs = {};
 
@@ -66,6 +76,127 @@ export class ServiceController {
       window.clearInterval(this.intervalHandle);
       this.intervalHandle = null;
     }
+    this.clearFailsafes();
+  }
+
+  /**
+   * Install wall-clock failsafe timers for a freshly-armed pre-service
+   * runway. Two watchdogs, both independent of audio-engine state:
+   *
+   *   1. Pad-fire watchdog at `padStartMs + 1s` (1s grace so the normal
+   *      pad-bridge transition can fire first under normal conditions).
+   *      If the pad isn't audibly playing by then, force `beginPad()`.
+   *
+   *   2. Service-start watchdog at `targetMs`. If music is still
+   *      audible, fade it out over `musicFadeToPadSec` (default 5s). If
+   *      the pad isn't playing, force-start it. Mark service completed
+   *      so the schedule UI rolls forward.
+   *
+   * The failsafe respects `disablePadBridge` / `skipPadBridge` — if the
+   * service was configured for music-fade-to-silence without a pad, the
+   * watchdog only fires the music fade, not the pad start.
+   *
+   * Idempotent: re-calling with the same runway (same armEpoch +
+   * serviceId + targetMs) is a no-op. Calling with a different runway
+   * clears the prior timers and installs fresh ones.
+   */
+  private installFailsafes(state: ReturnType<Store['getState']>): void {
+    const runway = state.currentRunway;
+    // Only real pre-service runways (with a serviceId) get failsafes.
+    // Post-service, Quick Play, and quick-test runways don't have a
+    // service-start moment in the same sense.
+    const key = runway && !runway.isPostService && runway.serviceId
+      ? `${runway.armEpoch ?? 0}|${runway.serviceId}|${runway.targetMs}`
+      : '';
+    if (key === this.installedFailsafeKey) return;
+    this.clearFailsafes();
+    this.installedFailsafeKey = key;
+    if (!key || !runway) return;
+
+    const now = Date.now();
+    const targetMs = runway.targetMs;
+    const padStartMs = runway.padStartMs;
+    const musicFadeSec = state.config.defaults.musicFadeToPadSec ?? 5;
+    const service = runway.serviceId
+      ? state.config.services.find(s => s.id === runway.serviceId)
+      : undefined;
+    const padBridgeEnabled = !service?.disablePadBridge && !runway.skipPadBridge;
+    const armedServiceId = runway.serviceId;
+
+    console.log('[failsafe] installing watchdogs', {
+      serviceId: armedServiceId,
+      targetMs,
+      padStartMs,
+      msUntilPad: padStartMs - now,
+      msUntilService: targetMs - now,
+      padBridgeEnabled,
+    });
+
+    // Watchdog 1: pad start. Only install if pad bridge is enabled AND
+    // padStartMs+grace is in the future.
+    if (padBridgeEnabled && padStartMs + 1000 > now) {
+      const delay = padStartMs + 1000 - now;
+      this.padFailsafeTimer = window.setTimeout(() => {
+        this.padFailsafeTimer = null;
+        const cur = this.store.getState();
+        const curRunway = cur.currentRunway;
+        // Bail if the runway changed (action swap, panic, re-arm).
+        if (!curRunway || curRunway.serviceId !== armedServiceId) return;
+        // Bail if we're already past music phase — pad is either
+        // playing or done.
+        if (curRunway.phase !== 'music' && curRunway.phase !== 'queued') return;
+        const padPlaying = !!cur.padPlayback?.isPlaying;
+        if (padPlaying) return;
+        console.warn('[failsafe] pad bridge did not fire at padStartMs+1s — forcing pad start');
+        void this.beginPad();
+      }, delay) as unknown as number;
+    }
+
+    // Watchdog 2: service start. Always install if targetMs is in the
+    // future. Force-fades music (5s) and force-starts pad regardless of
+    // audio-engine state. Idempotent at the audio layer — fadeOutMusic
+    // is a no-op when nothing is playing; beginPad has padStarting
+    // guard.
+    if (targetMs > now) {
+      const delay = targetMs - now;
+      this.serviceStartFailsafeTimer = window.setTimeout(() => {
+        this.serviceStartFailsafeTimer = null;
+        const cur = this.store.getState();
+        const curRunway = cur.currentRunway;
+        if (!curRunway || curRunway.serviceId !== armedServiceId) return;
+        const musicPlaying = !!cur.musicPlayback?.isPlaying;
+        const padPlaying = !!cur.padPlayback?.isPlaying;
+        console.warn('[failsafe] service-start watchdog fired', {
+          serviceId: armedServiceId,
+          phase: curRunway.phase,
+          musicPlaying,
+          padPlaying,
+        });
+        if (musicPlaying) {
+          this.audio.fadeOutMusic(musicFadeSec);
+        }
+        const curService = cur.config.services.find(s => s.id === armedServiceId);
+        const curPadBridgeEnabled = !curService?.disablePadBridge && !curRunway.skipPadBridge;
+        if (!padPlaying && curPadBridgeEnabled) {
+          void this.beginPad();
+        }
+        if (curService && curService.status !== 'completed') {
+          this.store.getState().setServiceStatus(armedServiceId, 'completed');
+        }
+      }, delay) as unknown as number;
+    }
+  }
+
+  private clearFailsafes(): void {
+    if (this.padFailsafeTimer !== null) {
+      window.clearTimeout(this.padFailsafeTimer);
+      this.padFailsafeTimer = null;
+    }
+    if (this.serviceStartFailsafeTimer !== null) {
+      window.clearTimeout(this.serviceStartFailsafeTimer);
+      this.serviceStartFailsafeTimer = null;
+    }
+    this.installedFailsafeKey = '';
   }
 
   /**
@@ -964,6 +1095,10 @@ export class ServiceController {
         this.audio.resetBusLevels?.();
       }
     }
+    // Failsafes are keyed off armEpoch + serviceId + targetMs, so any
+    // material change (re-arm, action swap, +/- 2 min) reinstalls fresh
+    // timers and clears stale ones. Idempotent on no-change ticks.
+    this.installFailsafes(state);
 
     if (!runway) return;
 
@@ -1275,6 +1410,14 @@ export class ServiceController {
       return;
     }
     const target = upcoming[0];
+    console.log('[arm_playlist] target service', {
+      serviceId: target.service.id,
+      serviceName: target.service.name,
+      serviceStartTime: target.service.startTime,
+      targetMs: target.targetMs,
+      msUntilTarget: target.targetMs - Date.now(),
+      fillWithMusic,
+    });
     // Fade the current audio (post-service or whatever) so it doesn't
     // stomp on the new pre-service music. armService overwrites
     // currentRunway via direct set, but the audio engine source from
@@ -1556,6 +1699,16 @@ export class ServiceController {
     const startTrackId = runway.trackIds[trackIndex];
     const track = state.config.tracks.find(t => t.id === startTrackId);
     if (!track) return;
+
+    console.log('[beginMusic] starting', {
+      serviceId: runway.serviceId,
+      lateSec: +lateSec.toFixed(2),
+      trackIndex,
+      trackOffset: +trackOffset.toFixed(2),
+      trackCount: runway.trackIds.length,
+      msUntilService: runway.targetMs - Date.now(),
+      msUntilPad: runway.padStartMs - Date.now(),
+    });
 
     // First-track fade-in. The configured `musicFadeInSec` is the canonical
     // value and applies to every fresh start (normal arm OR "start early &
@@ -1913,6 +2066,12 @@ export class ServiceController {
       const state = this.store.getState();
       const runway = state.currentRunway;
       if (!runway) return;
+
+      console.log('[beginPad] starting', {
+        serviceId: runway.serviceId,
+        landInKey: runway.landInKey,
+        msUntilService: runway.targetMs - Date.now(),
+      });
 
       state.patchCurrentRunway({ phase: 'pad' });
 

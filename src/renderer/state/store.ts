@@ -1148,6 +1148,28 @@ export const useAppStore = create<AppStoreState>((set, get) => ({
     const musicStartMs = targetMs - audibleDurationSec * 1000;
     const padStartMs = targetMs - (padLeadSec + musicFadeSec) * 1000;
 
+    // Diagnostic — captures every number that goes into musicStartMs so a
+    // late-music incident can be traced from console logs without
+    // re-running the scenario. Cheap (one line per arm).
+    console.log('[arm] timing', {
+      serviceId,
+      playlistName: playlist.name,
+      targetMs,
+      msUntilService: targetMs - Date.now(),
+      trackCount: trackIds.length,
+      totalSec: +totalSec.toFixed(2),
+      startOffsetSec: +startOffsetSec.toFixed(2),
+      tailSec: +tailSec.toFixed(2),
+      crossfadeSavingsSec: +crossfadeSavingsSec.toFixed(2),
+      audibleDurationSec: +audibleDurationSec.toFixed(2),
+      musicStartMs,
+      msUntilMusic: musicStartMs - Date.now(),
+      padStartMs,
+      msUntilPad: padStartMs - Date.now(),
+      transitionMode: playlist.transitionMode,
+      crossfadeSec: playlist.crossfadeSec,
+    });
+
     // Reject only if the service start has already passed. If music-fire time
     // has passed but service hasn't, we still allow arming — the controller
     // will jump into the runway at the right offset so it lands on time.
