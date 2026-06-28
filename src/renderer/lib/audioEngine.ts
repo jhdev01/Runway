@@ -831,8 +831,12 @@ export class AudioEngine {
       crossfadeSec: opts.crossfadeSec,
       firstTrackOffsetSec: +opts.firstTrackOffsetSec.toFixed(2),
       musicFadeInSec: +(opts.musicFadeInSec ?? 0).toFixed(2),
-      loadElapsedSec: +loadElapsed.toFixed(3),
-      leadInSec: +leadIn.toFixed(3),
+      loadElapsedSec: +loadElapsedSec.toFixed(3),
+      leadInSec: +leadInSec.toFixed(3),
+      // startLatencySec is what scheduleRunway now skips INTO the first
+      // track to keep the runway end on schedule — log it so the "did it
+      // land on time" trace shows the compensation that was applied.
+      startLatencySec: +startLatencySec.toFixed(3),
       ctxStartFromNowSec: +(ctxStart - ctxNow).toFixed(2),
       cumWallclockSec: +cumWallclock.toFixed(2),
       endsAtCtxFromNowSec: +(endsAtCtx - ctxNow).toFixed(2),
