@@ -16,6 +16,20 @@ Living doc. Update when something material changes; replace the "Recent work" se
 
 ## Recent work (post-v10.1.2, unreleased)
 
+### Persistent service-timing log to disk (10.2.1)
+v10.2.0's timing diagnostics (`[arm] timing`, `[beginMusic]`,
+`[scheduleRunway]`, `[failsafe]`, `[prewarm]`, etc.) only went to the
+DevTools console — gone if DevTools wasn't open. Now they also append to
+`timing.log` next to `config.json`. Implementation: `diagnosticDiskLog.ts`
+wraps `console.log` once (installed in `engines.tsx` before the controller
+starts) and forwards any line starting with a known timing tag to main via
+the `TIMING_LOG_APPEND` one-way IPC; main appends with a local-time stamp
+and rotates at 2 MB (one `.1` backup). `[pp]` polling spam is deliberately
+excluded so the file stays readable. Settings → Engine → "Open timing log"
+reveals the file (`TIMING_LOG_REVEAL`). No call sites changed — wrapping
+`console.log` captures v10.2.0's logs, the new fixes' logs, and any future
+diagnostic line automatically.
+
 ### Look-ahead pre-warm before runway-mutating actions (10.2.1)
 The between-service fill (post-service → `arm_playlist` "music to fill")
 could hit a COLD decode whenever shuffle/anchor selection picked tracks the

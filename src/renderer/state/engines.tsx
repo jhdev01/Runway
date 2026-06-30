@@ -5,6 +5,7 @@ import { ServiceController } from '../lib/serviceController';
 import { PpClient } from '../lib/proPresenterClient';
 import { useAppStore } from '../state/store';
 import { todayISO } from '../lib/format';
+import { installDiagnosticDiskLog } from '../lib/diagnosticDiskLog';
 import type { MidiAction } from '@shared/types';
 
 interface EnginesContextValue {
@@ -32,6 +33,9 @@ export function EnginesProvider({ children }: { children: React.ReactNode }) {
   controllerRef.current.setEngines({ midi: midiRef.current, pp: ppRef.current });
 
   useEffect(() => {
+    // Mirror timing-tagged console logs to timing.log before the
+    // controller starts ticking, so the first arm of the day is captured.
+    installDiagnosticDiskLog();
     const audio = audioRef.current!;
     const midi = midiRef.current!;
     const controller = controllerRef.current!;

@@ -832,6 +832,11 @@ export const IPC = {
   ITUNES_CANDIDATES_LOOKUP: 'track:itunesCandidates',
   SPOTIFY_LOOKUP: 'track:spotify',
   GETSONGBPM_LOOKUP: 'track:getsongbpm',
+  // Persistent service-timing diagnostics. The renderer mirrors its
+  // timing-tagged console logs to a timing.log file next to config.json
+  // (one-way append); REVEAL opens that file in the OS file browser.
+  TIMING_LOG_APPEND: 'timing:logAppend',
+  TIMING_LOG_REVEAL: 'timing:logReveal',
 } as const;
 
 /**

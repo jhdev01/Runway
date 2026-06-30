@@ -68,6 +68,10 @@ declare global {
         update: (snapshot: import('@shared/types').TraySnapshot) => void;
         onShowWindow: (callback: () => void) => () => void;
       };
+      diagnostics: {
+        appendTimingLog: (line: string) => void;
+        revealTimingLog: () => Promise<{ ok: boolean; path?: string; reason?: string }>;
+      };
     };
   }
 }

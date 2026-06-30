@@ -40,6 +40,8 @@ const IPC = {
   SPOTIFY_LOOKUP: 'track:spotify',
   // GetSongBPM API track lookup — free tier (5k/day) returns key + tempo.
   GETSONGBPM_LOOKUP: 'track:getsongbpm',
+  TIMING_LOG_APPEND: 'timing:logAppend',
+  TIMING_LOG_REVEAL: 'timing:logReveal',
 } as const;
 
 contextBridge.exposeInMainWorld('runway', {
@@ -127,5 +129,12 @@ contextBridge.exposeInMainWorld('runway', {
       ipcRenderer.on(IPC.TRAY_SHOW_WINDOW, wrapped);
       return () => ipcRenderer.removeListener(IPC.TRAY_SHOW_WINDOW, wrapped);
     },
+  },
+  diagnostics: {
+    // Fire-and-forget append of one timing line to timing.log (main owns
+    // the file + rotation). One-way send so the hot path never awaits.
+    appendTimingLog: (line: string) => ipcRenderer.send(IPC.TIMING_LOG_APPEND, line),
+    // Open timing.log in the OS file browser for after-service review.
+    revealTimingLog: () => ipcRenderer.invoke(IPC.TIMING_LOG_REVEAL),
   },
 });

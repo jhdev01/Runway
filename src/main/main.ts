@@ -654,6 +654,50 @@ function registerIpcHandlers() {
     await shell.openPath(folderPath);
   });
 
+  // ---- Persistent service-timing log ----
+  // The renderer mirrors its timing-tagged console logs here so the
+  // operator can review what happened during a service without keeping
+  // DevTools open. Lives next to config.json.
+  const timingLogPath = path.join(app.getPath('userData'), 'timing.log');
+  // Local-time stamp (operator timezone) — UTC would make a Sunday-morning
+  // service read as a different day in the log.
+  const localStamp = (): string => {
+    const d = new Date();
+    const p = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+  };
+  ipcMain.on(IPC.TIMING_LOG_APPEND, (_e, line: unknown) => {
+    if (typeof line !== 'string') return;
+    try {
+      // Light rotation: keep one backup so the file can't grow without
+      // bound across months of services. Timing lines are tiny, so 2 MB
+      // already holds a very long history.
+      try {
+        const st = fs.statSync(timingLogPath);
+        if (st.size > 2 * 1024 * 1024) {
+          fs.renameSync(timingLogPath, timingLogPath + '.1');
+        }
+      } catch { /* file doesn't exist yet — fine */ }
+      void fs.promises.appendFile(timingLogPath, `${localStamp()}  ${line}\n`, 'utf8')
+        .catch(err => console.warn('[timing-log] append failed', err));
+    } catch (err) {
+      console.warn('[timing-log] append failed', err);
+    }
+  });
+  ipcMain.handle(IPC.TIMING_LOG_REVEAL, async () => {
+    try {
+      // Create an empty file if nothing's been logged yet so the reveal
+      // doesn't fail on a fresh install.
+      if (!fs.existsSync(timingLogPath)) {
+        fs.writeFileSync(timingLogPath, '', 'utf8');
+      }
+      shell.showItemInFolder(timingLogPath);
+      return { ok: true, path: timingLogPath };
+    } catch (err) {
+      return { ok: false, reason: err instanceof Error ? err.message : String(err) };
+    }
+  });
+
   // Renderer pushes tray-relevant state on store changes. Main caches
   // the latest snapshot and rebuilds the tray menu so it reflects the
   // current armed service, countdown, upcoming services, etc.

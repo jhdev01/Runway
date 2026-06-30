@@ -1845,6 +1845,21 @@ function EngineSettings() {
               <span className="settings-field-sub">~{(config.bufferSize / config.sampleRate * 1000).toFixed(1)} ms latency</span>
             </div>
           </div>
+          <div className="settings-field">
+            <div className="settings-field-label">Service timing log</div>
+            <div className="settings-field-control">
+              <button
+                className="btn-secondary"
+                onClick={() => { void window.runway?.diagnostics?.revealTimingLog(); }}
+                style={{ width: 'fit-content' }}
+              >
+                Open timing log
+              </button>
+              <span className="settings-field-sub">
+                Records each service's arm, landing, and pad handoff to a file you can review afterward.
+              </span>
+            </div>
+          </div>
         </div>
       </section>
 
