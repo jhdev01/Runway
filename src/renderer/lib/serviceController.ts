@@ -41,6 +41,18 @@ export class ServiceController {
   // Per-arm Set of fired action ids. Cleared whenever the runway pointer
   // changes so re-arming runs the sequence fresh.
   private firedActionIds: Set<string> = new Set();
+  // Playlists whose track pool we've already kicked a background decode
+  // for this arm cycle (look-ahead pre-warm before a runway-mutating
+  // action fires). Cleared alongside firedActionIds so each new arm
+  // re-warms fresh. Decoding a playlist the operator never reaches is
+  // cheap and harmless — buffers just sit in the cache.
+  private prewarmedPlaylistIds: Set<string> = new Set();
+  // How far ahead of a runway-mutating action's fire time to start
+  // decoding its target pool. Cold decode of a multi-track pool runs
+  // ~5-15s, so 30s gives real headroom; if the postservice track is
+  // shorter than that the prewarm just starts as soon as the runway
+  // arms. Pure cache-warming — no timing math depends on this value.
+  private static readonly PREWARM_LEAD_MS = 30_000;
   private lastRunwaySig: string = '';
   // Wall-clock failsafes installed when a real pre-service runway arms.
   // Independent of audio-engine timing — pure setTimeout against the
@@ -1098,6 +1110,7 @@ export class ServiceController {
     const sig = runway ? String(runway.armEpoch ?? 0) : '';
     if (sig !== this.lastRunwaySig) {
       this.firedActionIds.clear();
+      this.prewarmedPlaylistIds.clear();
       this.lastRunwaySig = sig;
       // New arm or runway swap — reset bus levels so a prior run's
       // audio_fade actions can't bleed into the new arm. Only on actual
@@ -1174,6 +1187,26 @@ export class ServiceController {
         this.firedActionIds.add(action.id);
         continue;
       }
+      // Look-ahead pre-warm: a runway-mutating action (arm_playlist /
+      // change_setlist) is about to install a NEW playlist's runway. As
+      // it approaches its fire time, kick a background decode of that
+      // playlist's WHOLE pool so the tracks are warm by the time the
+      // action arms — even if shuffle picks songs the current service
+      // never played. Without this, the next service's fill can hit a
+      // cold decode (silence gap + late landing). Fires once per
+      // playlist per arm cycle. Pure cache-warming via loadBuffer; the
+      // in-flight dedup means it never double-decodes against the real
+      // arm that follows.
+      if (now >= fireAtMs - ServiceController.PREWARM_LEAD_MS) {
+        const targetPlaylistId =
+          action.payload.type === 'arm_playlist' || action.payload.type === 'change_setlist'
+            ? action.payload.playlistId
+            : undefined;
+        if (targetPlaylistId && !this.prewarmedPlaylistIds.has(targetPlaylistId)) {
+          this.prewarmedPlaylistIds.add(targetPlaylistId);
+          this.prewarmPlaylistPool(targetPlaylistId);
+        }
+      }
       if (now < fireAtMs) continue;
       // Skip cues whose fire time was already missed by more than 30s
       // before this runway armed — keeps a service that arms 1h late
@@ -1196,6 +1229,33 @@ export class ServiceController {
       });
       void this.dispatchAction(action, runway).catch(err =>
         console.warn('[actions] dispatch failed', action.label || action.id, err),
+      );
+    }
+  }
+
+  /**
+   * Background-decode every track in a playlist's pool so an imminent
+   * arm_playlist / change_setlist swap finds them warm. Fire-and-forget:
+   * decode failures are swallowed (the real arm will surface any genuine
+   * load error). Decodes the WHOLE pool, not a particular arrangement,
+   * because shuffle/anchor selection can pick any subset at arm time.
+   */
+  private prewarmPlaylistPool(playlistId: string): void {
+    const state = this.store.getState();
+    const playlist = state.config.playlists.find(p => p.id === playlistId);
+    if (!playlist) return;
+    const paths = playlist.trackIds
+      .map(id => state.config.tracks.find(t => t.id === id)?.filePath)
+      .filter((p): p is string => !!p);
+    if (paths.length === 0) return;
+    console.log('[prewarm] decoding pool', {
+      playlistId,
+      playlistName: playlist.name,
+      trackCount: paths.length,
+    });
+    for (const p of paths) {
+      void this.audio.loadBuffer(p).catch(err =>
+        console.warn('[prewarm] decode failed', p, err),
       );
     }
   }

@@ -16,6 +16,20 @@ Living doc. Update when something material changes; replace the "Recent work" se
 
 ## Recent work (post-v10.1.2, unreleased)
 
+### Look-ahead pre-warm before runway-mutating actions (10.2.1)
+The between-service fill (post-service → `arm_playlist` "music to fill")
+could hit a COLD decode whenever shuffle/anchor selection picked tracks the
+current service never played — the buffer cache is keyed per-file and an arm
+only decodes its own arrangement, not the whole pool. Cold decode there =
+silence gap on the handoff + late landing. Fix: `fireDueActions` now starts a
+background decode of a runway-mutating action's target playlist pool
+(`PREWARM_LEAD_MS` = 30s before its fire time), whole pool not just one
+arrangement, once per playlist per arm cycle (`prewarmedPlaylistIds`, cleared
+with `firedActionIds`). Pure cache-warming via `loadBuffer`; the in-flight
+dedup (below) means it never double-decodes against the real arm. Fix #3
+still guarantees the landing if a decode is mid-flight when the action fires;
+pre-warm removes the silence gap on top.
+
 ### Dual-audio + late-landing fixes (audio engine / auto-arm)
 Root-caused the "two songs playing at once but the runway shows one" incident
 (back-to-back services, post-service → arm_playlist "music to fill" action):
