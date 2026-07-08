@@ -2,9 +2,10 @@ import { app, BrowserWindow, ipcMain, dialog, protocol, shell, Tray, Menu, nativ
 import * as path from 'path';
 import * as fs from 'fs';
 import * as http from 'http';
+import * as https from 'https';
 import { ConfigStore } from './configStore';
 import { scanFolder, scanPadFolder, readTrackMetadata } from './fileScanner';
-import { IPC, type PpRequest, type PpResponse, type AppConfig, type TraySnapshot } from '../shared/types';
+import { IPC, type PpRequest, type PpResponse, type PcoRequest, type PcoResponse, type AppConfig, type TraySnapshot } from '../shared/types';
 import { RemoteServer, listLanUrls, listNetworkInterfaces, type RemoteSnapshot } from './remoteServer';
 
 const isDev = process.env.NODE_ENV === 'development';
@@ -820,6 +821,41 @@ function registerIpcHandlers() {
         r.destroy(new Error('timeout'));
       });
       if (bodyStr !== undefined) r.write(bodyStr);
+      r.end();
+    });
+  });
+
+  // Planning Center API proxy. Renderer can't call api.planningcenteronline.com
+  // directly (CORS), so main forwards the GET over HTTPS with HTTP Basic auth
+  // built from the Personal Access Token (appId:secret). Read-only.
+  ipcMain.handle(IPC.PCO_REQUEST, async (_e, req: PcoRequest): Promise<PcoResponse> => {
+    return new Promise<PcoResponse>(resolve => {
+      const auth = Buffer.from(`${req.appId}:${req.secret}`).toString('base64');
+      const opts: https.RequestOptions = {
+        hostname: 'api.planningcenteronline.com',
+        port: 443,
+        path: req.path,
+        method: 'GET',
+        headers: {
+          'Authorization': `Basic ${auth}`,
+          'Accept': 'application/json',
+          'User-Agent': 'Runway',
+        },
+        timeout: req.timeoutMs ?? 8000,
+      };
+      const r = https.request(opts, res => {
+        const chunks: Buffer[] = [];
+        res.on('data', c => chunks.push(c));
+        res.on('end', () => {
+          resolve({
+            ok: (res.statusCode ?? 0) >= 200 && (res.statusCode ?? 0) < 300,
+            status: res.statusCode ?? 0,
+            body: Buffer.concat(chunks).toString('utf8'),
+          });
+        });
+      });
+      r.on('error', err => resolve({ ok: false, status: 0, body: '', error: err.message }));
+      r.on('timeout', () => r.destroy(new Error('timeout')));
       r.end();
     });
   });

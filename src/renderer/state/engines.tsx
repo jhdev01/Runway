@@ -3,6 +3,7 @@ import { AudioEngine } from '../lib/audioEngine';
 import { MidiEngine } from '../lib/midiEngine';
 import { ServiceController } from '../lib/serviceController';
 import { PpClient } from '../lib/proPresenterClient';
+import { PcoClient, runPcoKeySync } from '../lib/planningCenterClient';
 import { useAppStore } from '../state/store';
 import { todayISO } from '../lib/format';
 import { installDiagnosticDiskLog } from '../lib/diagnosticDiskLog';
@@ -13,6 +14,7 @@ interface EnginesContextValue {
   midi: MidiEngine;
   controller: ServiceController;
   pp: PpClient;
+  pco: PcoClient;
 }
 
 const EnginesContext = createContext<EnginesContextValue | null>(null);
@@ -22,12 +24,14 @@ export function EnginesProvider({ children }: { children: React.ReactNode }) {
   const midiRef = useRef<MidiEngine | null>(null);
   const controllerRef = useRef<ServiceController | null>(null);
   const ppRef = useRef<PpClient | null>(null);
+  const pcoRef = useRef<PcoClient | null>(null);
   const [ready, setReady] = useState(false);
 
   if (!audioRef.current) audioRef.current = new AudioEngine();
   if (!midiRef.current) midiRef.current = new MidiEngine();
   if (!controllerRef.current) controllerRef.current = new ServiceController(audioRef.current, useAppStore);
   if (!ppRef.current) ppRef.current = new PpClient(useAppStore.getState().config.proPresenterSync);
+  if (!pcoRef.current) pcoRef.current = new PcoClient(useAppStore.getState().config.pcoSync ?? { enabled: false, appId: '', secret: '', serviceTypeId: null, serviceTypeName: null });
   // Hand the controller refs to the MIDI + PP engines so Action Sequence
   // dispatch can route through them.
   controllerRef.current.setEngines({ midi: midiRef.current, pp: ppRef.current });
@@ -40,7 +44,45 @@ export function EnginesProvider({ children }: { children: React.ReactNode }) {
     const midi = midiRef.current!;
     const controller = controllerRef.current!;
     const pp = ppRef.current!;
+    const pco = pcoRef.current!;
     controller.start();
+
+    // ---- Planning Center key sync ----
+    // Fetch the next plan's first-song key and set it on that date's
+    // service(s). Runs on the enable/service-type transition, on boot
+    // (once config has loaded), and after each daily materialize. Writes a
+    // status snapshot into pcoSync for the Settings panel. Never throws.
+    const runPcoSync = async () => {
+      const cfg = useAppStore.getState().config.pcoSync;
+      if (!cfg?.enabled || !cfg.serviceTypeId) return;
+      const outcome = await runPcoKeySync(pco, cfg, (date, key) =>
+        useAppStore.getState().setFirstSongKeyForDate(date, key),
+      );
+      const cur = useAppStore.getState().config.pcoSync;
+      if (!cur) return;
+      useAppStore.getState().updateConfig({
+        pcoSync: {
+          ...cur,
+          lastFetchedAt: Date.now(),
+          lastFetchedKey: outcome.result?.key ?? null,
+          lastFetchedRawKey: outcome.result?.rawKey ?? null,
+          lastFetchedSong: outcome.result?.song ?? null,
+          lastFetchedPlanDate: outcome.result?.planDate ?? null,
+          lastError: outcome.ok ? null : (outcome.reason ?? 'Sync failed'),
+        },
+      });
+      console.log('[pco] sync', {
+        applied: outcome.applied,
+        key: outcome.result?.key,
+        rawKey: outcome.result?.rawKey,
+        song: outcome.result?.song,
+        date: outcome.result?.planDate,
+        reason: outcome.reason,
+      });
+    };
+    // Boot sync — deferred so the persisted config has loaded first.
+    let lastPcoSig = `${useAppStore.getState().config.pcoSync?.enabled}|${useAppStore.getState().config.pcoSync?.serviceTypeId}`;
+    const pcoBootTimer = window.setTimeout(() => { void runPcoSync(); }, 4000);
 
     let lastAutoArmedKey: string | null = null;
     const unsubAudio = audio.subscribe(state => {
@@ -363,6 +405,17 @@ export function EnginesProvider({ children }: { children: React.ReactNode }) {
     const unsubStore = useAppStore.subscribe(() => {
       const state = useAppStore.getState();
       pp.updateConfig(state.config.proPresenterSync);
+      if (state.config.pcoSync) pco.updateConfig(state.config.pcoSync);
+
+      // Re-sync when Planning Center gets enabled or the service type
+      // changes — so picking a service type immediately pulls the key.
+      const pcoSig = `${state.config.pcoSync?.enabled}|${state.config.pcoSync?.serviceTypeId}`;
+      if (pcoSig !== lastPcoSig) {
+        lastPcoSig = pcoSig;
+        if (state.config.pcoSync?.enabled && state.config.pcoSync.serviceTypeId) {
+          void runPcoSync();
+        }
+      }
 
       if (state.config.midiBindings !== lastBindingsRef) {
         lastBindingsRef = state.config.midiBindings;
@@ -587,6 +640,9 @@ export function EnginesProvider({ children }: { children: React.ReactNode }) {
       scheduledMaterializeTimer = window.setTimeout(() => {
         scheduledMaterializeTimer = null;
         runMaterializer();
+        // Services for the new day now exist — refresh the pad key from
+        // Planning Center so it's set before anyone arrives.
+        void runPcoSync();
         scheduleNextMaterialize();
       }, delayMs) as unknown as number;
       // Track the signature so the store-subscription below knows when to
@@ -872,6 +928,7 @@ export function EnginesProvider({ children }: { children: React.ReactNode }) {
       unsubRemote();
       window.clearInterval(ppHeartbeat);
       if (scheduledMaterializeTimer !== null) window.clearTimeout(scheduledMaterializeTimer);
+      window.clearTimeout(pcoBootTimer);
       window.clearInterval(remoteHeartbeat);
       window.clearInterval(trayHeartbeat);
       controller.stop();
@@ -886,6 +943,7 @@ export function EnginesProvider({ children }: { children: React.ReactNode }) {
       midi: midiRef.current!,
       controller: controllerRef.current!,
       pp: ppRef.current!,
+      pco: pcoRef.current!,
     }}>
       {children}
     </EnginesContext.Provider>

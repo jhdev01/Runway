@@ -6,11 +6,12 @@ import type { AudioBusConfig, MidiAction, MidiBinding, KeyName, PadFile, ProPres
 import { DEFAULT_CONFIG } from '@shared/types';
 import type { MidiDeviceSnapshot } from '../lib/midiEngine';
 import type { PpTimer } from '../lib/proPresenterClient';
+import { runPcoKeySync, type PcoServiceType } from '../lib/planningCenterClient';
 import { RotaryKnob } from '../components/RotaryKnob';
 import { Toggle } from '../components/Toggle';
 import runwayIconUrl from '../assets/runway-icon.png';
 
-type SettingsTab = 'audio' | 'midi' | 'propresenter' | 'pads' | 'remote' | 'engine' | 'display' | 'about';
+type SettingsTab = 'audio' | 'midi' | 'propresenter' | 'planningcenter' | 'pads' | 'remote' | 'engine' | 'display' | 'about';
 
 export function SettingsView() {
   const [tab, setTab] = useState<SettingsTab>('audio');
@@ -29,6 +30,7 @@ export function SettingsView() {
           { id: 'audio', label: 'Audio Routing' },
           { id: 'midi', label: 'MIDI' },
           { id: 'propresenter', label: 'ProPresenter' },
+          { id: 'planningcenter', label: 'Planning Center' },
           { id: 'pads', label: 'Pad Library' },
           { id: 'remote', label: 'Remote' },
           { id: 'engine', label: 'Engine' },
@@ -49,6 +51,7 @@ export function SettingsView() {
         {tab === 'audio' && <AudioSettings />}
         {tab === 'midi' && <MidiSettings />}
         {tab === 'propresenter' && <ProPresenterSettings />}
+        {tab === 'planningcenter' && <PlanningCenterSettings />}
         {tab === 'pads' && <PadSettings />}
         {tab === 'remote' && <RemoteSettings />}
         {tab === 'engine' && <EngineSettings />}
@@ -2630,5 +2633,191 @@ function AboutSection() {
         </p>
       </div>
     </section>
+  );
+}
+
+function PlanningCenterSettings() {
+  const cfg = useAppStore(s => s.config.pcoSync) ?? DEFAULT_CONFIG.pcoSync!;
+  const updateConfig = useAppStore(s => s.updateConfig);
+  const setFirstSongKeyForDate = useAppStore(s => s.setFirstSongKeyForDate);
+  const services = useAppStore(s => s.config.services);
+  const { pco } = useEngines();
+
+  const [serviceTypes, setServiceTypes] = useState<PcoServiceType[]>([]);
+  const [testing, setTesting] = useState(false);
+  const [fetching, setFetching] = useState(false);
+  const [status, setStatus] = useState<string | null>(null);
+  const [statusKind, setStatusKind] = useState<'ok' | 'err' | 'info'>('info');
+
+  const patch = (partial: Partial<typeof cfg>) => {
+    updateConfig({ pcoSync: { ...cfg, ...partial } });
+  };
+
+  const onTest = async () => {
+    setTesting(true);
+    setStatus(null);
+    // Make sure the client has the freshly-typed credentials before calling.
+    pco.updateConfig({ ...cfg });
+    try {
+      const conn = await pco.testConnection();
+      const types = await pco.listServiceTypes();
+      setServiceTypes(types);
+      setStatusKind('ok');
+      setStatus(`Connected${conn.name ? ` to ${conn.name}` : ''} — ${types.length} service type${types.length === 1 ? '' : 's'} found.`);
+    } catch (err) {
+      setStatusKind('err');
+      setStatus(err instanceof Error ? err.message : String(err));
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  const onFetchNow = async () => {
+    setFetching(true);
+    setStatus(null);
+    pco.updateConfig({ ...cfg });
+    const outcome = await runPcoKeySync(pco, cfg, (date, key) => setFirstSongKeyForDate(date, key));
+    // Persist the same status snapshot the weekly job writes.
+    updateConfig({
+      pcoSync: {
+        ...cfg,
+        lastFetchedAt: Date.now(),
+        lastFetchedKey: outcome.result?.key ?? null,
+        lastFetchedRawKey: outcome.result?.rawKey ?? null,
+        lastFetchedSong: outcome.result?.song ?? null,
+        lastFetchedPlanDate: outcome.result?.planDate ?? null,
+        lastError: outcome.ok ? null : (outcome.reason ?? 'Sync failed'),
+      },
+    });
+    if (!outcome.ok) {
+      setStatusKind('err');
+      setStatus(outcome.reason ?? 'Fetch failed');
+    } else if (outcome.result?.key) {
+      setStatusKind('ok');
+      const dateHasService = outcome.result.planDate
+        && services.some(s => s.date === outcome.result!.planDate);
+      setStatus(
+        `${outcome.result.song ?? 'First song'} is in ${displayKey(outcome.result.key)} — `
+        + (outcome.applied > 0
+          ? `set on ${outcome.applied} service${outcome.applied === 1 ? '' : 's'} for ${outcome.result.planDate}.`
+          : dateHasService
+            ? 'already up to date.'
+            : `no Runway service scheduled for ${outcome.result.planDate} yet (it'll apply once that day is scheduled).`),
+      );
+    } else {
+      setStatusKind('info');
+      setStatus(outcome.reason ?? 'Nothing to set.');
+    }
+    setFetching(false);
+  };
+
+  const inputStyle: React.CSSProperties = {
+    background: 'var(--surface-2, rgba(255,255,255,0.05))',
+    border: '1px solid var(--border, rgba(255,255,255,0.15))',
+    borderRadius: 6, color: 'var(--text)', padding: '8px 10px', width: '100%', maxWidth: 420,
+  };
+  const statusColor = statusKind === 'ok' ? '#34d399' : statusKind === 'err' ? '#f87171' : 'var(--text-dim)';
+
+  return (
+    <>
+      <section className="settings-section">
+        <div className="settings-section-title">Planning Center</div>
+        <div className="settings-section-sub">
+          Automatically set the pad-bridge key each week from the first song of your Planning Center plan —
+          so it's always right even when nobody sets it manually.
+        </div>
+
+        <div className="settings-field" style={{ marginTop: 12 }}>
+          <div className="settings-field-label">Auto-set key from Planning Center</div>
+          <div className="settings-field-control">
+            <Toggle checked={cfg.enabled} onChange={v => patch({ enabled: v })} />
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 16, opacity: cfg.enabled ? 1 : 0.55 }}>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <span className="settings-field-label">Application ID</span>
+            <input
+              style={inputStyle}
+              type="text"
+              value={cfg.appId}
+              placeholder="Personal Access Token — Application ID"
+              onChange={e => patch({ appId: e.target.value.trim() })}
+            />
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <span className="settings-field-label">Secret</span>
+            <input
+              style={inputStyle}
+              type="password"
+              value={cfg.secret}
+              placeholder="Personal Access Token — Secret"
+              onChange={e => patch({ secret: e.target.value.trim() })}
+            />
+          </label>
+
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+            <button className="btn-secondary" onClick={onTest} disabled={testing || !cfg.appId || !cfg.secret}>
+              {testing ? 'Testing…' : 'Test connection'}
+            </button>
+            {serviceTypes.length > 0 && (
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span className="settings-field-label">Service type</span>
+                <select
+                  style={{ ...inputStyle, width: 'auto', minWidth: 200 }}
+                  value={cfg.serviceTypeId ?? ''}
+                  onChange={e => {
+                    const st = serviceTypes.find(t => t.id === e.target.value);
+                    patch({ serviceTypeId: st?.id ?? null, serviceTypeName: st?.name ?? null });
+                  }}
+                >
+                  <option value="">— pick one —</option>
+                  {serviceTypes.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                </select>
+              </label>
+            )}
+          </div>
+
+          {/* If a service type was saved previously, show it even before Test is pressed. */}
+          {serviceTypes.length === 0 && cfg.serviceTypeName && (
+            <div className="settings-field-sub">
+              Reading plans from <strong>{cfg.serviceTypeName}</strong>. Press Test connection to change it.
+            </div>
+          )}
+
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+            <button className="btn-primary" onClick={onFetchNow} disabled={fetching || !cfg.enabled || !cfg.serviceTypeId}>
+              {fetching ? 'Fetching…' : 'Fetch now'}
+            </button>
+            <span className="settings-field-sub">Pull the next plan's first-song key and apply it now.</span>
+          </div>
+
+          {status && (
+            <div style={{ color: statusColor, fontSize: 13, marginTop: 4 }}>{status}</div>
+          )}
+
+          {cfg.lastFetchedAt && !status && (
+            <div className="settings-field-sub" style={{ marginTop: 4 }}>
+              {cfg.lastError
+                ? `Last sync error: ${cfg.lastError}`
+                : cfg.lastFetchedKey
+                  ? `Last sync: ${cfg.lastFetchedSong ?? 'first song'} in ${displayKey(cfg.lastFetchedKey as KeyName)} for ${cfg.lastFetchedPlanDate ?? '—'}.`
+                  : 'Last sync: nothing to set.'}
+            </div>
+          )}
+        </div>
+      </section>
+
+      <section className="settings-section">
+        <div className="settings-section-title">How to connect</div>
+        <ol className="settings-section-sub" style={{ lineHeight: 1.7, paddingLeft: 18 }}>
+          <li>Sign in at <strong>planningcenteronline.com</strong> → <strong>Developer</strong> (api.planningcenteronline.com).</li>
+          <li>Open <strong>Personal Access Tokens</strong> → <strong>New Personal Access Token</strong>. Name it "Runway".</li>
+          <li>Copy the <strong>Application ID</strong> and <strong>Secret</strong> into the fields above.</li>
+          <li>Press <strong>Test connection</strong>, then choose your Sunday <strong>service type</strong>.</li>
+          <li>Press <strong>Fetch now</strong> to confirm it reads the right key. After that it refreshes on its own each day.</li>
+        </ol>
+      </section>
+    </>
   );
 }

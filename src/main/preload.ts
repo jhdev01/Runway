@@ -42,6 +42,7 @@ const IPC = {
   GETSONGBPM_LOOKUP: 'track:getsongbpm',
   TIMING_LOG_APPEND: 'timing:logAppend',
   TIMING_LOG_REVEAL: 'timing:logReveal',
+  PCO_REQUEST: 'pco:request',
 } as const;
 
 contextBridge.exposeInMainWorld('runway', {
@@ -90,6 +91,9 @@ contextBridge.exposeInMainWorld('runway', {
   },
   audio: {
     listDevices: () => ipcRenderer.invoke(IPC.AUDIO_DEVICES_LIST),
+  },
+  planningCenter: {
+    request: (req: unknown) => ipcRenderer.invoke(IPC.PCO_REQUEST, req),
   },
   proPresenter: {
     request: (req: unknown) => ipcRenderer.invoke(IPC.PP_REQUEST, req),

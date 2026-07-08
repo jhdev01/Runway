@@ -20,7 +20,7 @@ interface PlaybackInfo {
   durationSec: number;
 }
 
-export type SettingsTab = 'audio' | 'midi' | 'propresenter' | 'pads' | 'remote' | 'engine' | 'display' | 'about';
+export type SettingsTab = 'audio' | 'midi' | 'propresenter' | 'planningcenter' | 'pads' | 'remote' | 'engine' | 'display' | 'about';
 
 interface AppStoreState {
   // UI
@@ -205,6 +205,9 @@ interface AppStoreState {
    *  materializer pass will fill from the weekly pattern unobstructed. */
   clearAllTombstones: () => void;
   setServiceStatus: (id: string, status: ServiceInstance['status']) => void;
+  /** Set firstSongKey on every service on `date` (YYYY-MM-DD). Used by the
+   *  Planning Center weekly sync. Returns how many services were updated. */
+  setFirstSongKeyForDate: (date: string, key: KeyName) => number;
 
   // Arm / Disarm — computes the runway and primes for auto-start.
   // preloader is called for each filePath the controller will need; failures
@@ -421,6 +424,7 @@ export const useAppStore = create<AppStoreState>((set, get) => ({
           merged.postServiceStartItemName = merged.postServiceStartItemName ?? null;
           return merged;
         })(),
+        pcoSync: { ...DEFAULT_CONFIG.pcoSync!, ...(loaded?.pcoSync ?? {}) },
       };
       set({ config, configLoaded: true });
       // If we just bumped the legacy '0000' PIN to a fresh random,
@@ -899,6 +903,23 @@ export const useAppStore = create<AppStoreState>((set, get) => ({
       },
     }));
     void get().saveConfig();
+  },
+
+  setFirstSongKeyForDate: (date, key) => {
+    let count = 0;
+    set(state => ({
+      config: {
+        ...state.config,
+        services: state.config.services.map(s => {
+          if (s.date !== date) return s;
+          if (s.firstSongKey === key) return s; // already correct — no-op
+          count++;
+          return { ...s, firstSongKey: key };
+        }),
+      },
+    }));
+    if (count > 0) void get().saveConfig();
+    return count;
   },
 
   armService: async (serviceId, preloader, opts) => {

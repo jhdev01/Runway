@@ -600,6 +600,32 @@ export interface ProPresenterSyncConfig {
   postServiceStartItemName: string | null;
 }
 
+/**
+ * Planning Center Services sync. Weekly, Runway reads the next upcoming
+ * plan for the chosen service type and sets the first song's key on that
+ * date's service(s) — so the pad-bridge key is correct even when nobody
+ * remembers to set it. Read-only; auth is a Personal Access Token.
+ */
+export interface PcoSyncConfig {
+  enabled: boolean;
+  // Personal Access Token from PCO (Developer → Personal Access Tokens).
+  // Sent as HTTP Basic auth (appId:secret). Read-only is sufficient.
+  appId: string;
+  secret: string;
+  // Which Services "service type" to read plans from (e.g. "Sunday
+  // Morning"). id drives API calls; name is kept for display.
+  serviceTypeId: string | null;
+  serviceTypeName: string | null;
+  // Snapshot of the last successful/attempted fetch, for the Settings
+  // status line. All optional so old configs upgrade cleanly.
+  lastFetchedKey?: string | null;       // Runway KeyName that was applied
+  lastFetchedRawKey?: string | null;    // exact key string PCO returned
+  lastFetchedSong?: string | null;      // first song title in the plan
+  lastFetchedPlanDate?: string | null;  // YYYY-MM-DD of the plan
+  lastFetchedAt?: number | null;        // epoch ms of the last attempt
+  lastError?: string | null;            // populated when the last fetch failed
+}
+
 export interface AppConfig {
   version: 1;
   playlists: Playlist[];
@@ -623,6 +649,9 @@ export interface AppConfig {
   remote: RemoteConfig;
   timecodeOutput: TimecodeOutputConfig;
   proPresenterSync: ProPresenterSyncConfig;
+  // Optional Planning Center Services sync — auto-sets the pad-bridge key
+  // from the week's plan. Optional so old configs upgrade cleanly.
+  pcoSync?: PcoSyncConfig;
   // Optional Spotify credentials — kept for forward-compat in case
   // Spotify restores audio-features access for new apps. Currently
   // (post-Nov-2024) only useful for the search + art endpoints.
@@ -774,6 +803,13 @@ export const DEFAULT_CONFIG: AppConfig = {
     postServiceStartItemIndex: null,
     postServiceStartItemName: null,
   },
+  pcoSync: {
+    enabled: false,
+    appId: '',
+    secret: '',
+    serviceTypeId: null,
+    serviceTypeName: null,
+  },
   ui: {
     showPlayedTracks: false,
   },
@@ -838,6 +874,8 @@ export const IPC = {
   // (one-way append); REVEAL opens that file in the OS file browser.
   TIMING_LOG_APPEND: 'timing:logAppend',
   TIMING_LOG_REVEAL: 'timing:logReveal',
+  // Planning Center forwarded HTTPS GET (proxied through main for auth/CORS).
+  PCO_REQUEST: 'pco:request',
 } as const;
 
 /**
@@ -889,5 +927,23 @@ export interface PpResponse {
   ok: boolean;
   status: number;          // 0 if the connection itself failed
   body: string;            // raw body text — caller decides whether to JSON.parse
+  error?: string;          // populated when status === 0
+}
+
+// Planning Center forwarded HTTPS request. Same reason as PpRequest — the
+// renderer can't call api.planningcenteronline.com directly (CORS), so main
+// proxies the GET through Node's https module with HTTP Basic auth built
+// from the Personal Access Token (appId:secret).
+export interface PcoRequest {
+  appId: string;
+  secret: string;
+  path: string;            // e.g. '/services/v2/service_types'
+  timeoutMs?: number;      // default 8000
+}
+
+export interface PcoResponse {
+  ok: boolean;
+  status: number;          // 0 if the connection itself failed
+  body: string;            // raw body text — caller JSON.parses
   error?: string;          // populated when status === 0
 }

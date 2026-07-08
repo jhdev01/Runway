@@ -16,6 +16,32 @@ Living doc. Update when something material changes; replace the "Recent work" se
 
 ## Recent work (post-v10.1.2, unreleased)
 
+### Planning Center key sync (10.2.1)
+Auto-sets the pad-bridge key each week from the first song of the upcoming
+PCO plan, so the key is right even when nobody sets it manually (built for
+when the operator is away). Read-only, Personal Access Token (App ID +
+Secret) auth. Pieces:
+- `PcoSyncConfig` on `AppConfig` (+ DEFAULT_CONFIG + store migration merge).
+- `IPC.PCO_REQUEST` — main-process HTTPS proxy to
+  api.planningcenteronline.com with Basic auth (renderer can't call it
+  directly; CORS). `PcoRequest`/`PcoResponse` in shared/types; preload
+  `window.runway.planningCenter.request`.
+- `planningCenterClient.ts` — `PcoClient` (testConnection, listServiceTypes,
+  fetchNextFirstSongKey) + `runPcoKeySync(client, cfg, apply)` shared by the
+  weekly job and the Settings "Fetch now" button.
+- `pcoKeyToRunway()` in music.ts maps PCO key strings ("Ab", "C#", "F#m",
+  "A#m", enharmonics) → canonical KeyName.
+- `setFirstSongKeyForDate(date, key)` store action applies the key to that
+  date's services (no-op if already set; others inherit via
+  resolveServiceFirstSongKey).
+- Weekly job in engines.tsx: runs on the enable/service-type transition, on
+  boot (4s deferred so config is loaded), and after each daily materialize
+  (services exist first). Writes a `lastFetched*`/`lastError` status
+  snapshot into pcoSync.
+- Settings → Planning Center tab: enable, App ID/Secret, Test connection
+  (lists service types), service-type picker, Fetch now, status + setup
+  steps. Multitracks has no public API — PCO only.
+
 ### Post-service "Music fires in" shows the action time (10.2.1)
 During post-service, the "Music fires in" sub-countdown and the "Auto-arm
 scheduled for HH:MM" banner used `musicFireMs` = `targetMs -

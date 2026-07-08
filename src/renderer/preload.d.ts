@@ -1,4 +1,4 @@
-import type { AppConfig, Track, KeyName, PpRequest, PpResponse, RemoteNetworkInterface } from '@shared/types';
+import type { AppConfig, Track, KeyName, PpRequest, PpResponse, PcoRequest, PcoResponse, RemoteNetworkInterface } from '@shared/types';
 
 export {};
 
@@ -51,6 +51,9 @@ declare global {
       };
       proPresenter: {
         request: (req: PpRequest) => Promise<PpResponse>;
+      };
+      planningCenter: {
+        request: (req: PcoRequest) => Promise<PcoResponse>;
       };
       remote: {
         pushSnapshot: (snap: unknown) => Promise<void>;
