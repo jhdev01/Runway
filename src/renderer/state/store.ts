@@ -205,9 +205,10 @@ interface AppStoreState {
    *  materializer pass will fill from the weekly pattern unobstructed. */
   clearAllTombstones: () => void;
   setServiceStatus: (id: string, status: ServiceInstance['status']) => void;
-  /** Set firstSongKey on every service on `date` (YYYY-MM-DD). Used by the
-   *  Planning Center weekly sync. Returns how many services were updated. */
-  setFirstSongKeyForDate: (date: string, key: KeyName) => number;
+  /** Set firstSongKey on ONE service by id. Used by the Planning Center
+   *  key pull (which targets the service whose lead window opened,
+   *  independent of the plan's date). Returns 1 if changed, else 0. */
+  setServiceFirstSongKey: (serviceId: string, key: KeyName) => number;
 
   // Arm / Disarm — computes the runway and primes for auto-start.
   // preloader is called for each filePath the controller will need; failures
@@ -905,21 +906,21 @@ export const useAppStore = create<AppStoreState>((set, get) => ({
     void get().saveConfig();
   },
 
-  setFirstSongKeyForDate: (date, key) => {
-    let count = 0;
+  setServiceFirstSongKey: (serviceId, key) => {
+    let changed = false;
     set(state => ({
       config: {
         ...state.config,
         services: state.config.services.map(s => {
-          if (s.date !== date) return s;
+          if (s.id !== serviceId) return s;
           if (s.firstSongKey === key) return s; // already correct — no-op
-          count++;
+          changed = true;
           return { ...s, firstSongKey: key };
         }),
       },
     }));
-    if (count > 0) void get().saveConfig();
-    return count;
+    if (changed) void get().saveConfig();
+    return changed ? 1 : 0;
   },
 
   armService: async (serviceId, preloader, opts) => {

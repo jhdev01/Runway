@@ -48,15 +48,23 @@ export function EnginesProvider({ children }: { children: React.ReactNode }) {
     controller.start();
 
     // ---- Planning Center key sync ----
-    // Fetch the next plan's first-song key and set it on that date's
-    // service(s). Runs on the enable/service-type transition, on boot
-    // (once config has loaded), and after each daily materialize. Writes a
-    // status snapshot into pcoSync for the Settings panel. Never throws.
-    const runPcoSync = async () => {
+    // Pull the NEXT upcoming PCO plan's first-song key and set it on a
+    // specific Runway service. The plan date and the service date do NOT
+    // have to match — the service whose lead window opened just gets the
+    // coming plan's key (so a day-early test still pulls Sunday's key).
+    // Writes a status snapshot into pcoSync for the Settings panel.
+    const PCO_DEFAULT_LEAD_SEC = 14400; // 4h, matches DEFAULT_CONFIG
+    const serviceStartMs = (svc: { date: string; startTime: string }): number => {
+      const d = new Date(svc.date + 'T00:00:00');
+      const [h, m] = svc.startTime.split(':').map(Number);
+      d.setHours(h, m, 0, 0);
+      return d.getTime();
+    };
+    const pullPcoKeyForService = async (serviceId: string) => {
       const cfg = useAppStore.getState().config.pcoSync;
       if (!cfg?.enabled || !cfg.serviceTypeId) return;
-      const outcome = await runPcoKeySync(pco, cfg, (date, key) =>
-        useAppStore.getState().setFirstSongKeyForDate(date, key),
+      const outcome = await runPcoKeySync(pco, cfg, (key) =>
+        useAppStore.getState().setServiceFirstSongKey(serviceId, key),
       );
       const cur = useAppStore.getState().config.pcoSync;
       if (!cur) return;
@@ -71,18 +79,41 @@ export function EnginesProvider({ children }: { children: React.ReactNode }) {
           lastError: outcome.ok ? null : (outcome.reason ?? 'Sync failed'),
         },
       });
-      console.log('[pco] sync', {
+      console.log('[pco] pull', {
+        serviceId,
         applied: outcome.applied,
         key: outcome.result?.key,
         rawKey: outcome.result?.rawKey,
         song: outcome.result?.song,
-        date: outcome.result?.planDate,
+        planDate: outcome.result?.planDate,
         reason: outcome.reason,
       });
     };
-    // Boot sync — deferred so the persisted config has loaded first.
+    // Scheduler: once a minute, fire the pull for any upcoming service
+    // whose lead window has opened (and hasn't been pulled yet this
+    // session). Session-scoped Set so a given service occurrence pulls once.
+    const pcoPulled = new Set<string>();
+    const pcoScheduleTick = () => {
+      const state = useAppStore.getState();
+      const cfg = state.config.pcoSync;
+      if (!cfg?.enabled || !cfg.serviceTypeId) return;
+      const now = Date.now();
+      const defLead = cfg.pullLeadSec ?? PCO_DEFAULT_LEAD_SEC;
+      for (const s of state.config.services) {
+        if (pcoPulled.has(s.id)) continue;
+        const startMs = serviceStartMs(s);
+        if (startMs <= now) continue; // already started / past
+        const leadSec = s.pcoKeyLeadSec ?? defLead;
+        if (now >= startMs - leadSec * 1000) {
+          pcoPulled.add(s.id);
+          void pullPcoKeyForService(s.id);
+        }
+      }
+    };
     let lastPcoSig = `${useAppStore.getState().config.pcoSync?.enabled}|${useAppStore.getState().config.pcoSync?.serviceTypeId}`;
-    const pcoBootTimer = window.setTimeout(() => { void runPcoSync(); }, 4000);
+    // First check shortly after boot (config loaded), then every 60s.
+    const pcoBootTimer = window.setTimeout(() => pcoScheduleTick(), 4000);
+    const pcoScheduleTimer = window.setInterval(() => pcoScheduleTick(), 60_000);
 
     let lastAutoArmedKey: string | null = null;
     const unsubAudio = audio.subscribe(state => {
@@ -407,13 +438,15 @@ export function EnginesProvider({ children }: { children: React.ReactNode }) {
       pp.updateConfig(state.config.proPresenterSync);
       if (state.config.pcoSync) pco.updateConfig(state.config.pcoSync);
 
-      // Re-sync when Planning Center gets enabled or the service type
-      // changes — so picking a service type immediately pulls the key.
+      // Re-check when Planning Center gets enabled or the service type
+      // changes — clear the pulled set so eligible services re-pull, then
+      // run the scheduler tick immediately.
       const pcoSig = `${state.config.pcoSync?.enabled}|${state.config.pcoSync?.serviceTypeId}`;
       if (pcoSig !== lastPcoSig) {
         lastPcoSig = pcoSig;
         if (state.config.pcoSync?.enabled && state.config.pcoSync.serviceTypeId) {
-          void runPcoSync();
+          pcoPulled.clear();
+          pcoScheduleTick();
         }
       }
 
@@ -640,9 +673,9 @@ export function EnginesProvider({ children }: { children: React.ReactNode }) {
       scheduledMaterializeTimer = window.setTimeout(() => {
         scheduledMaterializeTimer = null;
         runMaterializer();
-        // Services for the new day now exist — refresh the pad key from
-        // Planning Center so it's set before anyone arrives.
-        void runPcoSync();
+        // New services may now exist — let the PCO scheduler pick up any
+        // whose lead window is already open.
+        pcoScheduleTick();
         scheduleNextMaterialize();
       }, delayMs) as unknown as number;
       // Track the signature so the store-subscription below knows when to
@@ -929,6 +962,7 @@ export function EnginesProvider({ children }: { children: React.ReactNode }) {
       window.clearInterval(ppHeartbeat);
       if (scheduledMaterializeTimer !== null) window.clearTimeout(scheduledMaterializeTimer);
       window.clearTimeout(pcoBootTimer);
+      window.clearInterval(pcoScheduleTimer);
       window.clearInterval(remoteHeartbeat);
       window.clearInterval(trayHeartbeat);
       controller.stop();

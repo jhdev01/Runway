@@ -111,6 +111,10 @@ export interface ServiceInstance {
   // from the first service of this date (use resolveServiceFirstSongKey).
   // For the first service of the day, undefined just means "no key set".
   firstSongKey?: KeyName;
+  // Optional per-service override for how many seconds before start the
+  // Planning Center key auto-pull fires for THIS service. `undefined`
+  // inherits the global default (pcoSync.pullLeadSec).
+  pcoKeyLeadSec?: number;
   // Optional pinned anchor — forces the pre-service playlist to end on this
   // exact track, regardless of key match. `undefined` means inherit from the
   // first service of the date; for the first service, undefined = Auto (let
@@ -616,6 +620,12 @@ export interface PcoSyncConfig {
   // Morning"). id drives API calls; name is kept for display.
   serviceTypeId: string | null;
   serviceTypeName: string | null;
+  // Default: pull the key this many seconds before a service starts. The
+  // pull always reads the NEXT upcoming PCO plan and applies its first
+  // song's key to the service whose lead window opened — the plan date and
+  // the Runway service date do NOT need to match (so a day-early test still
+  // pulls the coming Sunday's key). Per-service override: pcoKeyLeadSec.
+  pullLeadSec?: number;
   // Snapshot of the last successful/attempted fetch, for the Settings
   // status line. All optional so old configs upgrade cleanly.
   lastFetchedKey?: string | null;       // Runway KeyName that was applied
@@ -809,6 +819,7 @@ export const DEFAULT_CONFIG: AppConfig = {
     secret: '',
     serviceTypeId: null,
     serviceTypeName: null,
+    pullLeadSec: 14400, // 4 hours before service by default
   },
   ui: {
     showPlayedTracks: false,

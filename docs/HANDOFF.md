@@ -16,11 +16,26 @@ Living doc. Update when something material changes; replace the "Recent work" se
 
 ## Recent work (post-v10.1.2, unreleased)
 
+### Planning Center — lead-time pull, decoupled from date (10.2.1)
+Reworked how/when the PCO key is applied. The pull now targets a SPECIFIC
+Runway service (by id) with the coming plan's key — the plan date and the
+service date do NOT have to match (so testing a day early still pulls
+Sunday's key). Trigger is a per-service lead time: `pcoSync.pullLeadSec`
+global default (4h) + optional per-service `ServiceInstance.pcoKeyLeadSec`
+override (edited in the schedule service modal, "PCO key pull … MIN
+BEFORE"). A 60s scheduler in engines.tsx (`pcoScheduleTick`) fires the pull
+for each upcoming service once its lead window opens (session Set guards
+against re-pull). `setServiceFirstSongKey(serviceId, key)` replaced
+`setFirstSongKeyForDate`. `runPcoKeySync`'s apply callback is now
+`(key) => number` so the caller picks the target. Settings "Fetch now"
+applies to the next upcoming service; Settings gained a "Pull key … minutes
+before" default field.
+
 ### Planning Center key sync (10.2.1)
-Auto-sets the pad-bridge key each week from the first song of the upcoming
-PCO plan, so the key is right even when nobody sets it manually (built for
-when the operator is away). Read-only, Personal Access Token (App ID +
-Secret) auth. Pieces:
+Auto-sets the pad-bridge key from the first song of the upcoming PCO plan,
+so the key is right even when nobody sets it manually (built for when the
+operator is away). Read-only, Personal Access Token (App ID + Secret)
+auth. Pieces:
 - `PcoSyncConfig` on `AppConfig` (+ DEFAULT_CONFIG + store migration merge).
 - `IPC.PCO_REQUEST` — main-process HTTPS proxy to
   api.planningcenteronline.com with Basic auth (renderer can't call it

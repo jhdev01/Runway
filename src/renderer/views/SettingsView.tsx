@@ -2639,9 +2639,25 @@ function AboutSection() {
 function PlanningCenterSettings() {
   const cfg = useAppStore(s => s.config.pcoSync) ?? DEFAULT_CONFIG.pcoSync!;
   const updateConfig = useAppStore(s => s.updateConfig);
-  const setFirstSongKeyForDate = useAppStore(s => s.setFirstSongKeyForDate);
+  const setServiceFirstSongKey = useAppStore(s => s.setServiceFirstSongKey);
   const services = useAppStore(s => s.config.services);
   const { pco } = useEngines();
+
+  // Next upcoming Runway service (soonest future start) — the target for a
+  // manual "Fetch now". Date need not match the PCO plan's date.
+  const nextService = useMemo(() => {
+    const now = Date.now();
+    const startMs = (s: typeof services[number]) => {
+      const d = new Date(s.date + 'T00:00:00');
+      const [h, m] = s.startTime.split(':').map(Number);
+      d.setHours(h, m, 0, 0);
+      return d.getTime();
+    };
+    return services
+      .map(s => ({ s, ms: startMs(s) }))
+      .filter(x => x.ms > now)
+      .sort((a, b) => a.ms - b.ms)[0]?.s;
+  }, [services]);
 
   const [serviceTypes, setServiceTypes] = useState<PcoServiceType[]>([]);
   const [testing, setTesting] = useState(false);
@@ -2676,8 +2692,13 @@ function PlanningCenterSettings() {
     setFetching(true);
     setStatus(null);
     pco.updateConfig({ ...cfg });
-    const outcome = await runPcoKeySync(pco, cfg, (date, key) => setFirstSongKeyForDate(date, key));
-    // Persist the same status snapshot the weekly job writes.
+    // Manual test: apply the coming plan's key to the next upcoming
+    // service, regardless of whether the dates line up.
+    const target = nextService;
+    const outcome = await runPcoKeySync(pco, cfg, (key) =>
+      target ? setServiceFirstSongKey(target.id, key) : 0,
+    );
+    // Persist the same status snapshot the scheduled pull writes.
     updateConfig({
       pcoSync: {
         ...cfg,
@@ -2686,7 +2707,7 @@ function PlanningCenterSettings() {
         lastFetchedRawKey: outcome.result?.rawKey ?? null,
         lastFetchedSong: outcome.result?.song ?? null,
         lastFetchedPlanDate: outcome.result?.planDate ?? null,
-        lastError: outcome.ok ? null : (outcome.reason ?? 'Sync failed'),
+        lastError: outcome.ok ? null : (outcome.reason ?? 'Fetch failed'),
       },
     });
     if (!outcome.ok) {
@@ -2694,15 +2715,16 @@ function PlanningCenterSettings() {
       setStatus(outcome.reason ?? 'Fetch failed');
     } else if (outcome.result?.key) {
       setStatusKind('ok');
-      const dateHasService = outcome.result.planDate
-        && services.some(s => s.date === outcome.result!.planDate);
+      const svcLabel = target ? (target.name || `${target.date} ${target.startTime}`) : null;
       setStatus(
-        `${outcome.result.song ?? 'First song'} is in ${displayKey(outcome.result.key)} — `
+        `${outcome.result.song ?? 'First song'} is in ${displayKey(outcome.result.key)}`
+        + (outcome.result.planDate ? ` (plan ${outcome.result.planDate})` : '')
+        + ' — '
         + (outcome.applied > 0
-          ? `set on ${outcome.applied} service${outcome.applied === 1 ? '' : 's'} for ${outcome.result.planDate}.`
-          : dateHasService
-            ? 'already up to date.'
-            : `no Runway service scheduled for ${outcome.result.planDate} yet (it'll apply once that day is scheduled).`),
+          ? `set on ${svcLabel}.`
+          : svcLabel
+            ? `${svcLabel} already has that key.`
+            : 'no upcoming Runway service to set it on yet.'),
       );
     } else {
       setStatusKind('info');
@@ -2785,11 +2807,33 @@ function PlanningCenterSettings() {
             </div>
           )}
 
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <span className="settings-field-label">Pull key</span>
+            <input
+              type="number"
+              min={1}
+              max={1440}
+              style={{ ...inputStyle, width: 90 }}
+              value={Math.round((cfg.pullLeadSec ?? 14400) / 60)}
+              onChange={e => {
+                const mins = Math.max(1, Math.min(1440, Number(e.target.value) || 1));
+                patch({ pullLeadSec: mins * 60 });
+              }}
+            />
+            <span className="settings-field-sub">
+              minutes before each service starts (default — override per service in the schedule).
+            </span>
+          </label>
+
           <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
             <button className="btn-primary" onClick={onFetchNow} disabled={fetching || !cfg.enabled || !cfg.serviceTypeId}>
               {fetching ? 'Fetching…' : 'Fetch now'}
             </button>
-            <span className="settings-field-sub">Pull the next plan's first-song key and apply it now.</span>
+            <span className="settings-field-sub">
+              {nextService
+                ? `Pull the coming plan's key and set it on ${nextService.name || `${nextService.date} ${nextService.startTime}`} now.`
+                : 'Pull the coming plan’s key now (no upcoming service scheduled to set it on yet).'}
+            </span>
           </div>
 
           {status && (

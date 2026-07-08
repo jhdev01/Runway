@@ -140,15 +140,16 @@ export interface PcoSyncOutcome {
 }
 
 /**
- * Fetch the next plan's first-song key and apply it to that date's
- * services via `apply`. Shared by the weekly auto-sync and the Settings
- * "Fetch now" button so both behave identically. Never throws — errors
- * come back in `reason`.
+ * Fetch the NEXT upcoming plan's first-song key and hand it to `applyKey`,
+ * which sets it on whichever Runway service the caller chose (the plan date
+ * and the service date need not match). Shared by the scheduled per-service
+ * pull and the Settings "Fetch now" button. Never throws — errors come back
+ * in `reason`. `applyKey` returns how many services it changed (0 or 1).
  */
 export async function runPcoKeySync(
   client: PcoClient,
   cfg: PcoSyncConfig,
-  apply: (date: string, key: KeyName) => number,
+  applyKey: (key: KeyName) => number,
 ): Promise<PcoSyncOutcome> {
   if (!cfg.enabled) return { ok: false, applied: 0, reason: 'Planning Center sync is off' };
   if (!cfg.serviceTypeId) return { ok: false, applied: 0, reason: 'No service type selected' };
@@ -165,7 +166,7 @@ export async function runPcoKeySync(
           : (result.song ? 'First song has no key set in Planning Center' : 'Plan has no songs yet'),
       };
     }
-    const applied = result.planDate ? apply(result.planDate, result.key) : 0;
+    const applied = applyKey(result.key);
     return { ok: true, applied, result };
   } catch (err) {
     return { ok: false, applied: 0, reason: err instanceof Error ? err.message : String(err) };
