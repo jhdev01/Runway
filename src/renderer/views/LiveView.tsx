@@ -746,6 +746,17 @@ export function LiveView() {
                     return;
                   }
                   extendServiceStart(activeService.id, sec);
+                  // Adding time (+N): also fill the new time with a song so
+                  // the operator gets music, not silence, during the
+                  // extension. extendServiceStart already moved the runway's
+                  // targetMs, so addSongLive fades the song at the NEW start.
+                  // Removing time (−N) doesn't add a song.
+                  if (sec > 0) {
+                    setArmError(null);
+                    void controller.addSongLive().then(res => {
+                      if (!res.ok) setArmError(res.reason ?? null);
+                    });
+                  }
                   setFlag(false);
                   if (timerRef.current !== null) {
                     window.clearTimeout(timerRef.current);
@@ -785,7 +796,7 @@ export function LiveView() {
                       type="button"
                       data-confirm={confirmAddTime ? 'true' : 'false'}
                       onClick={() => fireShift(120, confirmAddTime, setConfirmAddTime, addTimeTimerRef)}
-                      title="Push service start BACK by 2 minutes (also updates the ProPresenter timer). Two-click to confirm."
+                      title="Push service start BACK by 2 minutes and add a song to fill the extra time (also updates the ProPresenter timer). Two-click to confirm."
                     >
                       {confirmAddTime ? 'Confirm +2' : '+2 min'}
                     </button>

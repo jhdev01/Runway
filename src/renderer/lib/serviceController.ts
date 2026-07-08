@@ -877,23 +877,27 @@ export class ServiceController {
       return { ok: false, reason: 'No other song available to add' };
     }
 
+    // Prefer a candidate long enough to fill the remaining window so the
+    // added song reaches service start without a silent gap; fall back to
+    // any candidate in the tier.
+    const pickFrom = (cands: Track[]): Track | undefined => {
+      if (cands.length === 0) return undefined;
+      const longEnough = cands.filter(t => effectiveDuration(t) >= remainingSec);
+      const from = longEnough.length > 0 ? longEnough : cands;
+      return from[Math.floor(Math.random() * from.length)];
+    };
+
     // Key to match = the armed pad key, else the runway's land-in key.
     const key = state.padArmedKey ?? runway.landInKey;
     let chosen: Track | undefined;
     let keyMatched = false;
     if (key) {
-      const exact = pool.filter(t => t.key === key);
-      if (exact.length > 0) {
-        chosen = exact[Math.floor(Math.random() * exact.length)];
-        keyMatched = true;
-      } else {
+      chosen = pickFrom(pool.filter(t => t.key === key));
+      if (chosen) keyMatched = true;
+      if (!chosen) {
         for (const k of compatibleKeys(key)) {
-          const matches = pool.filter(t => t.key === k);
-          if (matches.length > 0) {
-            chosen = matches[Math.floor(Math.random() * matches.length)];
-            keyMatched = true;
-            break;
-          }
+          const m = pickFrom(pool.filter(t => t.key === k));
+          if (m) { chosen = m; keyMatched = true; break; }
         }
       }
     }
@@ -904,7 +908,7 @@ export class ServiceController {
       const first = firstId && firstId !== currentTrackId
         ? pool.find(t => t.id === firstId)
         : undefined;
-      chosen = first ?? pool[Math.floor(Math.random() * pool.length)];
+      chosen = first ?? pickFrom(pool);
       keyMatched = false;
     }
     if (!chosen) return { ok: false, reason: 'Could not pick a song' };

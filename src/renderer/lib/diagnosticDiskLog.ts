@@ -28,6 +28,7 @@ const TIMING_TAGS = [
   '[change_setlist]',
   '[reanchor]',
   '[actions]',
+  '[addSong]',
 ];
 
 let installed = false;
