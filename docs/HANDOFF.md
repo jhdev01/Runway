@@ -16,6 +16,19 @@ Living doc. Update when something material changes; replace the "Recent work" se
 
 ## Recent work (post-v10.1.2, unreleased)
 
+### Post-service "Music fires in" shows the action time (10.2.1)
+During post-service, the "Music fires in" sub-countdown and the "Auto-arm
+scheduled for HH:MM" banner used `musicFireMs` = `targetMs -
+autoStartTargetSec` (the normal auto-arm clock). But in the action-driven
+between-services flow the next service's music is armed by the
+`arm_playlist` "music to fill" action when the prayer track ends — a
+different time — so the readout was wrong (e.g. showed 00:18 when music
+actually armed at 00:15). Added `postServiceArmMs` (resolves the earliest
+enabled `arm_playlist` action's fire time in the post-service sequence,
+mirroring `resolveSequence`) and a `displayMusicFireMs = postServiceArmMs
+?? musicFireMs` used only by those two readouts. `musicFireMs` itself is
+unchanged so the auto-arm fallback scheduler still behaves the same.
+
 ### Live "Add a song" (10.2.1)
 Operator affordance to fill added time (e.g. after +2 min) with real music
 instead of a longer pad hold. `ServiceController.addSongLive()`: injects one

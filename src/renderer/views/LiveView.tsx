@@ -114,6 +114,51 @@ export function LiveView() {
     return targetMs - activeService.autoStartTargetSec * 1000;
   }, [activeService, targetMs, currentRunway]);
 
+  // During post-service, the NEXT service's pre-service music is armed by
+  // an arm_playlist ("music to fill") action in the post-service sequence
+  // — it fires when the post-service (e.g. prayer) track ends, NOT at the
+  // normal auto-arm time (targetMs - autoStartTargetSec). Resolve that
+  // action's fire time so the "Music fires in" / "Auto-arm scheduled for"
+  // readouts show WHEN MUSIC ACTUALLY STARTS instead of the unrelated
+  // normal-auto-arm clock. Null when there's no such action (plain
+  // post-service that relies on normal auto-arm). Mirrors
+  // serviceController.resolveSequence for the post-service branch.
+  const postServiceArmMs = useMemo(() => {
+    const r = currentRunway;
+    if (!r || !r.isPostService) return null;
+    const lookupServiceId = r.serviceId ?? r.originServiceId ?? null;
+    let seqId: string | undefined;
+    if (lookupServiceId) {
+      const svc = services.find(s => s.id === lookupServiceId);
+      const ovr = svc?.postActionSequenceIdOverride;
+      if (ovr === '') return null;
+      if (ovr) seqId = ovr;
+    }
+    if (!seqId) {
+      const pl = r.sourcePlaylistId ? playlists.find(p => p.id === r.sourcePlaylistId) : undefined;
+      seqId = pl?.actionSequenceId;
+    }
+    if (!seqId) return null;
+    const seq = actionSequences.find(s => s.id === seqId);
+    if (!seq) return null;
+    let earliest: number | null = null;
+    for (const a of seq.actions) {
+      if (!a.enabled) continue;
+      if (a.payload.type !== 'arm_playlist') continue;
+      const fireMs = resolveActionFireMs(a, seq.anchor, r, tracks);
+      if (fireMs == null) continue;
+      if (earliest == null || fireMs < earliest) earliest = fireMs;
+    }
+    return earliest;
+  }, [currentRunway, services, playlists, actionSequences, tracks]);
+
+  // Time to show in the "Music fires in" / "Auto-arm scheduled for"
+  // readouts. During an action-driven post-service handoff, prefer the
+  // real arm_playlist fire time; otherwise the normal music-fire time.
+  // (musicFireMs itself is left untouched — the auto-arm effect still
+  // uses it as the fallback scheduler.)
+  const displayMusicFireMs = postServiceArmMs ?? musicFireMs;
+
   // Track whether the runway is a rehearsal service (or Quick Test). Both
   // unlock timeline click + test controls so transitions can be tested.
   const runwayService = currentRunway?.serviceId
@@ -781,11 +826,11 @@ export function LiveView() {
             scary "not armed" banner with a calm "we've got this — arms
             at HH:MM" status. */}
         {activeService && !isArmed && targetMs > 0 && targetMs > Date.now()
-          && autoArmEnabled && isPostServiceRolling && musicFireMs > Date.now() && (
+          && autoArmEnabled && isPostServiceRolling && displayMusicFireMs > Date.now() && (
           <div className="auto-arm-pending">
             <span className="auto-arm-pending-dot" aria-hidden />
             <span className="auto-arm-pending-text">
-              Auto-arm scheduled for <strong>{new Date(musicFireMs).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</strong>
+              Auto-arm scheduled for <strong>{new Date(displayMusicFireMs).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</strong>
               {' '}— post-service will fade out and {activeService.name || 'next service'} will arm.
             </span>
           </div>
@@ -867,11 +912,11 @@ export function LiveView() {
                     </div>
                   );
                 }
-                if (musicFireMs > 0 && musicFireMs > Date.now()) {
+                if (displayMusicFireMs > 0 && displayMusicFireMs > Date.now()) {
                   return (
                     <div className="sub-countdown-row">
                       <SubCountdown
-                        targetMs={musicFireMs}
+                        targetMs={displayMusicFireMs}
                         label="Music fires in"
                         variant={armedHere ? 'amber' : 'default'}
                       />
