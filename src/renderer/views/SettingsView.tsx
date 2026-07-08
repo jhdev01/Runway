@@ -222,6 +222,7 @@ const STATIC_ASSIGNABLE: AssignableItem[] = [
   { id: 'start_post_service', label: 'Start post-service', action: 'start_post_service' },
   { id: 'pad_play', label: 'Pad — Play', action: 'pad_play' },
   { id: 'pad_stop', label: 'Pad — Stop', action: 'pad_stop' },
+  { id: 'add_song', label: 'Add a song (fill to start)', action: 'add_song' },
 ];
 
 function MidiSettings() {

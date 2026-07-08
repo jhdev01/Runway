@@ -707,8 +707,25 @@ export function LiveView() {
                     timerRef.current = null;
                   }
                 };
+                const runwayLive = currentRunway?.serviceId === activeService.id
+                  && (currentRunway?.phase === 'music' || currentRunway?.phase === 'pad');
                 return (
                   <div className="time-shift-group">
+                    {runwayLive && (
+                      <button
+                        className="time-shift-btn"
+                        type="button"
+                        onClick={() => {
+                          setArmError(null);
+                          void controller.addSongLive().then(res => {
+                            if (!res.ok) setArmError(res.reason ?? 'Could not add a song');
+                          });
+                        }}
+                        title="Play one more song now, fading out exactly at service start. Prefers the pad's key; does not move the start time."
+                      >
+                        + Song
+                      </button>
+                    )}
                     <button
                       className="time-shift-btn"
                       type="button"

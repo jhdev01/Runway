@@ -16,6 +16,22 @@ Living doc. Update when something material changes; replace the "Recent work" se
 
 ## Recent work (post-v10.1.2, unreleased)
 
+### Live "Add a song" (10.2.1)
+Operator affordance to fill added time (e.g. after +2 min) with real music
+instead of a longer pad hold. `ServiceController.addSongLive()`: injects one
+song into a running pre-service runway, crossfading in now and fading to
+silence EXACTLY at `targetMs` — the service start is NOT moved. Song pick
+prefers the pad's key (`padArmedKey ?? landInKey`; exact → Camelot) from the
+service's pre-service playlist, never the currently-playing song; fallback is
+the runway's first song, then random. Pad handling per operator spec: a
+key-matched song keeps the in-key pad landing; a fallback (possibly off-key)
+song cancels the pad bridge (`skipPadBridge`) so an in-key pad can't clash.
+The tail runs on plain wall-clock setTimeouts vs the existing `targetMs` — no
+scheduling math changed. Triggers: on-screen "+ Song" button in the Live
+header time-shift group (shown only while the service runway is in music/pad
+phase) and a MIDI-bindable `add_song` action. Phone-remote command not wired
+yet (easy add if wanted).
+
 ### Persistent service-timing log to disk (10.2.1)
 v10.2.0's timing diagnostics (`[arm] timing`, `[beginMusic]`,
 `[scheduleRunway]`, `[failsafe]`, `[prewarm]`, etc.) only went to the

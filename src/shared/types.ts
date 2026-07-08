@@ -441,6 +441,7 @@ export type MidiAction =
   | 'pad_play'
   | 'pad_stop'
   | 'arm_toggle'
+  | 'add_song'
   | { type: 'pad_set_key'; key: KeyName };
 
 export interface MidiBinding {

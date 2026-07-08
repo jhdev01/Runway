@@ -921,6 +921,11 @@ function handleMidiAction(action: MidiAction, _audio: AudioEngine, controller: S
           onArmError: (msg) => console.warn('[midi] arm_toggle:', msg),
         });
         break;
+      case 'add_song':
+        void controller.addSongLive().then(res => {
+          if (!res.ok) console.warn('[midi] add_song:', res.reason);
+        });
+        break;
     }
   } else if (action.type === 'pad_set_key') {
     store.setPadArmedKey(action.key);

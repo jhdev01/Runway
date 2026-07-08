@@ -810,6 +810,194 @@ export class ServiceController {
     return { ok: true };
   }
 
+  /** Pick a pad file for a key: exact → Camelot-compatible → first mapped. */
+  private pickPadForKey(
+    state: ReturnType<Store['getState']>,
+    key: KeyName | undefined,
+  ): PadFile | undefined {
+    if (key) {
+      const exact = state.config.pads.find(p => p.key === key);
+      if (exact) return exact;
+      for (const k of compatibleKeys(key)) {
+        const m = state.config.pads.find(p => p.key === k);
+        if (m) return m;
+      }
+    }
+    return state.config.pads[0];
+  }
+
+  /**
+   * Live "Add a song" — inject one more song into a running pre-service
+   * runway to fill added time (e.g. after pressing +2 min). Behaviour,
+   * per operator spec:
+   *
+   *  - Service start is NOT moved. The song plays now and fades to
+   *    silence EXACTLY at service start (targetMs), so with +2 min armed
+   *    the operator hears ~2 minutes of it.
+   *  - Song pick prefers the PAD's key (exact → Camelot-compatible),
+   *    drawn from this service's pre-service playlist, and never the song
+   *    currently playing. No key match → fall back to the runway's first
+   *    song, then a random one.
+   *  - Pad bridge: a key-matched song keeps the in-key pad landing; a
+   *    fallback (possibly off-key) song CANCELS the pad bridge so an
+   *    in-key pad can't clash with it.
+   *
+   * The tail is driven by plain wall-clock setTimeouts against the
+   * runway's existing targetMs — no existing scheduling math is changed;
+   * this is a new operator-triggered action layered on top.
+   */
+  async addSongLive(): Promise<{ ok: boolean; reason?: string }> {
+    const state = this.store.getState();
+    const runway = state.currentRunway;
+    if (!runway || runway.serviceId === null || runway.isPostService) {
+      return { ok: false, reason: 'No live service to add a song to' };
+    }
+    if (runway.phase !== 'music' && runway.phase !== 'pad') {
+      return { ok: false, reason: 'Service music has not started yet' };
+    }
+    const now = Date.now();
+    const remainingSec = (runway.targetMs - now) / 1000;
+    if (remainingSec < 5) {
+      return { ok: false, reason: 'Too close to service start — add time first' };
+    }
+
+    // Never replay the song that's on right now.
+    const currentTrackId = state.musicPlayback.trackId ?? undefined;
+
+    // Candidate pool = this service's pre-service playlist, minus the
+    // currently-playing song.
+    const playlist = runway.sourcePlaylistId
+      ? state.config.playlists.find(p => p.id === runway.sourcePlaylistId)
+      : undefined;
+    const poolIds = (playlist?.trackIds ?? runway.trackIds).filter(id => id !== currentTrackId);
+    const pool = poolIds
+      .map(id => state.config.tracks.find(t => t.id === id))
+      .filter((t): t is Track => !!t);
+    if (pool.length === 0) {
+      return { ok: false, reason: 'No other song available to add' };
+    }
+
+    // Key to match = the armed pad key, else the runway's land-in key.
+    const key = state.padArmedKey ?? runway.landInKey;
+    let chosen: Track | undefined;
+    let keyMatched = false;
+    if (key) {
+      const exact = pool.filter(t => t.key === key);
+      if (exact.length > 0) {
+        chosen = exact[Math.floor(Math.random() * exact.length)];
+        keyMatched = true;
+      } else {
+        for (const k of compatibleKeys(key)) {
+          const matches = pool.filter(t => t.key === k);
+          if (matches.length > 0) {
+            chosen = matches[Math.floor(Math.random() * matches.length)];
+            keyMatched = true;
+            break;
+          }
+        }
+      }
+    }
+    // Fallback: the runway's first song (unless it's the excluded
+    // currently-playing one), else a random pool song.
+    if (!chosen) {
+      const firstId = runway.trackIds[0];
+      const first = firstId && firstId !== currentTrackId
+        ? pool.find(t => t.id === firstId)
+        : undefined;
+      chosen = first ?? pool[Math.floor(Math.random() * pool.length)];
+      keyMatched = false;
+    }
+    if (!chosen) return { ok: false, reason: 'Could not pick a song' };
+
+    const targetMs = runway.targetMs;
+    const serviceId = runway.serviceId;
+
+    // We take over the runway tail. Clear the pre-target pad watchdog so
+    // it can't fire beginPad against the injected song; the service-start
+    // watchdog stays as a backstop (it force-completes at target and
+    // respects skipPadBridge).
+    if (this.padFailsafeTimer !== null) {
+      window.clearTimeout(this.padFailsafeTimer);
+      this.padFailsafeTimer = null;
+    }
+
+    // No key match → cancel the pad bridge for the landing so an off-key
+    // fallback song can't clash with an in-key pad.
+    const addedIdx = runway.trackIds.indexOf(chosen.id);
+    state.patchCurrentRunway({
+      phase: 'music',
+      currentTrackIndex: addedIdx >= 0 ? addedIdx : runway.currentTrackIndex,
+      skipPadBridge: keyMatched ? runway.skipPadBridge : true,
+    });
+
+    // Fade out any pad that's currently up — we're putting music back on.
+    this.audio.fadeOutPad(state.config.defaults.padFadeOutSec ?? 2);
+
+    // Crossfade the chosen song in now.
+    const crossfadeSec = Math.max(0.5, Math.min(state.config.defaults.crossfadeSec ?? 3, remainingSec / 2));
+    try {
+      await this.audio.crossfadeToMusic(chosen.filePath, {
+        crossfadeSec,
+        trackId: chosen.id,
+        startAtSec: chosen.trimStartSec,
+        endAtSec: chosen.trimEndSec,
+      });
+    } catch (err) {
+      console.error('[addSong] play failed', err);
+      return { ok: false, reason: `Could not play "${chosen.title}"` };
+    }
+
+    console.log('[addSong] injected', {
+      title: chosen.title,
+      key: chosen.key,
+      keyMatched,
+      remainingSec: +remainingSec.toFixed(1),
+      serviceId,
+    });
+
+    // Fade the song to silence ENDING exactly at service start.
+    const songFadeSec = Math.max(1, Math.min(state.config.defaults.musicFadeToPadSec ?? 5, remainingSec / 3));
+    window.setTimeout(() => {
+      if (this.store.getState().currentRunway?.serviceId !== serviceId) return;
+      this.audio.fadeOutMusic(songFadeSec);
+    }, Math.max(0, (remainingSec - songFadeSec) * 1000));
+
+    // Key match → the in-key pad bridges the landing: fire it so it's up
+    // at service start and holds/fades per the runway's pad settings.
+    const padFile = keyMatched ? this.pickPadForKey(state, key ?? chosen.key) : undefined;
+    const padLeadSec = Math.max(0.5, state.config.defaults.padLeadInSec ?? 5);
+    const padHoldSec = Math.max(0, runway.padBridgeSec || 0);
+    const padFadeOutSec = Math.max(0.5, runway.padFadeOutSec || 0);
+    if (padFile) {
+      window.setTimeout(() => {
+        if (this.store.getState().currentRunway?.serviceId !== serviceId) return;
+        void this.audio.playPad(padFile.filePath, { fadeInSec: padLeadSec, loop: true });
+        if (padFile.key) this.store.getState().setPadArmedKey(padFile.key);
+        window.setTimeout(() => {
+          if (this.store.getState().currentRunway?.serviceId !== serviceId) return;
+          this.audio.fadeOutPad(padFadeOutSec);
+        }, (padLeadSec + padHoldSec) * 1000);
+      }, Math.max(0, (remainingSec - padLeadSec) * 1000));
+    }
+
+    // Mark the service completed at start (backstop: the service-start
+    // failsafe does too), then clear the runway once the tail finishes so
+    // the schedule rolls forward.
+    window.setTimeout(() => {
+      if (this.store.getState().currentRunway?.serviceId !== serviceId) return;
+      this.store.getState().setServiceStatus(serviceId, 'completed');
+    }, Math.max(0, targetMs - Date.now()));
+    const tailEndMs = padFile
+      ? targetMs + (padHoldSec + padFadeOutSec) * 1000 + 200
+      : targetMs + songFadeSec * 1000 + 200;
+    window.setTimeout(() => {
+      if (this.store.getState().currentRunway?.serviceId !== serviceId) return;
+      this.store.getState().setCurrentRunway(null);
+    }, Math.max(0, tailEndMs - Date.now()));
+
+    return { ok: true, };
+  }
+
   /**
    * Delete a service safely. If the service has the currently-running
    * runway, fade audio out first so the user doesn't hear a hard cut, then
