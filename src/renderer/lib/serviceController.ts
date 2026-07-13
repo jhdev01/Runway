@@ -887,8 +887,13 @@ export class ServiceController {
       return from[Math.floor(Math.random() * from.length)];
     };
 
-    // Key to match = the armed pad key, else the runway's land-in key.
-    const key = state.padArmedKey ?? runway.landInKey;
+    // Key to match = the service's SET landing key (what the runway
+    // actually resolves to — firstSongKey or inherited), falling back to
+    // the armed pad key only if the service has no key. This keeps the
+    // added song in-key with the landing/pad that follows, instead of
+    // whatever pad happened to be armed. Camelot-compatible keys still
+    // count as a match below, so e.g. a C song qualifies for a G landing.
+    const key = runway.landInKey ?? state.padArmedKey;
     let chosen: Track | undefined;
     let keyMatched = false;
     if (key) {
