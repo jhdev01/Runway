@@ -93,6 +93,12 @@
 // makes the page work as a standalone file:// load. Newest first.
 const RELEASES = [
   {
+    version: '10.2.3', date: 'August 9, 2026', major: false,
+    changes: [
+      'Fixed a rare <strong>between-service overshoot</strong>. When the auto-fill had to trim more than the entire first song off the front to fit the window, that song was left in the runway (playing zero audio) and the music ran long — overshooting the next service start, so the failsafe cut the music and the pad bridge got buried under it. Now songs the trim would fully skip are dropped from the runway and the leftover trim carries onto the next song, so the music lands on time and the pad is heard cleanly. Added a safety net in the playback walk so an oversized front-trim can never overshoot again.',
+    ],
+  },
+  {
     version: '10.2.2', date: 'July 13, 2026', major: false,
     changes: [
       'Add-a-song now <strong>matches the service\'s landing key</strong>. When you tap +2 (or + Song) to fill time, the added song targets the key the service actually lands in — not whatever pad happened to be armed — so the handoff into the pad bridge stays in-key. Camelot-compatible keys still count, so e.g. a C song still qualifies for a G landing when no exact-key song is loaded.',

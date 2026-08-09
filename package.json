@@ -1,6 +1,6 @@
 {
   "name": "runway",
-  "version": "10.2.2",
+  "version": "10.2.3",
   "description": "Worship audio control: scheduled pre-service music, key-aware playlist arrangement, pad player, MIDI integration with ProPresenter.",
   "main": "dist/main/main/main.js",
   "author": "jhdev",

@@ -1163,6 +1163,32 @@ export const useAppStore = create<AppStoreState>((set, get) => ({
     // landing point lines up with service start across long playlists.
     // Paired with awaited preload below (guarantees buffer cache is warm
     // before music starts, so transitions don't lose overlap to decode).
+    // Drop any leading song the head-trim (startOffsetSec) would skip
+    // ENTIRELY. The fill adds whole songs then shaves the front to fit the
+    // window; when that shave is longer than the first song, the song
+    // contributes zero audio — and the playback walk historically only
+    // trimmed the first track, so the leftover trim was dropped and the
+    // runway overshot the service start (observed 2026-08-09: a 5:04 shave
+    // against a 3:46 first song ran the runway ~78s long). Remove those
+    // songs and carry the remaining trim onto the next, so the runway holds
+    // only songs that actually play and startOffsetSec always lands inside
+    // the first one. audibleDurationSec is preserved (a zero-audio song
+    // can't change the audible content), so musicStartMs is unchanged.
+    {
+      const xf = playlist.transitionMode === 'crossfade' ? (playlist.crossfadeSec ?? 0) : 0;
+      let guard = 0;
+      while (trackIds.length > 1 && guard++ < 200) {
+        const firstT = state.config.tracks.find(t => t.id === trackIds[0]);
+        const firstDur = firstT ? effectiveDuration(firstT) : 0;
+        if (startOffsetSec < firstDur) break; // trim lands inside song 1 — keep it
+        trackIds = trackIds.slice(1);
+        totalSec -= firstDur;
+        // Carry the remaining trim: the dropped song's wall-clock share is
+        // its length minus the crossfade overlap into the next song.
+        startOffsetSec = Math.max(0, startOffsetSec - Math.max(0, firstDur - xf));
+      }
+    }
+
     const crossfadeSavingsSec = playlist.transitionMode === 'crossfade' && trackIds.length > 1
       ? Math.max(0, (trackIds.length - 1) * playlist.crossfadeSec)
       : 0;

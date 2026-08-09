@@ -1942,20 +1942,29 @@ export class ServiceController {
     let trackIndex = 0;
     let trackOffset = 0;
     let cumWallclock = 0;
+    // Head-trim is a budget consumed across leading tracks, NOT a first-track-
+    // only skip. When startOff exceeds the first track's length it must carry
+    // onto the next track(s); otherwise the leftover trim is silently dropped
+    // and the runway overshoots service start (the arrange now drops fully-
+    // trimmed leading songs too, so this is normally a no-op — kept as a
+    // safety net). This does not change timing for the common case where
+    // startOff lands inside the first track.
+    let trimRemaining = startOff;
     for (let i = 0; i < runway.trackIds.length; i++) {
       const t = state.config.tracks.find(tr => tr.id === runway.trackIds[i]);
       if (!t) continue;
       const effDur = effectiveDuration(t);
       const isLast = i === runway.trackIds.length - 1;
-      const headTrim = i === 0 ? startOff : 0;
+      const headTrim = Math.min(trimRemaining, effDur);
+      trimRemaining -= headTrim;
       const tailCrossfade = isLast ? 0 : xfade;
       const wallclockContribution = Math.max(0, effDur - headTrim - tailCrossfade);
       if (cumWallclock + wallclockContribution > lateSec) {
         trackIndex = i;
         const wallclockInto = lateSec - cumWallclock;
         // Audible offset within this track:
-        //  - First track: head-trim already skipped, plus wallclock-elapsed since start
-        //  - Later tracks: started at audible 0, so offset = wallclock since start
+        //  - Trimmed track: head-trim already skipped, plus wallclock-elapsed since start
+        //  - Untrimmed later tracks: started at audible 0, so offset = wallclock since start
         trackOffset = headTrim + wallclockInto;
         break;
       }
