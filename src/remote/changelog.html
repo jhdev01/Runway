@@ -86,478 +86,171 @@
     <p class="tagline">Worship audio control — what changed, when.</p>
   </header>
   <div id="releases"></div>
-  <footer>Runway · pre-release · jhdev</footer>
+  <footer>Runway · pre-release · <a href="https://groundedlabs.dev" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline">Grounded Labs Dev</a></footer>
 </div>
 <script>
 // Inline version data — fewer moving parts than a separate JSON fetch and
 // makes the page work as a standalone file:// load. Newest first.
 const RELEASES = [
   {
-    version: '10.2.3', date: 'August 9, 2026', major: false,
-    changes: [
-      'Fixed a rare <strong>between-service overshoot</strong>. When the auto-fill had to trim more than the entire first song off the front to fit the window, that song was left in the runway (playing zero audio) and the music ran long — overshooting the next service start, so the failsafe cut the music and the pad bridge got buried under it. Now songs the trim would fully skip are dropped from the runway and the leftover trim carries onto the next song, so the music lands on time and the pad is heard cleanly. Added a safety net in the playback walk so an oversized front-trim can never overshoot again.',
-    ],
+    "version": "10.2.4",
+    "date": "August 9, 2026",
+    "major": false,
+    "changes": [
+      "Housekeeping — refreshed the About page and trimmed this changelog down to the major features and fixes. Carries the same between-service landing fix as 10.2.3; no functional change from it."
+    ]
   },
   {
-    version: '10.2.2', date: 'July 13, 2026', major: false,
-    changes: [
-      'Add-a-song now <strong>matches the service\'s landing key</strong>. When you tap +2 (or + Song) to fill time, the added song targets the key the service actually lands in — not whatever pad happened to be armed — so the handoff into the pad bridge stays in-key. Camelot-compatible keys still count, so e.g. a C song still qualifies for a G landing when no exact-key song is loaded.',
-    ],
+    "version": "10.2.3",
+    "date": "August 9, 2026",
+    "major": false,
+    "changes": [
+      "Fixed a rare <strong>between-service overshoot</strong>. When the auto-fill had to trim more than the entire first song off the front to fit the window, that song was left in the runway (playing zero audio) and the music ran long — overshooting the next service start, so the failsafe cut the music and the pad bridge got buried under it. Now songs the trim would fully skip are dropped from the runway and the leftover trim carries onto the next song, so the music lands on time and the pad is heard cleanly. Added a safety net in the playback walk so an oversized front-trim can never overshoot again."
+    ]
   },
   {
-    version: '10.2.1', date: 'July 12, 2026', major: true,
-    changes: [
-      '<strong>+2 min now adds a song, not just time.</strong> Pressing +2 during pre-service both pushes the service start out 2 minutes AND drops in a key-matched song to fill it, fading to silence exactly at the new start — so the extra time is music, not a longer pad hold. A standalone <strong>+ Song</strong> button (and a MIDI-bindable action) adds a filling song without moving the start.',
-      'Fixed the <strong>Sunday landing drift and the rare "two songs at once."</strong> Root-caused the back-to-back-service audio issues: a music-bus claim token stops stale/interleaved starts from stranding untracked audio, Stop All (panic) now sweeps every source as a safety net, and decode latency is compensated so the runway lands on its marker instead of 5-15s late.',
-      'Post-service <strong>"Music fires in" now shows the real time.</strong> During the between-services prayer, the countdown and "Auto-arm scheduled for" banner previously showed the normal auto-arm clock; they now show when the fill action actually arms the next service\'s music.',
-      '<strong>Look-ahead pre-warm.</strong> The between-service music fill decodes its songs ~30s ahead of firing, removing the cold-start silence gap on the handoff.',
-      '<strong>Timing log to disk.</strong> Service-timing diagnostics now also append to <code>timing.log</code> next to your config (Settings → Engine → Open timing log), so a service can be diagnosed after the fact without DevTools open.',
-      'New: <strong>Planning Center integration</strong> (optional, off by default). Reads the first song of your upcoming plan and auto-sets the pad-bridge key, so it\'s right even when nobody sets it manually. Set it up under Settings → Planning Center.',
-    ],
+    "version": "10.2.2",
+    "date": "July 13, 2026",
+    "major": false,
+    "changes": [
+      "Add-a-song now <strong>matches the service's landing key</strong>. When you tap +2 (or + Song) to fill time, the added song targets the key the service actually lands in — not whatever pad happened to be armed — so the handoff into the pad bridge stays in-key. Camelot-compatible keys still count, so e.g. a C song still qualifies for a G landing when no exact-key song is loaded."
+    ]
   },
   {
-    version: '10.2.0', date: 'June 22, 2026', major: false,
-    changes: [
-      '<strong>Failsafe watchdogs</strong> for service timing: independent wall-clock backstops force the pad bridge and the service-start transition even if a controller tick is missed, so a service can\'t stall on silence. Plus verbose timing diagnostics behind the scenes for after-the-fact analysis.',
-    ],
+    "version": "10.2.1",
+    "date": "July 12, 2026",
+    "major": true,
+    "changes": [
+      "<strong>+2 min now adds a song, not just time.</strong> Pressing +2 during pre-service both pushes the service start out 2 minutes AND drops in a key-matched song to fill it, fading to silence exactly at the new start — so the extra time is music, not a longer pad hold. A standalone <strong>+ Song</strong> button (and a MIDI-bindable action) adds a filling song without moving the start.",
+      "Fixed the <strong>Sunday landing drift and the rare \"two songs at once.\"</strong> Root-caused the back-to-back-service audio issues: a music-bus claim token stops stale/interleaved starts from stranding untracked audio, Stop All (panic) now sweeps every source as a safety net, and decode latency is compensated so the runway lands on its marker instead of 5-15s late.",
+      "Post-service <strong>\"Music fires in\" now shows the real time.</strong> During the between-services prayer, the countdown and \"Auto-arm scheduled for\" banner previously showed the normal auto-arm clock; they now show when the fill action actually arms the next service's music.",
+      "<strong>Look-ahead pre-warm.</strong> The between-service music fill decodes its songs ~30s ahead of firing, removing the cold-start silence gap on the handoff.",
+      "<strong>Timing log to disk.</strong> Service-timing diagnostics now also append to <code>timing.log</code> next to your config (Settings → Engine → Open timing log), so a service can be diagnosed after the fact without DevTools open.",
+      "New: <strong>Planning Center integration</strong> (optional, off by default). Reads the first song of your upcoming plan and auto-sets the pad-bridge key, so it's right even when nobody sets it manually. Set it up under Settings → Planning Center."
+    ]
   },
   {
-    version: '0.9.14', date: 'May 13, 2026', major: false,
-    changes: [
-      'Runway timing: <strong>Web Audio precise-scheduled pre-service runways</strong>. Pre-service playback now commits every track\'s start, stop, and crossfade gain ramp to the audio context\'s clock up front, so transitions land sample-accurately regardless of tick granularity or decode latency. Post-service and Quick Test still use the reactive path so skip/scrub work as before. End-to-end accuracy across a 30-minute pre-service playlist is now ~1 second (down from 45-55 seconds).',
-      'Runway autoArrange: the <strong>auto-start target now behaves as a wall-clock lead window</strong>. Music fires exactly N minutes before service start AND lands on T=0. The playlist builder fills <em>targetSec + (N-1)*crossfadeSec</em> of audible content so crossfade overlap compresses wall-clock back to exactly targetSec.',
-      'Runway: <strong>beginMusic now walks wall-clock</strong> instead of gapless audible content when computing skip-into-runway offsets. Arming close to service start (e.g. quick-test scenarios with autoStartTarget=30min) now lands the anchor on its marker instead of N*crossfade seconds late.',
-      'Action sequences: <strong>runway truncation now works for per-service overrides</strong>. The "then swaps to" footer + truncated chip list previously only checked playlist.actionSequenceId; now it also picks up postActionSequenceIdOverride / preActionSequenceIdOverride, matching what the controller actually uses to dispatch actions.',
-      'Schedule → Last song picker: <strong>same-title tracks are now disambiguated</strong> by artist or duration so back-to-back releases of the same song (e.g. single + EP) are distinguishable.',
-      'Application menu: macOS + Windows now have a Runway-specific menu with Settings, About, What\'s Changed, view-navigation shortcuts (⌘1-7), and quit. The Windows "What\'s Changed" link also works now (was silently failing due to file:// URL encoding).',
-      'Runway timeline: action markers no longer trigger a phantom horizontal scrollbar when chips fit, and stay fully visible at the edges. Chips now have a smaller min-width so 2-3 track post-service runways fit without a scrollbar.',
-    ],
+    "version": "10.2.0",
+    "date": "June 22, 2026",
+    "major": false,
+    "changes": [
+      "<strong>Failsafe watchdogs</strong> for service timing: independent wall-clock backstops force the pad bridge and the service-start transition even if a controller tick is missed, so a service can't stall on silence. Plus verbose timing diagnostics behind the scenes for after-the-fact analysis."
+    ]
   },
   {
-    version: '0.9.13', date: 'May 12, 2026', major: false,
-    changes: [
-      'Runway timing: <strong>full rewrite of the auto-arrange + transition timing math</strong>. The auto-start target now behaves as a wall-clock lead window — music fires exactly that many seconds before service start AND lands at T=0. Specifically: (1) the auto-arrange playlist builder fills <em>targetSec + (N-1)×crossfadeSec</em> of audible content so crossfade overlaps compress wall-clock back to exactly targetSec; (2) the audio engine\'s crossfade transitions anchor to the previous track\'s pre-scheduled end (deterministic overlap regardless of decode latency); (3) armService awaits the buffer preloader before returning so transitions never wait on decode mid-runway; (4) beginMusic\'s skip-into-runway logic walks wall-clock, not gapless audible content, so arming close to service start lands correctly. End-to-end accuracy on a 30-min playlist is now within ~1 second.',
-    ],
+    "version": "0.9.14",
+    "date": "May 13, 2026",
+    "major": true,
+    "changes": [
+      "<strong>Sample-accurate pre-service timing.</strong> Web Audio now commits every track start, stop, and crossfade to the clock up front, so a 30-minute pre-service playlist lands within ~1 second of service start — down from 45–55 seconds of drift."
+    ]
   },
   {
-    version: '0.9.12', date: 'May 12, 2026', major: false,
-    changes: [
-      'Runway timing: <strong>reverts the 0.9.10 crossfade-savings subtraction</strong> and the related arm-time preload await. Across testing the subtraction caused music to land 30-55s off target depending on whether decode latency at each transition happened to consume the crossfade overlap. 0.9.0 landed music on the marker reliably without subtracting; restoring that math fixes the regression. Music now ends on its <em>editServiceLandSec</em> marker (or trim end if no marker) exactly at service start.',
-    ],
+    "version": "0.9.11",
+    "date": "May 11, 2026",
+    "major": true,
+    "changes": [
+      "<strong>Windows build now available</strong>, alongside Mac.",
+      "<strong>Close-to-tray on Mac:</strong> the red close button hides Runway to the menu bar with a live countdown; quit from the tray menu (or ⌘Q) to actually exit. Timing stays accurate while hidden."
+    ]
   },
   {
-    version: '0.9.11', date: 'May 11, 2026', major: false,
-    changes: [
-      'Mac: <strong>close-to-tray</strong>. Clicking the red close button now hides the window to the menu bar instead of quitting. The menu bar icon shows a live countdown (HH:MM:SS, matches the big clock) and a right-click menu with the upcoming service status, current now-playing track, and quick access to the next few services. Use <em>Quit Runway</em> from the tray menu (or ⌘Q) to actually exit. Runway keeps timing accurate while hidden — the renderer no longer throttles in the background.',
-      'Settings → Backup: <strong>Reset to factory defaults</strong> button. Wipes the app config (services, playlists, hooks, settings) after a type-to-confirm "Erase Everything" prompt. Audio files in the library directory are preserved — only the config is cleared. Offers a backup export before wipe.',
-      'Settings → Library: shows the audio library path with a <strong>View in Finder</strong> button. The old "Move to library" button is now labeled <em>Consolidate</em> for clarity.',
-      'Windows build now available. Same feature set; tray icon uses the colored Runway icon since Windows does not auto-tint template images like macOS does.',
-    ],
+    "version": "0.9.6",
+    "date": "May 9, 2026",
+    "major": false,
+    "changes": [
+      "<strong>Fade to Pad.</strong> One tap fades the music to silence and brings up a key-matched pad to hold the room; tap again to bring the music back — no fader-riding to recover."
+    ]
   },
   {
-    version: '0.9.10', date: 'May 10, 2026', major: false,
-    changes: [
-      'Auto-arrange runway: <strong>fixes "music ends N seconds early" with crossfade enabled.</strong> The scheduler was summing track durations gapless-style and not subtracting the time saved by crossfade overlaps. With N tracks at C-second crossfade, music actually plays for (N-1)*C seconds less than the math expected — so the anchor landed (N-1)*C seconds before service start. Now the audible-duration calculation subtracts the crossfade savings, so the runway lands on targetMs exactly. Side effect: music starts slightly later (the crossfade savings) instead of finishing early.',
-    ],
+    "version": "0.9.2",
+    "date": "May 8, 2026",
+    "major": false,
+    "changes": [
+      "Fixed: <strong>between back-to-back services the previous pad bridge could play indefinitely.</strong> Auto-arm now waits while any audio is still rolling and silences leftover audio before arming the next service."
+    ]
   },
   {
-    version: '0.9.9', date: 'May 10, 2026', major: false,
-    changes: [
-      'ProPresenter: <strong>new "Clear PP timer only" hook action</strong> on every lifecycle hook (When music starts / When service starts / When post-service starts / When disarmed) — both in global Settings → ProPresenter and in the per-service ProPresenter setup modal. Stops + resets the configured PP timer without clearing layers or triggering a playlist item.',
-      'ProPresenter: disarm-hook timer behavior tightened. Previously <em>any</em> non-"Do nothing" disarm action also auto-stopped the timer as a side effect. Now: "Clear all PP layers" and "Trigger playlist item" still stop+reset the timer (because clearing layers without stopping the timer leaves a phantom countdown ticking on stage), "Clear PP timer only" handles its own stop+reset, and "Do nothing" leaves the timer alone.',
-    ],
+    "version": "0.9.1",
+    "date": "May 8, 2026",
+    "major": false,
+    "changes": [
+      "<strong>Phone remote installs as a home-screen app.</strong> \"Add to Home Screen\" produces a standalone remote that resists the tab-suspension that used to disconnect it on lock."
+    ]
   },
   {
-    version: '0.9.8', date: 'May 10, 2026', major: false,
-    changes: [
-      'ProPresenter timer: <strong>now arms only when pre-service music actually starts</strong>, not at auto-arm/queued time. Previously the PP countdown began displaying on the stage screen the moment a service became armed — so for a 30-min lead window, PP showed the entire 30+ minutes of waiting + the lead. Now the PP timer arms exactly at the music_start one-shot, so the on-stage countdown only appears (and starts ticking) when audio is actually playing.',
-    ],
+    "version": "0.8.2",
+    "date": "May 7, 2026",
+    "major": true,
+    "changes": [
+      "<strong>Library — new top-level tab.</strong> A central pool of every imported track with search, album artwork, and metadata; upload audio files directly from the toolbar."
+    ]
   },
   {
-    version: '0.9.7', date: 'May 9, 2026', major: false,
-    changes: [
-      'Live view: <strong>runway is now always horizontal</strong>. Equal-width song chips that scroll sideways when there are more tracks than fit. Auto-scrolls the current chip into view on track change so the live position is never offscreen. Pad bridge sits in the row as its own pink chip. The vertical track-stack mode (and its Settings toggle) is gone — one visual model across all services.',
-      'Live view: <strong>compact action row</strong> — Start Post-Service / Fade to Pad / Stop All sit on one line at the bottom instead of the previous oversized 2-column grid. The Start Post-Service button has a small ▾ chevron in its corner that opens a playlist picker, mirroring the Pad-key gesture from the remote.',
-      'Live view: countdown digits + "Music · Playing" pill recolored to the teal accent so the running-state visuals match the ARMED pill. Album art on the Now Playing card is clickable — opens a full-screen lightbox; click again to close. Same lightbox is wired to the Library mini-player\'s art too.',
-      '<strong>Panic Fade renamed to Stop All</strong>. Wording change only — same fade-out behavior. Subtitle now reads "Fades out · 1.5s" instead of "Stop everything · 1.5s".',
-      '<strong>Per-service action sequence overrides for pre AND post</strong>. Each service in Schedule has separate dropdowns: Pre-service action sequence and Post-service action sequence. Either can be set to "Inherit from playlist" (default), "— No actions —", or any specific sequence. Post-service runways carry the originating service id so per-service post overrides resolve correctly even when the runway has no service id of its own.',
-      'Action engine: <strong>"after first song + N songs"</strong> with N equal to the playlist length now means "fire when the playlist finishes" instead of being silently skipped as out-of-bounds. Use case: a 2-song prayer playlist with an action that fires at the end of song 2 to arm the next service or swap to a different post-service playlist.',
-      'arm_playlist with no upcoming service to arm against now <strong>falls back to a standalone playlist swap</strong> instead of bailing out silently — operators see music play and a one-line warning explaining why nothing was actually armed.',
-      'Post-service playlist picker auto-rotates to <strong>the most recent past service\'s saved post-service playlist</strong> when activeService is past its 5-min grace, so back-to-back rotations land on the right playlist without the operator having to re-pick. Manual picks via the chevron are still respected.',
-      'Library: <strong>Show locations</strong> toggle expands rows to show on-disk paths (path tooltip on hover); <strong>always-visible folder indicator</strong> next to each row\'s tech info — filled = internal library, outlined = external reference; <strong>Consolidate library</strong> button copies every external file into the internal audio dir so the library is self-contained.',
-      'Library: <strong>Refresh metadata refreshes only checked tracks</strong>. With nothing checked, click pops a transient hint instead of refreshing everything.',
-      'Schedule: tightened service-card layout. Uniform 36px control heights across selectors, Pad Bridge toggle, Auto-start input, and the new action-sequence dropdowns. Pre/post action dropdowns sit directly under their corresponding playlist selectors.',
-      '<strong>Custom tooltip component</strong> replacing Electron\'s unreliable native title-attribute tooltips. Cursor-anchored bubble that follows the mouse, can\'t escape the viewport, and renders via portal so parent overflow/stacking can\'t hide it. Wired into action chips, runway markers, folder indicators, location paths, and a few other affordances.',
-      'fade-to-pad: removed misleading <code>cursor: help</code> on action elements (showed <code>?</code> with no actual tooltip in Electron); cleared in favor of the new tooltip\'s default cursor.',
-    ],
+    "version": "0.8.0",
+    "date": "May 7, 2026",
+    "major": true,
+    "changes": [
+      "<strong>Action Sequences — major new feature.</strong> A reusable library of timed automations that fire at set points in a runway: arm the next service, swap playlists between services, and trigger ProPresenter slides — with per-service overrides."
+    ]
   },
   {
-    version: '0.9.6', date: 'May 9, 2026', major: false,
-    changes: [
-      '<strong>Panic to Pad → Fade to Pad</strong>, with toggle behavior. Click once to fade music to silence (the source keeps playing in the background so position stays accurate) and bring up a key-matched pad. Click again to bring music back and fade the pad out — no need to ride the master fader to recover. Renamed across desktop + remote; engaged state pulses pink, label flips to "Music Back In", the Now Playing label changes to "Holding on Pad".',
-      'Library: <strong>album artwork picker.</strong> Click any track\'s thumbnail (or the ♪ placeholder) to open a popover with up to 8 candidate covers from iTunes — pick the right release when the auto-fill grabs the wrong version. Picking a candidate also fills the album name if the track was missing one.',
-      'Library: <strong>auto-fill album names</strong> from iTunes alongside artwork. Tracks downloaded without ID3 album metadata now get the canonical "Song Title - Single" or full album name on Refresh metadata.',
-      'Library: <strong>persistent now-playing dock</strong> at the bottom of the page when previewing a track. 56×56 art · title · artist · album · scrubber (click anywhere to seek) · stop button. Replaces the per-row scrubber. Click the art to open a full-screen lightbox of the cover.',
-      'Live: clicking the Now Playing artwork opens the same album-art lightbox at up to 80vmin/75vh.',
-      'Pad Player drawer: <strong>crossfader replaces the music slider</strong>. Center = both buses full, left = pad isolated, right = music isolated. The "music" side ducks both the music bus AND the cue bus so it works whether you\'re auditioning during a service or just previewing tracks from the Library.',
-      'Library: Pad Player drawer no longer overlays the track list — the table shrinks to make room. The toggle button restyled to match the rest of the toolbar; click again to close.',
-      'iTunes lookup: <strong>misses no longer cache</strong>. A transient network blip can no longer permanently brick a track\'s artwork — next Refresh metadata re-attempts.',
-      'Library refresh metadata: <strong>preserves existing artwork</strong> if a fresh lookup comes back empty (was overwriting with blanks).',
-    ],
+    "version": "0.6.0",
+    "date": "May 2, 2026",
+    "major": false,
+    "changes": [
+      "<strong>Backup &amp; restore.</strong> Export or import the full app config — services, playlists, library references, and settings — in one file."
+    ]
   },
   {
-    version: '0.9.5', date: 'May 8, 2026', major: false,
-    changes: [
-      '<strong>Pad auto-tracks the current song\'s key.</strong> When music changes track, the pad\'s armed key updates to match — so hitting Pad Play (live or from the remote) fires a key-matched pad without stepping through the picker. Operator picks via the picker still win — auto-track only kicks in when the song key actually changes.',
-      'Live + remote: <strong>Panic to Pad</strong>. Soft alternative to full panic — fades the music out and immediately brings up a key-matched pad so the room doesn\'t fall into silence. Pink button on Live, pink action button on the remote. Disabled when no music is playing or no pads are mapped.',
-      'Library + Live: <strong>album art</strong>. Embedded ID3 / FLAC artwork now shows on every Library row and on the Now Playing strip. Tracks without embedded art fall back to a small ♪ placeholder. Old imports backfill artwork lazily on Library open. Phase 2 (next: iTunes Search fallback for missing art) coming soon.',
-    ],
+    "version": "0.5.0",
+    "date": "April 1, 2026",
+    "major": true,
+    "changes": [
+      "<strong>ProPresenter integration.</strong> Network API timer sync so the pre-service countdown drives ProPresenter's on-stage timer, with lifecycle hooks to trigger slides when music starts, when the service begins, or on disarm.",
+      "MTC (MIDI Time Code) output added for ProPresenter and other timecode-aware gear."
+    ]
   },
   {
-    version: '0.9.4', date: 'May 8, 2026', major: false,
-    changes: [
-      'Live view: <strong>pad row now has a progress fill</strong> in the horizontal timeline, draining from pad lead-in start to pad-fully-off. Pink to match the pad-finishing countdown so the eye links the two surfaces.',
-      'Remote: <strong>post-service swap to prev/stop/next.</strong> When post-service music is rolling, the Post-Service button transforms into a 3-segment transport — Prev track, Stop, Next track — sharing the same grid slot. Idle state still shows the single Post-Service start button.',
-      'Remote: <strong>pad key picker.</strong> Small ▾ chevron in the corner of the Pad Play button opens a 12-key grid; tapping a key arms it on the desktop without firing the pad (operator hits Pad Play afterward). The currently-armed key shows as a small chip on the button. Keys without a mapped pad are disabled.',
-      'New remote commands: <code>prev_track</code>, <code>next_track</code>, <code>set_pad_key</code> — all PIN-gated like the other remote commands.',
-    ],
+    "version": "0.4.0",
+    "date": "March 10, 2026",
+    "major": true,
+    "changes": [
+      "<strong>Pad Player.</strong> Key-aware sustained pads that bridge between the end of pre-service music and live worship, so the room never falls into silence at service start."
+    ]
   },
   {
-    version: '0.9.3', date: 'May 8, 2026', major: false,
-    changes: [
-      'Remote: <strong>fixed mDNS hostname <code>runway.local</code></strong>. Runway now publishes its own Bonjour service on startup so the phone bookmark <code>http://runway.local:7811</code> resolves to whichever Mac is currently running it. Install the PWA once and it follows you across home, church, and venue setups. (Previously the .local URL was tied to one specific Mac\'s hostname.)',
-      'Remote: stable URL is now shown alongside the IP URL in Settings → Remote, and the QR code encodes it. Both phone and host need to be on the same Wi-Fi for mDNS to resolve.',
-    ],
+    "version": "0.3.2",
+    "date": "February 26, 2026",
+    "major": true,
+    "changes": [
+      "<strong>Land-in-key arrangement.</strong> The runway orders tracks so the final pre-service song lands in your service's first-song key."
+    ]
   },
   {
-    version: '0.9.2', date: 'May 8, 2026', major: false,
-    changes: [
-      'Fixed: <strong>between back-to-back services, the previous service\'s pad bridge played indefinitely.</strong> Auto-arm fired immediately when the prior service was marked completed (potentially 30+ minutes before the next service\'s music should begin), overwriting the previous runway and stranding the pad-fade-cleanup setTimeout (which keys on the runway\'s serviceId and bails when the runway swaps). Two-part fix: auto-arm now defers when ANY audio is currently rolling — post-service music, or a previous service\'s pad bridge — until <code>musicFireMs</code>. And when the deferred arm fires, it now explicitly fades both music AND pad before installing the new runway, so any leftover audio from the previous service is silenced.',
-      'Settings → Remote: <strong>stable URL via mDNS.</strong> The first URL in the list is now the macOS-published <code>[hostname].local</code> address — survives DHCP IP changes on the host. Marked with a <em>STABLE</em> badge. The QR code now encodes this URL, so the PWA installed from it keeps working even after the router hands the Mac a new IP. (No new dependencies — macOS already publishes <code>.local</code> hostnames via Bonjour by default.)',
-      'Playlists: clearer label on the toggle previously called "Play first song from start" — now reads <strong>"Don\'t trim opening song"</strong> with a one-line explanation underneath: "ON: music starts earlier so the first song plays from the beginning. OFF: starts mid-song to fit the lead window."',
-    ],
+    "version": "0.3.0",
+    "date": "February 12, 2026",
+    "major": false,
+    "changes": [
+      "<strong>Service scheduling.</strong> Weekly and one-off services with calculated start times."
+    ]
   },
   {
-    version: '0.9.1', date: 'May 8, 2026', major: false,
-    changes: [
-      'Remote: <strong>installable as a home-screen PWA.</strong> Added a <code>manifest.json</code> + Apple-specific meta tags so iOS Safari\'s "Add to Home Screen" produces a standalone app (no Safari chrome, separate WebView lifecycle, much less aggressive tab-suspension on lock screen). On Android Chrome it installs natively. iOS quirk: only Safari can do the install, but the installed icon then runs in a clean container.',
-      'Remote: <strong>force-reconnect on wake / network change.</strong> The WebSocket now actively reconnects on <code>visibilitychange</code> (phone screen wakes), <code>pageshow</code> (bfcache restore), and <code>online</code> (Wi-Fi handoff) — instead of waiting for the next packet attempt to time out. Resets back-off so the first retry is the fast 500 ms path.',
-      'Remote: <strong>master volume slider</strong> in the unlocked action bar — drag to set master fader, mute button on the left. Mirrors the desktop master fader bidirectionally; throttled to ~30 Hz so a fast drag doesn\'t flood the LAN. Two new commands (<code>set_master_volume</code>, <code>set_master_mute</code>) added to the remote command surface.',
-    ],
+    "version": "0.2.0",
+    "date": "January 18, 2026",
+    "major": true,
+    "changes": [
+      "<strong>Key-aware playlists.</strong> Camelot-wheel-aware track ordering for smooth harmonic transitions — no more clashing key changes between songs."
+    ]
   },
   {
-    version: '0.9.0', date: 'May 8, 2026', major: true,
-    changes: [
-      '<strong>Release candidate.</strong> Reliability gaps closed during a pre-1.0 audit; staying on a 0.x prerelease until a few Sundays of live use confirm stability.',
-      'Fixed: <strong>panic mid-service used to leave the service stuck "live" forever</strong>. The next service\'s auto-arm would never fire because <code>activeService</code> kept pointing at the panicked service. Now <code>disarmService</code> marks a live service "completed" instead of just clearing the runway, so the schedule moves on cleanly.',
-      'Fixed: <strong>"Play first song from start" now caps how early music can fire</strong>. If a playlist is more than 10 minutes longer than the lead window, the runway head-trims regardless of the toggle and surfaces a warning ("Playlist is N min longer than the lead window — head-trimming first song to keep music from firing too early"). Without this, a 2-hour playlist with the toggle on would silently fire music two hours before service.',
-      'Verified: <strong>swap-in-progress flag</strong> is reset as the first statement of its setTimeout callback before any other code, AND the success path uses try/finally — so a thrown error inside the swap can\'t leave <code>advanceMusic</code> permanently blocked.',
-      'Verified: auto-arm <code>setTimeout(0)</code> path handles the case where <code>musicFireMs</code> has already passed (operator running late) — fires immediately rather than getting stuck.',
-    ],
-  },
-  {
-    version: '0.8.15', date: 'May 8, 2026', major: false,
-    changes: [
-      'Action: <strong>Arm playlist</strong> replaces the earlier "Start service" action. Picks a playlist (any kind), arms it as the upcoming service\'s pre-service music — the service\'s saved playlist setting is left untouched. <strong>Music to fill</strong> toggle: ON starts music immediately and loops tracks to fill the entire (now → service start) window; OFF behaves like a normal arm.',
-      'Fixed: <strong>Arm playlist now actually fires music when post-service is rolling.</strong> The arm logic\'s no-arrange path (used for post-style playlists, where <code>autoArrangeToKey</code> is false) wasn\'t honoring <code>repeatToFill</code> — so an arm with a 30 min playlist and a 60 min lead window would set <code>musicStartMs</code> 30 min in the future, leaving post-service music playing until then. Now the no-arrange path loops the playlist when fill is requested, which makes <code>musicStartMs</code> land at "now" and the runway transitions into music on the next tick.',
-      'Both <em>change_setlist</em> and <em>arm_playlist</em> now share the runway truncation: visible queue, count, "ends in" pill, and the look-ahead hold all stop at whichever truncating action fires first.',
-    ],
-  },
-  {
-    version: '0.8.14', date: 'May 8, 2026', major: false,
-    changes: [
-      'Live view: post-service playing pill moved below the <em>Target / Land in / Pad hold</em> row, so the entire next-service block (countdown, music-fires-in, target/key/pad meta) stays at the top together and the pill drops to the bottom as a footnote.',
-    ],
-  },
-  {
-    version: '0.8.13', date: 'May 8, 2026', major: false,
-    changes: [
-      'Live view: <strong>swapped the post-service pill and next-service countdown</strong> in the back-to-back layout. The big countdown clock now sits directly under "Service Starts In"; the pink "Post-service playing · ends in" pill drops below it. Reads as "next service is the focus — by the way, this audio is still playing" instead of the other way around.',
-      'Live view: countdown clock fades to <strong>soft purple</strong> when post-service music is rolling (instead of "not-armed" red). Harmonizes with the pink post-service pill below it — single color story, reads as supplementary info rather than alarm. Auto-arm-pending teal banner above the hero already conveys that the system has the arm scheduled, so the countdown doesn\'t need to nag.',
-    ],
-  },
-  {
-    version: '0.8.12', date: 'May 8, 2026', major: false,
-    changes: [
-      'Fixed: <strong>auto-arm scheduled banner</strong> now actually shows during the back-to-back gap. The previous build was silently turning auto-arm OFF when post-service started between services (a leftover from an earlier safety net), so the calm teal banner never appeared and the scary red one stayed up. Now the controller cleanly clears any queued pre-service runway when post-service starts, leaves auto-arm enabled, and the deferred-arm setTimeout fires at <code>musicFireMs</code> as designed.',
-      'Fixed: <strong>post-service "ends in" timer was stale right after a change_setlist swap</strong> — currentRunway flipped to the new playlist but <code>musicPlayback</code> was briefly still the old track, so the calc showed the wrong remaining time for ~100 ms. Now detects the trackId mismatch and falls back to the new track\'s full duration until the audio engine\'s notify catches up.',
-      'New action: <strong>Start service & arm</strong> (cyan ▶ icon). Picks any service from the schedule and arms it from inside an action sequence. Overrides anything currently playing — queued pre-service is cleared, post-service music fades out, the chosen service arms. Ideal for chaining the 1st service\'s post-service into the 2nd service\'s arm without depending on the global auto-arm toggle.',
-      'New action — <strong>Autofill toggle</strong>: when ON, the runway lays out music to start <em>now</em> regardless of the service\'s saved autoStartTargetSec. Use case: "the previous service ran long, just start the next one\'s music now and have it land on time." The controller computes startOffsetSec so the runway lands exactly at service start.',
-    ],
-  },
-  {
-    version: '0.8.11', date: 'May 8, 2026', major: true,
-    changes: [
-      'Live view: <strong>post-service runway truncates at the swap.</strong> When a change_setlist action is queued in the current sequence, the runway header count, total duration, "ends in" pill, and the visible track timeline all stop at the swap point. Tracks scheduled after the swap won\'t play in this leg, so they no longer appear in the count or the queue. A small fuchsia "↳ then swaps to: <em>[Target Playlist]</em>" line under the header tells the operator what comes next.',
-      'Live view: <strong>auto-arm now bridges between back-to-back services.</strong> If a previous service\'s post-service is still rolling when the next service approaches, auto-arm defers until <code>musicFireMs</code> (e.g. 10:30 for an 11 AM service with a 30 min lead) and fires <em>then</em> — fading out post-service music and arming the next service in one transition. Previously auto-arm refused to fire while post-service was rolling, which left the second service unarmed and the operator scrambling.',
-      'Live view: replaced the misleading red "Service is not armed" banner with a calm teal <strong>"Auto-arm scheduled for HH:MM"</strong> status during the back-to-back gap when auto-arm is enabled. The scary banner only shows when there\'s no plan in motion (auto-arm off, or musicFireMs already passed). Operators no longer see a "ARM NOW" warning for something the system is about to handle automatically.',
-    ],
-  },
-  {
-    version: '0.8.10', date: 'May 8, 2026', major: false,
-    changes: [
-      'Live view: <strong>Start Post-Service</strong> now works between services. If the next service has already auto-armed (in the queued, not-yet-playing phase), clicking Start Post-Service auto-disarms it and turns auto-arm OFF for the session. A red toast confirms what happened so the operator knows to flip auto-arm back on when ready. Pre-service that\'s actually playing audio (music or pad phase) is still left alone — the operator must panic that themselves.',
-      'Live view: bottom <em>Start Post-Service</em> button no longer locks during the queued window. The hint under the button changes to "Will disarm next service · auto-arm off" so it\'s clear what clicking will do.',
-      'Action engine: <code>advanceMusic</code> now <strong>holds the next-track transition</strong> when a change_setlist action is queued to fire before the next track\'s natural end. Previously a sliver of the OLD playlist\'s next-track audibly started before the swap kicked in. The hold lets the OLD track fade out cleanly into the new playlist\'s first track via the swap\'s crossfade — no wrong-playlist audio between them.',
-    ],
-  },
-  {
-    version: '0.8.9', date: 'May 8, 2026', major: false,
-    changes: [
-      'Action engine: <strong>change_setlist now actually swaps the playlist when fired after fast-forwarding through tracks.</strong> Root cause: the swap used a "null runway → fade out → await load → set new runway → play" sequence. While the new runway was loading, the audio engine\'s stale playback state (showing the OLD fast-forwarded track near its end) tricked <code>advanceMusic</code> into either skipping past the new playlist\'s first track, or — when the new playlist was short — firing the post-service "last track ended" branch and clearing the runway again. The visible symptom: live view cleared, audio kept playing but didn\'t belong to the visible runway.',
-      'Fix: change_setlist now installs the new runway <em>atomically</em> (no null gap), validates the target playlist before disturbing audio, and uses a true crossfade (<code>crossfadeToMusic</code>) to swap audio sources in one call. The runway switch + audio swap are no longer two separate awaits the renderer can race against.',
-      'Defense-in-depth: <code>advanceMusic</code> now refuses to make transition decisions when the audio engine\'s reported <code>trackId</code> doesn\'t match the runway\'s current track — guarding against any future re-introduction of the same race.',
-    ],
-  },
-  {
-    version: '0.8.8', date: 'May 8, 2026', major: false,
-    changes: [
-      'Live view: when a previous service\'s post-service music is still playing AND a future service is being counted down to, the hero now shows <strong>both</strong> — a slim pink "Post-service playing · ends in X:XX" pill above the next-service countdown clock, with an inline <em>Stop</em> button (two-step confirm). Previously the hero only showed the countdown, hiding the fact that post-service music was still rolling. Critical for back-to-back services.',
-    ],
-  },
-  {
-    version: '0.8.7', date: 'May 8, 2026', major: false,
-    changes: [
-      'Action engine: <strong>actions now fire correctly when you skip forward in test playback.</strong> Previously, a song-anchored cue computed its wall-clock fire time from the original playback schedule — so jumping to track 3 in the timeline left cues anchored to track 3 waiting on a wall-clock that never caught up before the runway ended. The controller now re-anchors <code>musicStartMs</code> on every skip / nudge / timeline-click / jump-to-transition so cues at the new musical position fire on the next tick.',
-      'Cues you leapfrogged by more than 30 seconds get marked fired without dispatching (test mode shouldn\'t replay 10 missed cues at once). Cues within 30 s of the new position fire normally.',
-      'Internals: introduced an <code>armEpoch</code> identity on each runway so the action engine can distinguish a real arm/swap (epoch changes → reset fired-action set + bus levels) from a position-only patch like the new re-anchor (epoch stable → keep history). The previous sig-on-musicStartMs would have re-armed already-fired cues every skip.',
-    ],
-  },
-  {
-    version: '0.8.6', date: 'May 8, 2026', major: false,
-    changes: [
-      'Live view: <strong>Service start has passed — ARM NOW</strong> banner now hides after the service start time has passed. Arming pre-service is moot at that point, and the banner was distracting from the actual next step (post-service).',
-      'Live view: when a service is in progress and no runway is rolling, the hero now shows a <strong>"Post-service ready"</strong> prompt with the chosen post-service playlist name and a big <em>▶ Start Post-Service</em> button. Replaces the bland "Service has started." text with something the operator can act on.',
-      'Action engine: <strong>Change setlist</strong> action now surfaces failures via the same red toast that shows arm errors — previously errors only landed in the dev console. Includes a refusal when the target playlist is the same as the current one (would have been a confusing audio stutter).',
-      'Action engine: change_setlist now emits explicit before/after console logs so a failed swap can be traced (which playlist swapped to which, current phase at swap time, success/refusal reason).',
-      'Settings → About: version string now pulls from <code>package.json</code> instead of a hard-coded literal that was forgotten on each release. The DMG version, the changelog version, and the About version stay in sync going forward.',
-    ],
-  },
-  {
-    version: '0.8.5', date: 'May 8, 2026', major: false,
-    changes: [
-      'Library: <strong>+ Upload</strong> button in the toolbar — multi-select audio files to add directly to the library without going through a playlist first. Tracks land as orphans and can be linked into any playlist later. (The upload button on each playlist still works the same.)',
-      'Library: per-row <strong>playlist menu</strong> (☰ icon). Click to see every playlist as a checklist — check to add this track, uncheck to remove. Grouped by Pre / Post / Special so you can see at a glance which surface a playlist belongs to.',
-      'Library: row height and type sizes increased for readability — title 15px, artist/length 14px, more vertical padding per row.',
-      'Library: each row now shows a tech-info subline under the title — filetype, sample rate, bitrate, channel count, and a <em>lossless</em> tag for FLAC/WAV. Old imports backfill lazily when the Library tab opens (one file at a time so a 900-track library doesn\'t stall).',
-      'Library: <strong>playlist tags now match the playlist sidebar colors</strong> — pre-service teal, post-service cyan, special green. Easier to scan which surface a track lives on at a glance.',
-      'Playlists: <strong>+ Upload audio files</strong> and <strong>+ Add from library</strong> are now two side-by-side buttons that highlight independently, instead of one combined drop zone where both links lit up on hover. "Add audio files" renamed to "Upload audio files" for clarity.',
-      'Playlists: removed the <em>scan a folder · watching ...</em> link and the "Source folder" row from the per-playlist settings — folder watching is parked for now; uploads happen explicitly via the buttons above.',
-      'Library: <strong>preview button</strong> on every row. Click ▶ to audition the track on the cue bus (same routing as the Editor preview — respects cue level and headphone routing); click again to stop. Only one row plays at a time.',
-      'Library: <strong>multi-select + bulk delete</strong>. Checkbox per row, header checkbox toggles all visible. Action bar appears with selection count and a two-step confirm.',
-      'Library: <strong>Delete all N orphans</strong> hammer in the toolbar — one click + confirm to wipe every track not referenced by any playlist. For when an old import dumped hundreds of unrelated files into the library.',
-    ],
-  },
-  {
-    version: '0.8.3', date: 'May 7, 2026', major: false,
-    changes: [
-      'Fixed: <strong>Change setlist</strong> action now works correctly when transitioning <em>between</em> post-service playlists. Previously it would clear the runway mid-fade because <code>advanceMusic</code> hit the "post-service last track ended" branch during the fade window, leaving the live view empty with the not-armed banner up.',
-      'Fixed: not-armed banner no longer shows while a post-service runway is rolling — the service has effectively ended at that point so the warning is misleading.',
-    ],
-  },
-  {
-    version: '0.8.2', date: 'May 7, 2026', major: true,
-    changes: [
-      '<strong>Library</strong> — new top-level tab. Central pool of every imported track with searchable, sortable table view. Each row shows pill-tags for every playlist that references the track (clickable, jumps to that playlist).',
-      'Orphan tracks (not currently in any playlist) are intentionally allowed and surfaced via a "Orphans only" filter — phase songs in and out across weeks without the library going stale.',
-      '<strong>Add from library</strong> picker in the playlist drop zone. Multi-select existing tracks to link them into a playlist without re-importing the file. Tracks already in the playlist are excluded so duplicates can\'t sneak in.',
-      'Clear separation between <em>Remove</em> (in playlists, only unlinks) and <em>Delete</em> (in Library only — cascades through every referencing playlist with a two-step confirm).',
-      'Audio editor zoom (+/− or buttons) now recenters on the playhead instead of anchoring to the left edge — zooming into the late portion of a long song no longer scrolls it out of view.',
-    ],
-  },
-  {
-    version: '0.8.1', date: 'May 7, 2026', major: false,
-    changes: [
-      'Fixed: <strong>What\'s new</strong> button in Settings → About now actually loads the changelog. Packaged builds couldn\'t open the file directly out of the asar bundle; now stages a copy to <code>tmpdir</code> first so the browser can read it.',
-      'Fixed: Editor waveform now redraws on window resize. Previously the canvas stayed at its old pixel width until you grabbed a trim handle.',
-      'Playlist track rows: new purple <strong>Timer</strong> pill alongside the existing teal <strong>Trimmed</strong> pill. Surfaces tracks that have a timer-end marker placed in the Editor, so you can scan a playlist and see at a glance which ones land the service-start countdown on a custom point.',
-      'BPM column in Playlist track rows is now editable — click to edit, blur or Enter to commit. Mirrors how Title and Artist already work.',
-    ],
-  },
-  {
-    version: '0.8.0', date: 'May 7, 2026', major: true,
-    changes: [
-      '<strong>Action Sequences</strong> — major new feature. A reusable library of timed automations that fire alongside a playlist\'s runway. Manage them in the new <em>Actions</em> tab; link a sequence to any playlist (or override per service).',
-      'Nine action types: <code>MIDI send</code>, <code>ProPresenter — trigger slide</code>, <code>trigger playlist item</code> (with optional drill-in to a specific slide), <code>set timer</code>, <code>timer control</code>, <code>Audio bus fade</code>, <code>Pad</code>, <code>Music transport</code>, <code>Change setlist</code>.',
-      'Six anchor directions per action: <em>before / after music start</em>, <em>before / after service start</em>, <em>after first song</em>, <em>before last song</em>. Time-based rows use MM:SS, song-based rows use a song count. Each action can override the sequence\'s default anchor.',
-      '<strong>Live timeline action markers</strong>: vertical line + colored icon on the horizontal proportional bar; per-song scrub markers showing where actions hit inside each song; inline action rows interleaved between songs in the vertical track stack with countdown to fire.',
-      'Color-coded action types — MIDI gold, ProPresenter sky blue, audio fade emerald, pad violet, music transport rose, change-setlist fuchsia. Flat monochrome icon glyphs.',
-      'Audio fade uses a 0–100% slider (capped at unity, no boost). Bus levels reset on every re-arm so an old fade can\'t bleed into the next service.',
-      '<strong>+2 min / −2 min</strong> service-shift buttons next to Arm with two-click confirm. Updates the runway target, pad bridge, and the linked ProPresenter timer in one shot. Also available on the mobile remote.',
-      '<strong>Show played tracks</strong> toggle on the Live page (and a setting to always use the vertical track stack regardless of length). When on, the runway auto-follows the currently playing song; manual scrolling pauses follow until the next track change.',
-      '<strong>Service-not-armed</strong> red alert banner with countdown + Arm button when an upcoming service has no runway loaded — and the main service-start countdown turns red to match.',
-      'New <em>Display</em> settings tab. Custom pill-toggle component replacing OS-default checkboxes throughout the app.',
-      'ProPresenter Settings + per-service modal restyled into cards with flat icons, color-coded by hook (music start, service start, post-service, disarm). "Do nothing" disarm action no longer stops the PP timer — leaves it running for outside takeover.',
-      'Per-service runway scheduling fix: actions and markers respect <code>startOffsetSec</code> head-trim so positions line up with where the engine actually fires.',
-    ],
-  },
-  {
-    version: '0.7.3', date: 'May 6, 2026', major: false,
-    changes: [
-      'Mobile remote countdown now formats as <strong>HH:MM:SS</strong> once a service is more than an hour out — was clipping off the right side of the screen on phones.',
-    ],
-  },
-  {
-    version: '0.7.2', date: 'May 6, 2026', major: false,
-    changes: [
-      'Reordered the top nav so <strong>Live</strong> and <strong>Schedule</strong> sit next to each other.',
-    ],
-  },
-  {
-    version: '0.7.1', date: 'May 6, 2026', major: false,
-    changes: [
-      '<strong>Network interface dropdown</strong> in Settings → Remote. On machines with Wi-Fi + Ethernet + VPN simultaneously, pin the server to one IP so the QR / URL is always reachable.',
-      '<strong>Post-service guard</strong>: an armed service can no longer be silently disarmed by a stray <code>start_post_service</code> action. The post-service action refuses to clobber an active service runway.',
-      '<strong>WebSocket heartbeat</strong> (30s ping/pong) so phones that background Safari (iOS) get cleanly reconnected instead of hanging on a half-open socket.',
-    ],
-  },
-  {
-    version: '0.7.0', date: 'May 5, 2026', major: true,
-    changes: [
-      '<strong>Audio quality fix</strong>: the EQ chain now bypasses entirely when all three bands sit at 0 dB. Eliminates the subtle phase distortion that was making FLAC playback sound muddy through the house system.',
-      '<strong>Mobile remote</strong>: LAN-reachable phone / iPad UI with PIN gate, swipe-to-unlock, MIDI monitor, action grid (Arm, Music Early, Shuffle, Post-Service, Pad, Panic), QR pairing, and a 100ms-precision live countdown.',
-    ],
-  },
-  {
-    version: '0.6.2', date: 'May 4, 2026', major: false,
-    changes: [
-      'MIDI device toggles in Settings — single click toggles both input and output for that device, instead of needing two clicks.',
-      'Fixed a stale-closure bug where the second toggle on the same device clobbered the first.',
-    ],
-  },
-  {
-    version: '0.6.1', date: 'May 3, 2026', major: false,
-    changes: [
-      'Hand-rolled DMG installer. Replaces electron-builder\'s broken-on-Apple-Silicon DMG step with a custom AppleScript pipeline so the install window actually shows the background art.',
-      'Bundled <em>HOW TO INSTALL.txt</em> with the Gatekeeper bypass command.',
-    ],
-  },
-  {
-    version: '0.6.0', date: 'May 2, 2026', major: true,
-    changes: [
-      '<strong>Backup &amp; restore</strong>: export/import the full app config (services, playlists, library refs, MIDI bindings, ProPresenter setup) from Settings.',
-      '<strong>Missing-track surfacing</strong> — playlists with stale track ids highlight what\'s broken instead of failing silently.',
-      'Pad consolidation tool to move scattered pad files into the canonical pads directory.',
-      'Config auto-backups on every save (<code>config.json.bak-…</code>).',
-    ],
-  },
-  {
-    version: '0.5.4', date: 'April 28, 2026', major: false,
-    changes: [
-      'Service tick reduced from 500ms to 100ms. Music transitions land on time instead of trailing by up to half a second.',
-      'Crossfade overlap math fixed — songs no longer extend past the calculated runway end.',
-    ],
-  },
-  {
-    version: '0.5.3', date: 'April 22, 2026', major: false,
-    changes: [
-      'Tombstone strategy for deleted services. Re-importing a calendar no longer resurrects services you intentionally removed.',
-      'PreService inheritance: first-song key and last-song track id flow from the day\'s first service to subsequent services automatically.',
-    ],
-  },
-  {
-    version: '0.5.2', date: 'April 15, 2026', major: false,
-    changes: [
-      'Per-service ProPresenter playlist override.',
-      'Service status states: <code>scheduled · queued · playing · completed · skipped</code>.',
-    ],
-  },
-  {
-    version: '0.5.1', date: 'April 8, 2026', major: false,
-    changes: [
-      '<strong>MTC (MIDI Time Code) output</strong> for ProPresenter and other timecode-aware gear.',
-      'Configurable frame rate (24 / 25 / 30) and countdown-to-service mode.',
-    ],
-  },
-  {
-    version: '0.5.0', date: 'April 1, 2026', major: true,
-    changes: [
-      '<strong>ProPresenter Network API integration</strong>: timer sync (count_down_to_time with 12-hour-cycle hour encoding), service triggers, slide-aware kickoff.',
-      '<strong>MIDI binding system</strong>: route note / CC / program-change messages from any controller to app actions (arm, panic, post-service, pad play/stop, shuffle).',
-      'Proxy through Electron main for ProPresenter requests since PP API does not return CORS headers.',
-    ],
-  },
-  {
-    version: '0.4.2', date: 'March 25, 2026', major: false,
-    changes: [
-      'Pad bridge tail / fade so the pad fades out at the right moment as music starts.',
-      'Skip-pad-bridge logic when the runway\'s landing key needs adjustment for the next song.',
-    ],
-  },
-  {
-    version: '0.4.1', date: 'March 18, 2026', major: false,
-    changes: [
-      'Pad folder scan with auto major / minor detection from filename hints.',
-      'Pad import via drag-and-drop into the Pad Player panel.',
-    ],
-  },
-  {
-    version: '0.4.0', date: 'March 10, 2026', major: true,
-    changes: [
-      '<strong>Pad Player</strong>: key-aware sustained pads to bridge between pre-service music and live worship.',
-      'Camelot wheel matching — relative-major / minor and ±1 step compatibility, so a pad in 8A still sounds right going into a song in 9A or 7A.',
-      'Dedicated pad output bus with separate device + gain.',
-    ],
-  },
-  {
-    version: '0.3.2', date: 'February 26, 2026', major: false,
-    changes: [
-      '<strong>Land-in-key arrangement</strong>: the runway picks track order so the last song lands in (or compatible with) the first ProPresenter song\'s key.',
-      'Editable land-in-key marker per service.',
-    ],
-  },
-  {
-    version: '0.3.1', date: 'February 20, 2026', major: false,
-    changes: [
-      'Sharp / flat key spelling preference applied throughout the UI.',
-      'Per-track BPM and key metadata override.',
-    ],
-  },
-  {
-    version: '0.3.0', date: 'February 12, 2026', major: true,
-    changes: [
-      '<strong>Service scheduling</strong>: weekly and one-off services with calculated start times.',
-      'Auto-arm and pre-service music triggered from the service start time.',
-      'Full-screen Live view with countdown to music start, music end, pad bridge end, and service start.',
-    ],
-  },
-  {
-    version: '0.2.1', date: 'January 28, 2026', major: false,
-    changes: [
-      'Camelot wheel-aware playlist arrangement (no more harmonic train-wrecks).',
-      'Crossfade duration per playlist instead of global.',
-    ],
-  },
-  {
-    version: '0.2.0', date: 'January 18, 2026', major: true,
-    changes: [
-      '<strong>Playlists</strong> with key-aware track ordering.',
-      'Playlist kinds: pre-service, post-service, custom.',
-      'Per-track key, BPM, and tags surfaced in the library.',
-    ],
-  },
-  {
-    version: '0.1.2', date: 'January 8, 2026', major: false,
-    changes: [
-      'BiquadFilter EQ (low / mid / high) per output bus.',
-      'Master mute and per-bus gain.',
-    ],
-  },
-  {
-    version: '0.1.1', date: 'December 28, 2025', major: false,
-    changes: [
-      'Per-bus output device routing (music / pad / cue) via <code>setSinkId</code>.',
-      'Audio device list refresh when a new interface is plugged in.',
-    ],
-  },
-  {
-    version: '0.1.0', date: 'December 15, 2025', major: true,
-    changes: [
-      '<strong>Initial release</strong>. Scheduled audio playback for worship pre-service.',
-      'File import, library scan with metadata extraction.',
-      'Custom <code>runway-audio://</code> protocol for local file fetch.',
-    ],
-  },
+    "version": "0.1.0",
+    "date": "December 15, 2025",
+    "major": false,
+    "changes": [
+      "<strong>Initial release.</strong> Scheduled audio playback for worship pre-service."
+    ]
+  }
 ];
 
 const root = document.getElementById('releases');

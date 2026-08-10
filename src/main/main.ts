@@ -278,7 +278,7 @@ function buildAppMenu(): Electron.Menu {
         type: 'info',
         title: `About ${app.name}`,
         message: `${app.name} ${ver}`,
-        detail: 'Worship audio control: scheduled pre-service music, key-aware playlist arrangement, pad player, MIDI integration with ProPresenter.\n\nCopyright © 2026 jhdev',
+        detail: 'Worship audio control: scheduled pre-service music, key-aware playlist arrangement, pad player, MIDI integration with ProPresenter.\n\nCopyright © 2026 Grounded Labs Dev · groundedlabs.dev',
         buttons: ['OK'],
       });
     },

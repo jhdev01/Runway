@@ -2589,11 +2589,20 @@ function AboutSection() {
         maxWidth: 640,
       }}>
         <div style={{ fontWeight: 600, color: 'var(--text-dim)', marginBottom: 6 }}>
-          © 2026 jhdev. All rights reserved.
+          © 2026{' '}
+          <a
+            href="https://groundedlabs.dev"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ color: 'var(--accent-bright)', textDecoration: 'none' }}
+          >
+            Grounded Labs Dev
+          </a>
+          . All rights reserved.
         </div>
         <p style={{ margin: '8px 0' }}>
           The source code, design, and visual assets of this application are
-          the property of jhdev and are licensed for use, not sold.
+          the property of Grounded Labs Dev and are licensed for use, not sold.
           Unauthorized reproduction, distribution, modification, reverse
           engineering, decompilation, or disassembly of this software, in
           whole or in part, is strictly prohibited.
