@@ -723,6 +723,12 @@ export interface AppConfig {
     // time, loop tracks to fill the time. When false, music starts late and
     // still ends exactly at the right time.
     repeatToFill: boolean;
+    // On import, look up each new track's key on MultiTracks.com and
+    // apply it when the match is confident and unambiguous. Tracks that
+    // arrive with a key already in their tags are left alone, and
+    // anything the catalog is unsure about is held for review rather
+    // than guessed. Off = the Library button is the only way in.
+    autoKeyTagOnImport: boolean;
     // 3-band EQ — gains in dB. 0 = flat.
     eqLowDb: number;
     eqMidDb: number;
@@ -827,6 +833,7 @@ export const DEFAULT_CONFIG: AppConfig = {
     musicFadeToPadSec: 5,
     padLeadInSec: 5,
     repeatToFill: true,
+    autoKeyTagOnImport: true,
     eqLowDb: 0,
     eqMidDb: 0,
     eqHighDb: 0,

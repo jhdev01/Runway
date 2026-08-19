@@ -1485,6 +1485,8 @@ function EngineSettings() {
   const updateDefault = (k: keyof typeof config.defaults, v: number) => {
     updateConfig({ defaults: { ...config.defaults, [k]: v } });
   };
+  // `?? true` covers configs written before the field existed.
+  const autoKeyTagOnImport = config.defaults.autoKeyTagOnImport ?? true;
   const repeatToFill = config.defaults.repeatToFill ?? true;
   const setRepeatToFill = (v: boolean) =>
     updateConfig({ defaults: { ...config.defaults, repeatToFill: v } });
@@ -1797,6 +1799,37 @@ function EngineSettings() {
             {importStatus}
           </div>
         )}
+
+        <label
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 14,
+            cursor: 'pointer',
+            maxWidth: 580,
+            marginTop: 22,
+          }}
+        >
+          <Toggle
+            checked={autoKeyTagOnImport}
+            onChange={(next) => updateConfig({
+              defaults: { ...config.defaults, autoKeyTagOnImport: next },
+            })}
+            ariaLabel="Tag keys on import"
+          />
+          <div>
+            <div style={{ fontSize: 14, color: 'var(--text)', fontWeight: 600 }}>
+              Tag keys on import
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--text-faint)', marginTop: 2 }}>
+              Newly imported tracks that arrive without a key get looked up on
+              MultiTracks.com and tagged with the published original master key.
+              Only confident, unambiguous matches are applied — anything the
+              catalog lists in more than one key is held for you to review from
+              the Library toolbar. Tracks that already carry a key are left alone.
+            </div>
+          </div>
+        </label>
       </section>
 
       <section className="settings-section">

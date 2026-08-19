@@ -47,6 +47,18 @@ operator hits Apply in the review sheet.
   without notice — when it does, the feature degrades to "no match" and manual
   entry, it doesn't break the app.
 - **Attribution.** "Key data from multitracks.com" sits in the review sheet footer.
+- **Auto-tag on import.** Settings → Library → *Tag keys on import* (default ON,
+  `defaults.autoKeyTagOnImport`). Runs after `addTracks`, so new rows appear
+  immediately and lookups happen behind them. Only tracks that arrive with NO key
+  are looked up, and only proposals `makeProposal` pre-checks are written — a
+  confident match that leads the nearest key-disagreeing alternate by
+  `DECISIVE_MARGIN` (0.1). Everything else is parked and the toolbar hint offers
+  a Review that opens the sheet with the leftovers. Tune `DECISIVE_MARGIN` in
+  `MultitracksKeyModal.tsx` if the operator wants it looser or stricter.
+- **Duration is what makes auto-tag work.** Imported files always carry a
+  `durationSec`, which pushes the matching release to a clean 1.00 and drops the
+  rival cuts below the margin. Without it (e.g. a hand-typed lookup) most
+  multi-key songs correctly fall to "needs a look" instead.
 
 Verified against real lookups (Elevation, Bethel, Hillsong, Phil Wickham, Chris
 Tomlin, Maverick City, Cody Carnes) — 14/14 keys matched the published pages.

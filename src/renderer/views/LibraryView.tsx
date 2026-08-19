@@ -58,6 +58,9 @@ export function LibraryView() {
   const addTrackToPlaylist = useAppStore(s => s.addTrackToPlaylist);
   const removeTrackFromPlaylist = useAppStore(s => s.removeTrackFromPlaylist);
   const updateTrack = useAppStore(s => s.updateTrack);
+  // Settings → Library → "Tag keys on import". `?? true` covers configs
+  // written before the field existed.
+  const autoKeyTagOnImport = useAppStore(s => s.config.defaults.autoKeyTagOnImport ?? true);
   const { audio } = useEngines();
   const [uploading, setUploading] = useState(false);
   const [playlistMenuTrackId, setPlaylistMenuTrackId] = useState<string | null>(null);
@@ -92,6 +95,10 @@ export function LibraryView() {
         });
       }
       addTracks(newTracks);
+      // Key tagging runs after the rows are in the library, not inline
+      // with the copy loop — the operator sees their tracks immediately
+      // and the network round-trips happen behind them.
+      if (autoKeyTagOnImport) void autoTagImports(newTracks);
     } finally {
       setUploading(false);
     }
@@ -199,7 +206,9 @@ export function LibraryView() {
   const mtCancelRef = useRef<{ cancelled: boolean } | null>(null);
   const [mtProposals, setMtProposals] = useState<KeyProposal[]>([]);
   const [mtReviewOpen, setMtReviewOpen] = useState(false);
-  const [mtHint, setMtHint] = useState<string | null>(null);
+  // Hint text under the toolbar button, plus an optional "Review"
+  // affordance for the auto-tag path (where there's no modal to land in).
+  const [mtHint, setMtHint] = useState<{ msg: string; action?: string } | null>(null);
   const mtHintTimerRef = useRef<number | null>(null);
   useEffect(() => {
     let cancelled = false;
@@ -292,37 +301,30 @@ export function LibraryView() {
     }
   };
 
-  const flashMtHint = (msg: string) => {
-    setMtHint(msg);
+  const flashMtHint = (msg: string, action?: string) => {
+    setMtHint({ msg, action });
     if (mtHintTimerRef.current) window.clearTimeout(mtHintTimerRef.current);
-    mtHintTimerRef.current = window.setTimeout(() => setMtHint(null), 4000);
+    // A hint offering a review sticks around long enough to be clicked.
+    mtHintTimerRef.current = window.setTimeout(
+      () => setMtHint(null),
+      action ? 12000 : 4000,
+    );
   };
 
   /**
    * Look up the published original master key on MultiTracks.com for a
-   * batch of tracks and open the review sheet.
-   *
-   * Targets: the checked tracks when there's a selection, otherwise
-   * every track that has no key yet. Nothing is written here — the
-   * modal collects the operator's decisions and applyMtProposals()
-   * does the writing.
+   * batch of tracks. Writes nothing — callers decide what to do with
+   * the proposals.
    *
    * Title and artist come off the track; duration is passed along
    * because it's the best way to tell an album cut from a radio edit,
    * and those two are frequently in different keys.
+   *
+   * Drives the shared progress chip on the toolbar button, so the
+   * operator can watch (and cancel) a background auto-tag the same way
+   * they'd watch a manual scan.
    */
-  const runMultitracksScan = async (): Promise<void> => {
-    const targets = selectedIds.size > 0
-      ? tracks.filter(t => selectedIds.has(t.id))
-      : tracks.filter(t => !t.key);
-    if (targets.length === 0) {
-      flashMtHint(
-        selectedIds.size > 0
-          ? 'No tracks selected'
-          : 'Every track already has a key — select the ones you want re-checked.',
-      );
-      return;
-    }
+  const lookupProposals = async (targets: Track[]): Promise<KeyProposal[] | null> => {
     const cancel = { cancelled: false };
     mtCancelRef.current = cancel;
     setMtScanning(true);
@@ -360,13 +362,77 @@ export function LibraryView() {
       setMtScanning(false);
       mtCancelRef.current = null;
     }
-    if (cancel.cancelled) return;
+    return cancel.cancelled ? null : proposals;
+  };
+
+  /**
+   * Toolbar button. Scans the checked tracks, or every track with no key
+   * when nothing is checked, and opens the review sheet. Nothing is
+   * written until the operator hits Apply.
+   */
+  const runMultitracksScan = async (): Promise<void> => {
+    const targets = selectedIds.size > 0
+      ? tracks.filter(t => selectedIds.has(t.id))
+      : tracks.filter(t => !t.key);
+    if (targets.length === 0) {
+      flashMtHint(
+        selectedIds.size > 0
+          ? 'No tracks selected'
+          : 'Every track already has a key — select the ones you want re-checked.',
+      );
+      return;
+    }
+    const proposals = await lookupProposals(targets);
+    if (!proposals) return;             // cancelled
     if (proposals.length === 0) {
       flashMtHint('No results came back from MultiTracks.');
       return;
     }
     setMtProposals(proposals);
     setMtReviewOpen(true);
+  };
+
+  /**
+   * Auto-tag freshly imported tracks (Settings → Library → "Tag keys on
+   * import"). Runs in the background after the upload completes so the
+   * new rows appear immediately.
+   *
+   * Only tracks that arrived with NO key are looked up — an ID3 tag the
+   * operator set is more authoritative than a catalog guess. Of those,
+   * only proposals classified 'new' are written: confident match, and
+   * the catalog agrees with itself. Everything else is parked so the
+   * hint can offer a review, because an automatic path is exactly where
+   * a wrong key would go unnoticed until a Sunday morning.
+   */
+  const autoTagImports = async (imported: Track[]): Promise<void> => {
+    const targets = imported.filter(t => !t.key);
+    if (targets.length === 0) return;
+    const proposals = await lookupProposals(targets);
+    if (!proposals || proposals.length === 0) return;
+
+    const applied: KeyProposal[] = [];
+    const leftover: KeyProposal[] = [];
+    for (const p of proposals) {
+      // makeProposal only pre-checks the clean case, so `include` is
+      // exactly the "safe to apply unattended" set.
+      if (p.include && p.chosenKey) {
+        updateTrack(p.trackId, { key: p.chosenKey });
+        applied.push(p);
+      } else {
+        leftover.push(p);
+      }
+    }
+
+    if (applied.length === 0 && leftover.length === 0) return;
+    const parts: string[] = [];
+    if (applied.length > 0) {
+      parts.push(`Tagged ${applied.length} key${applied.length === 1 ? '' : 's'} from MultiTracks`);
+    }
+    if (leftover.length > 0) {
+      parts.push(`${leftover.length} need${leftover.length === 1 ? 's' : ''} a look`);
+      setMtProposals(leftover);
+    }
+    flashMtHint(parts.join(' · '), leftover.length > 0 ? 'Review' : undefined);
   };
 
   /** Write the checked proposals. Only `key` is touched. */
@@ -787,7 +853,20 @@ export function LibraryView() {
                 ? `♪ Keys from MultiTracks (${selectedIds.size})`
                 : '♪ Keys from MultiTracks'}
           </button>
-          {mtHint && <div className="library-refresh-hint">{mtHint}</div>}
+          {mtHint && (
+            <div className="library-refresh-hint">
+              {mtHint.msg}
+              {mtHint.action && (
+                <button
+                  className="mt-hint-action"
+                  onClick={() => {
+                    setMtHint(null);
+                    setMtReviewOpen(true);
+                  }}
+                >{mtHint.action}</button>
+              )}
+            </div>
+          )}
         </div>
         <button
           className={`library-refresh ${keyTesterOpen ? 'active' : ''}`}

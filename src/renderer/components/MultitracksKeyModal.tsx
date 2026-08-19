@@ -40,6 +40,20 @@ export type ProposalKind = 'new' | 'same' | 'relative' | 'conflict' | 'ambiguous
 /** Confidence at or above which a match needs no second look. */
 const CONFIDENT = 0.8;
 
+/**
+ * How far ahead of the nearest key-disagreeing alternate the best match
+ * has to be before we'll treat it as settled.
+ *
+ * The catalog routinely lists one song in several keys (album cut, radio
+ * edit, acoustic). When the local file's duration matches one of them,
+ * that one scores a clean 1.00 and the others fall away — a wide gap
+ * means the signals agree and there's nothing to decide. A narrow gap
+ * means two releases fit the file about equally well, which is a coin
+ * flip, and a coin flip about a key is exactly what shouldn't happen
+ * unattended.
+ */
+const DECISIVE_MARGIN = 0.1;
+
 /** Same Camelot number = relative major/minor pair (e.g. G and Em). */
 function isRelativePair(a: KeyName, b: KeyName): boolean {
   if (a === b) return false;
@@ -59,7 +73,11 @@ export function classifyProposal(p: {
   if (p.currentKey && p.currentKey === proposed) return 'same';
   if (p.currentKey && isRelativePair(p.currentKey, proposed)) return 'relative';
   if (p.currentKey) return 'conflict';
-  const confident = (p.result.best?.score ?? 0) >= CONFIDENT && p.result.alternates.length === 0;
+  const bestScore = p.result.best?.score ?? 0;
+  // alternates only ever holds candidates whose key DISAGREES with best,
+  // and it's sorted best-first, so [0] is the closest real rival.
+  const rivalScore = p.result.alternates[0]?.score ?? 0;
+  const confident = bestScore >= CONFIDENT && (bestScore - rivalScore) >= DECISIVE_MARGIN;
   return confident ? 'new' : 'ambiguous';
 }
 
