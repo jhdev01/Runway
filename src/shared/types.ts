@@ -599,6 +599,38 @@ export interface ProPresenterSyncConfig {
   postServiceStartItemName: string | null;
 }
 
+/**
+ * One MultiTracks.com catalog hit, scored against a local track.
+ * `key` is already normalized to a canonical KeyName.
+ */
+export interface MultitracksCandidate {
+  key: KeyName;
+  /** Song title as MultiTracks spells it. */
+  title: string;
+  /** Primary artist as MultiTracks spells it. */
+  artist: string;
+  album: string;
+  /** Absolute multitracks.com URL, so the operator can verify a match. */
+  url: string;
+  /** Track length in seconds, per MultiTracks. Used for disambiguation. */
+  durationSec?: number;
+  /** 0..1 match confidence. See scoreCandidate() in main/multitracksLookup.ts. */
+  score: number;
+}
+
+export interface MultitracksResult {
+  /** Best candidate, or undefined when nothing cleared the match floor. */
+  best?: MultitracksCandidate;
+  /**
+   * Other plausible matches whose key DISAGREES with `best`, best-first.
+   * Live/radio/acoustic cuts often sit in different keys, so the UI
+   * offers a choice instead of guessing.
+   */
+  alternates: MultitracksCandidate[];
+  /** Set when there's no usable match. Human-readable, safe to display. */
+  reason?: string;
+}
+
 export interface AppConfig {
   version: 1;
   playlists: Playlist[];
@@ -832,6 +864,7 @@ export const IPC = {
   ITUNES_CANDIDATES_LOOKUP: 'track:itunesCandidates',
   SPOTIFY_LOOKUP: 'track:spotify',
   GETSONGBPM_LOOKUP: 'track:getsongbpm',
+  MULTITRACKS_LOOKUP: 'track:multitracks',
 } as const;
 
 /**

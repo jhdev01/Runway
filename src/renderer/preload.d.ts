@@ -1,4 +1,4 @@
-import type { AppConfig, Track, KeyName, PpRequest, PpResponse, RemoteNetworkInterface } from '@shared/types';
+import type { AppConfig, Track, KeyName, PpRequest, PpResponse, RemoteNetworkInterface, MultitracksResult } from '@shared/types';
 
 export {};
 
@@ -42,6 +42,11 @@ declare global {
           title: string,
           apiKey: string,
         ) => Promise<{ key?: string; bpm?: number; reason?: string } | null>;
+        multitracksLookup: (
+          artist: string,
+          title: string,
+          durationSec?: number,
+        ) => Promise<MultitracksResult>;
         libraryPaths: () => Promise<{ audioDir: string; padsDir: string; userDataDir: string }>;
         revealFolder: (folderPath: string) => Promise<void>;
         writeWav: (req: { suggestedName: string; bytes: ArrayBuffer }) => Promise<string | null>;

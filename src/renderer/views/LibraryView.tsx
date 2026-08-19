@@ -3,6 +3,11 @@ import { useAppStore, generateId } from '../state/store';
 import { useEngines } from '../state/engines';
 import { KeyTesterPiano } from '../components/KeyTesterPiano';
 import { AlbumArtLightbox } from '../components/AlbumArtLightbox';
+import {
+  MultitracksKeyModal,
+  makeProposal,
+  type KeyProposal,
+} from '../components/MultitracksKeyModal';
 import { Tooltip } from '../components/Tooltip';
 import { effectiveDuration, type Track, type KeyName } from '@shared/types';
 import { keyColor } from '@shared/music';
@@ -186,6 +191,16 @@ export function LibraryView() {
   const [consolidating, setConsolidating] = useState(false);
   const [consolidateProgress, setConsolidateProgress] = useState({ done: 0, total: 0 });
   const consolidateCancelRef = useRef<{ cancelled: boolean } | null>(null);
+  // "Keys from MultiTracks" — batch lookup of the published original
+  // master key, reviewed before anything is written. Same progress +
+  // cancel UX as the metadata refresh.
+  const [mtScanning, setMtScanning] = useState(false);
+  const [mtProgress, setMtProgress] = useState({ done: 0, total: 0 });
+  const mtCancelRef = useRef<{ cancelled: boolean } | null>(null);
+  const [mtProposals, setMtProposals] = useState<KeyProposal[]>([]);
+  const [mtReviewOpen, setMtReviewOpen] = useState(false);
+  const [mtHint, setMtHint] = useState<string | null>(null);
+  const mtHintTimerRef = useRef<number | null>(null);
   useEffect(() => {
     let cancelled = false;
     void window.runway?.files.libraryPaths().then((p) => {
@@ -275,6 +290,96 @@ export function LibraryView() {
       setRefreshing(false);
       refreshCancelRef.current = null;
     }
+  };
+
+  const flashMtHint = (msg: string) => {
+    setMtHint(msg);
+    if (mtHintTimerRef.current) window.clearTimeout(mtHintTimerRef.current);
+    mtHintTimerRef.current = window.setTimeout(() => setMtHint(null), 4000);
+  };
+
+  /**
+   * Look up the published original master key on MultiTracks.com for a
+   * batch of tracks and open the review sheet.
+   *
+   * Targets: the checked tracks when there's a selection, otherwise
+   * every track that has no key yet. Nothing is written here — the
+   * modal collects the operator's decisions and applyMtProposals()
+   * does the writing.
+   *
+   * Title and artist come off the track; duration is passed along
+   * because it's the best way to tell an album cut from a radio edit,
+   * and those two are frequently in different keys.
+   */
+  const runMultitracksScan = async (): Promise<void> => {
+    const targets = selectedIds.size > 0
+      ? tracks.filter(t => selectedIds.has(t.id))
+      : tracks.filter(t => !t.key);
+    if (targets.length === 0) {
+      flashMtHint(
+        selectedIds.size > 0
+          ? 'No tracks selected'
+          : 'Every track already has a key — select the ones you want re-checked.',
+      );
+      return;
+    }
+    const cancel = { cancelled: false };
+    mtCancelRef.current = cancel;
+    setMtScanning(true);
+    setMtProgress({ done: 0, total: targets.length });
+    const proposals: KeyProposal[] = [];
+    try {
+      let done = 0;
+      for (const t of targets) {
+        if (cancel.cancelled) break;
+        try {
+          const res = await window.runway?.files.multitracksLookup(
+            t.artist ?? '',
+            t.title,
+            t.durationSec || undefined,
+          );
+          if (res) {
+            proposals.push(
+              makeProposal(t.id, t.title, t.artist ?? '', t.key, res),
+            );
+          }
+        } catch (err) {
+          // Offline, endpoint moved, whatever — record it as a miss so
+          // the operator sees the track in the "no match" group rather
+          // than silently losing it from the report.
+          console.warn('[multitracks] lookup failed for', t.title, err);
+          proposals.push(makeProposal(t.id, t.title, t.artist ?? '', t.key, {
+            alternates: [],
+            reason: 'Lookup failed — check your network connection',
+          }));
+        }
+        done += 1;
+        if (!cancel.cancelled) setMtProgress({ done, total: targets.length });
+      }
+    } finally {
+      setMtScanning(false);
+      mtCancelRef.current = null;
+    }
+    if (cancel.cancelled) return;
+    if (proposals.length === 0) {
+      flashMtHint('No results came back from MultiTracks.');
+      return;
+    }
+    setMtProposals(proposals);
+    setMtReviewOpen(true);
+  };
+
+  /** Write the checked proposals. Only `key` is touched. */
+  const applyMtProposals = () => {
+    let applied = 0;
+    for (const p of mtProposals) {
+      if (!p.include || !p.chosenKey) continue;
+      updateTrack(p.trackId, { key: p.chosenKey });
+      applied += 1;
+    }
+    setMtReviewOpen(false);
+    setMtProposals([]);
+    flashMtHint(`Set ${applied} key${applied === 1 ? '' : 's'} from MultiTracks.`);
   };
 
   /**
@@ -657,6 +762,32 @@ export function LibraryView() {
               Check the tracks you want to refresh first
             </div>
           )}
+        </div>
+        <div className="library-refresh-wrap">
+          <button
+            className="library-refresh"
+            onClick={() => {
+              if (mtScanning) {
+                if (mtCancelRef.current) mtCancelRef.current.cancelled = true;
+                return;
+              }
+              void runMultitracksScan();
+            }}
+            title={
+              mtScanning
+                ? 'Cancel the in-flight lookup'
+                : selectedIds.size > 0
+                  ? `Look up the original master key on MultiTracks.com for ${selectedIds.size} selected track${selectedIds.size === 1 ? '' : 's'}`
+                  : 'Look up the original master key on MultiTracks.com for every track that has no key yet. You review every match before anything changes.'
+            }
+          >
+            {mtScanning
+              ? `Cancel · ${mtProgress.done}/${mtProgress.total}`
+              : selectedIds.size > 0
+                ? `♪ Keys from MultiTracks (${selectedIds.size})`
+                : '♪ Keys from MultiTracks'}
+          </button>
+          {mtHint && <div className="library-refresh-hint">{mtHint}</div>}
         </div>
         <button
           className={`library-refresh ${keyTesterOpen ? 'active' : ''}`}
@@ -1058,6 +1189,13 @@ export function LibraryView() {
           />
         );
       })()}
+      <MultitracksKeyModal
+        open={mtReviewOpen}
+        proposals={mtProposals}
+        onChange={setMtProposals}
+        onApply={applyMtProposals}
+        onClose={() => { setMtReviewOpen(false); setMtProposals([]); }}
+      />
     </div>
   );
 }

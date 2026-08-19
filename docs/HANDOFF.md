@@ -14,6 +14,46 @@ Living doc. Update when something material changes; replace the "Recent work" se
 
 ---
 
+## In flight
+
+### MultiTracks.com key tagging (branch `claude/song-key-tagging-multitracks-cy6gyf`)
+
+Library → **♪ Keys from MultiTracks** looks up the published *original master key*
+for worship songs and proposes them for the library. Nothing is written until the
+operator hits Apply in the review sheet.
+
+- **Where the data comes from.** MultiTracks has no public API, but their own
+  search box posts JSON to `https://api.multitracks.com/search/songs` and renders
+  it client-side. `src/main/multitracksLookup.ts` makes the same unauthenticated
+  request. No account, no scraping of rendered pages, no credentials to configure.
+  `order` must be a number — the endpoint answers `{ result: 0 }` with no items
+  when it's null.
+- **What comes back.** `originalKey` per catalog entry (`"B"`, `"Gb"`, `"Ab"`).
+  BPM is *not* in the search payload — it's fetched separately by the song page,
+  so this path fills key only. GetSongBPM remains the BPM source.
+- **Roots only.** MultiTracks does not mark major vs minor, so a lookup returns
+  the major spelling. The review sheet has a dedicated "Relative major/minor"
+  group: if the operator has `Em` and MultiTracks says `G`, that's the same
+  Camelot position and is never auto-applied.
+- **Matching.** Title + artist + duration scoring in `scoreCandidate()`. Duration
+  is the strongest disambiguator between an album cut and a radio edit, which are
+  frequently in different keys — `runMultitracksScan` passes `track.durationSec`
+  for that reason. Below a 0.55 floor we report "no match" rather than guess.
+  Search queries are progressively widened (cleaned title + artist → cleaned
+  title → raw title); long `feat.` credit lists otherwise return zero rows.
+- **Politeness.** Results cached for the process lifetime, requests serialized
+  with a 350ms floor between them, 9s timeout, every failure returned as a
+  `reason` string rather than thrown. The endpoint is undocumented and can change
+  without notice — when it does, the feature degrades to "no match" and manual
+  entry, it doesn't break the app.
+- **Attribution.** "Key data from multitracks.com" sits in the review sheet footer.
+
+Verified against real lookups (Elevation, Bethel, Hillsong, Phil Wickham, Chris
+Tomlin, Maverick City, Cody Carnes) — 14/14 keys matched the published pages.
+**No timing code touched.**
+
+---
+
 ## Recent work (lead-up to v10.1.2)
 
 ### Audio engine / runway

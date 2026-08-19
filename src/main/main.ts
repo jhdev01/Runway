@@ -6,6 +6,7 @@ import { ConfigStore } from './configStore';
 import { scanFolder, scanPadFolder, readTrackMetadata } from './fileScanner';
 import { IPC, type PpRequest, type PpResponse, type AppConfig, type TraySnapshot } from '../shared/types';
 import { RemoteServer, listLanUrls, listNetworkInterfaces, type RemoteSnapshot } from './remoteServer';
+import { multitracksLookup } from './multitracksLookup';
 
 const isDev = process.env.NODE_ENV === 'development';
 
@@ -622,6 +623,23 @@ function registerIpcHandlers() {
     if (!title) return { reason: 'No title provided' };
     if (!apiKey) return { reason: 'GetSongBPM API key not configured' };
     return await getsongbpmLookup(artist, title, apiKey);
+  });
+
+  // MultiTracks.com key lookup. No credentials — the endpoint the
+  // site's own search box uses is unauthenticated. Failures come back
+  // as { alternates: [], reason } so the UI can explain itself.
+  ipcMain.handle(IPC.MULTITRACKS_LOOKUP, async (_e, args: {
+    artist?: string;
+    title?: string;
+    durationSec?: number;
+  }) => {
+    const artist = (args?.artist ?? '').trim();
+    const title = (args?.title ?? '').trim();
+    if (!title) return { alternates: [], reason: 'No title provided' };
+    const durationSec = typeof args?.durationSec === 'number' && args.durationSec > 0
+      ? args.durationSec
+      : undefined;
+    return await multitracksLookup(artist, title, durationSec);
   });
 
   ipcMain.handle(IPC.FILE_IMPORT, async (_e, srcPath: string) => {

@@ -40,7 +40,20 @@ const IPC = {
   SPOTIFY_LOOKUP: 'track:spotify',
   // GetSongBPM API track lookup — free tier (5k/day) returns key + tempo.
   GETSONGBPM_LOOKUP: 'track:getsongbpm',
+  // MultiTracks.com song lookup — returns the published original master
+  // key for worship songs, plus alternates when the catalog disagrees.
+  MULTITRACKS_LOOKUP: 'track:multitracks',
 } as const;
+
+interface MtCandidate {
+  key: string;
+  title: string;
+  artist: string;
+  album: string;
+  url: string;
+  durationSec?: number;
+  score: number;
+}
 
 contextBridge.exposeInMainWorld('runway', {
   config: {
@@ -80,6 +93,19 @@ contextBridge.exposeInMainWorld('runway', {
       apiKey: string,
     ): Promise<{ key?: string; bpm?: number; reason?: string } | null> =>
       ipcRenderer.invoke(IPC.GETSONGBPM_LOOKUP, { artist, title, apiKey }),
+    // Return shape mirrors MultitracksResult in main/multitracksLookup.ts.
+    // Spelled out rather than imported: this file deliberately carries no
+    // relative imports (see the IPC note above).
+    multitracksLookup: (
+      artist: string,
+      title: string,
+      durationSec?: number,
+    ): Promise<{
+      best?: MtCandidate;
+      alternates: MtCandidate[];
+      reason?: string;
+    }> =>
+      ipcRenderer.invoke(IPC.MULTITRACKS_LOOKUP, { artist, title, durationSec }),
     libraryPaths: () => ipcRenderer.invoke(IPC.LIBRARY_PATHS),
     revealFolder: (folderPath: string): Promise<void> =>
       ipcRenderer.invoke(IPC.REVEAL_FOLDER, folderPath),
