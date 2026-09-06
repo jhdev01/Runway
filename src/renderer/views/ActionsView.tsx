@@ -3,7 +3,7 @@ import { useAppStore } from '../state/store';
 import { useEngines } from '../state/engines';
 import type { Action, ActionPayload, ActionSequence, ActionAnchor, KeyName } from '@shared/types';
 import type { PpTimer } from '../lib/proPresenterClient';
-import { PpItemOptions } from '../components/PpItemOptions';
+import { PpItemPicker } from '../components/PpItemPicker';
 import { ALL_KEYS } from '@shared/music';
 import { Toggle } from '../components/Toggle';
 import {
@@ -964,29 +964,22 @@ function PpPlaylistItemEditor({
           <option value={payload.playlistUuid}>(offline) {payload.playlistName ?? payload.playlistUuid}</option>
         )}
       </select>
-      <select
+      <PpItemPicker
+        items={items}
         value={payload.itemIndex !== undefined ? String(payload.itemIndex) : ''}
-        onChange={e => onPickItem(e.target.value)}
+        onChange={onPickItem}
         disabled={!payload.playlistUuid || busy}
         title="Item within the chosen playlist"
-      >
-        <option value="">
-          {!payload.playlistUuid
-            ? '— pick a playlist first —'
-            : busy
-              ? '— loading items… —'
-              : items.length === 0
-                ? '— playlist has no items —'
-                : '— select an item —'}
-        </option>
-        <PpItemOptions items={items} />
-        {payload.itemIndex !== undefined && payload.itemName
-          && !items.some(i => i.index === payload.itemIndex) && (
-            <option value={String(payload.itemIndex)}>
-              {payload.itemIndex + 1}. {payload.itemName} (not loaded)
-            </option>
-          )}
-      </select>
+        placeholder={!payload.playlistUuid
+          ? '— pick a playlist first —'
+          : busy
+            ? '— loading items… —'
+            : items.length === 0
+              ? '— playlist has no items —'
+              : '— select an item —'}
+        savedIndex={payload.itemIndex}
+        savedName={payload.itemName}
+      />
       <label className="action-num-field" title="Drill into a specific slide of the item — leave off to fire the item from its first slide.">
         <span>Slide</span>
         <Toggle

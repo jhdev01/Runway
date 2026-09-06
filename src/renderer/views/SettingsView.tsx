@@ -6,7 +6,7 @@ import type { AudioBusConfig, MidiAction, MidiBinding, KeyName, PadFile, ProPres
 import { DEFAULT_CONFIG } from '@shared/types';
 import type { MidiDeviceSnapshot } from '../lib/midiEngine';
 import type { PpTimer } from '../lib/proPresenterClient';
-import { PpItemOptions } from '../components/PpItemOptions';
+import { PpItemPicker } from '../components/PpItemPicker';
 import { runPcoKeySync, type PcoServiceType } from '../lib/planningCenterClient';
 import { RotaryKnob } from '../components/RotaryKnob';
 import { Toggle } from '../components/Toggle';
@@ -848,24 +848,18 @@ function HookCard({ hook, label, description, icon, tone, cfg, update, playlists
             </div>
             <div className="pp-field" style={{ gridColumn: 'span 2' }}>
               <label className="pp-label">Item</label>
-              <select
+              <PpItemPicker
+                items={items}
                 value={itemIndex !== null ? String(itemIndex) : ''}
-                onChange={e => onPickItem(e.target.value)}
+                onChange={onPickItem}
                 disabled={!playlistUuid || busy}
-              >
-                <option value="">
-                  {!playlistUuid ? '— Pick a playlist first —'
-                    : busy ? '— Loading items… —'
-                    : items.length === 0 ? '— Playlist has no items (or not loaded) —'
-                    : '— Select an item —'}
-                </option>
-                <PpItemOptions items={items} />
-                {itemIndex !== null && itemName && !items.some(i => i.index === itemIndex) && (
-                  <option value={String(itemIndex)}>
-                    {itemIndex + 1}. {itemName} (not loaded)
-                  </option>
-                )}
-              </select>
+                placeholder={!playlistUuid ? '— Pick a playlist first —'
+                  : busy ? '— Loading items… —'
+                  : items.length === 0 ? '— Playlist has no items (or not loaded) —'
+                  : '— Select an item —'}
+                savedIndex={itemIndex}
+                savedName={itemName}
+              />
             </div>
           </>
         )}
