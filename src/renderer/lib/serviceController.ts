@@ -1512,19 +1512,46 @@ export class ServiceController {
         await this.engines.pp.triggerActiveSlide(p.slideIndex);
         log(`pp slide ${p.slideIndex}`);
         return;
-      case 'pp_trigger_playlist_item':
+      case 'pp_trigger_playlist_item': {
         if (!this.engines.pp) return;
-        // If a slide index is set the operator wants to drop straight
-        // onto a specific slide of the item; otherwise we fire the item
-        // from its first slide (the historical behavior).
+        // ProPresenter triggers playlist items by INDEX. If the playlist is
+        // reordered/edited in PP, a saved index silently points at a
+        // different item: PP still returns success, the wrong slide fires,
+        // and the log looks clean (observed 2026-09-06 — "LCC Pre-Roll"
+        // saved as item #0 no longer sat at index 0). So resolve the item
+        // by its saved NAME at fire time and use whatever index it lives
+        // at now; fall back to the saved index if the name can't be found
+        // or PP can't be asked. Logs the resolved index and warns on a
+        // reorder or a missing name so this is diagnosable from timing.log.
+        let itemIndex = p.itemIndex;
+        if (p.itemName) {
+          const want = p.itemName.trim().toLowerCase();
+          try {
+            const items = await this.engines.pp.listPlaylistItems(p.playlistUuid);
+            const pos = items.findIndex(it => it.name.trim().toLowerCase() === want);
+            if (pos >= 0) {
+              const found = items[pos];
+              const resolved = typeof found.index === 'number' ? found.index : pos;
+              if (resolved !== p.itemIndex) {
+                log(`pp playlist item "${p.itemName}" moved: saved #${p.itemIndex} → now #${resolved} (using current)`);
+              }
+              itemIndex = resolved;
+            } else {
+              log(`pp playlist item "${p.itemName}" not found by name in ${p.playlistName ?? p.playlistUuid} — falling back to saved #${p.itemIndex}`);
+            }
+          } catch (err) {
+            log(`pp playlist lookup failed (${err instanceof Error ? err.message : String(err)}) — falling back to saved #${p.itemIndex}`);
+          }
+        }
         if (typeof p.slideIndex === 'number') {
-          await this.engines.pp.triggerPlaylistSlide(p.playlistUuid, p.itemIndex, p.slideIndex);
-          log(`pp playlist ${p.playlistName ?? p.playlistUuid}#${p.itemIndex} slide ${p.slideIndex}`);
+          await this.engines.pp.triggerPlaylistSlide(p.playlistUuid, itemIndex, p.slideIndex);
+          log(`pp playlist ${p.playlistName ?? p.playlistUuid}#${itemIndex} slide ${p.slideIndex}`);
         } else {
-          await this.engines.pp.triggerPlaylistItem(p.playlistUuid, p.itemIndex);
-          log(`pp playlist ${p.playlistName ?? p.playlistUuid}#${p.itemIndex}`);
+          await this.engines.pp.triggerPlaylistItem(p.playlistUuid, itemIndex);
+          log(`pp playlist ${p.playlistName ?? p.playlistUuid}#${itemIndex}`);
         }
         return;
+      }
       case 'pp_set_timer':
         if (!this.engines.pp) return;
         if (p.mode === 'count_down_to_service') {

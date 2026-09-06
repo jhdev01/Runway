@@ -53,9 +53,12 @@ export function installDiagnosticDiskLog(): void {
   if (!append) return;
   installed = true;
 
-  const original = console.log.bind(console);
-  console.log = (...args: unknown[]) => {
-    original(...args);
+  // Forward any tagged line to disk. Shared by log/warn/error so a failure
+  // path that reports via console.warn (e.g. "[actions] dispatch failed"
+  // when a ProPresenter trigger is rejected) is captured too — previously
+  // only console.log was mirrored, which made PP failures invisible in
+  // timing.log while successes were recorded.
+  const forward = (args: unknown[]) => {
     try {
       const first = args[0];
       if (typeof first !== 'string') return;
@@ -65,4 +68,11 @@ export function installDiagnosticDiskLog(): void {
       /* logging must never break the app */
     }
   };
+
+  const originalLog = console.log.bind(console);
+  console.log = (...args: unknown[]) => { originalLog(...args); forward(args); };
+  const originalWarn = console.warn.bind(console);
+  console.warn = (...args: unknown[]) => { originalWarn(...args); forward(args); };
+  const originalError = console.error.bind(console);
+  console.error = (...args: unknown[]) => { originalError(...args); forward(args); };
 }

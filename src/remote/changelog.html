@@ -93,6 +93,14 @@
 // makes the page work as a standalone file:// load. Newest first.
 const RELEASES = [
   {
+    "version": "10.2.5",
+    "date": "September 6, 2026",
+    "major": false,
+    "changes": [
+      "<strong>ProPresenter triggers are now reorder-proof.</strong> Playlist-item actions used to fire by saved position, so reordering a playlist in ProPresenter silently fired the wrong slide while PP still reported success (seen Sep 6 on the prayer-to-post-service cue). The trigger now looks the item up by its saved name at fire time and uses its current position, falling back to the saved position if the name isn't found — and logs exactly what fired. Also: ProPresenter <em>failures</em> now reach timing.log (previously only successes were recorded, so a rejected trigger was invisible)."
+    ]
+  },
+  {
     "version": "10.2.4",
     "date": "August 9, 2026",
     "major": false,
