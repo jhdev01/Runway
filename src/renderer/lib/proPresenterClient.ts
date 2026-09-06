@@ -22,6 +22,12 @@ export interface PpTimer {
   // index, not uuid. Undefined for things like timers where there's no list
   // position concept.
   index?: number;
+  // Playlist-item kind from PP ("presentation", "header", "media", …).
+  // Headers are section dividers: they occupy an index but triggering one
+  // does nothing visible, so pickers render them as non-selectable labels.
+  type?: string;
+  // For headers: PP's header_color as a CSS rgb() string, when present.
+  headerColor?: string;
   raw: unknown; // full PP response object — handy for debugging
 }
 
@@ -332,15 +338,34 @@ function flattenPlaylistTree(parsed: unknown): PpTimer[] {
   return out;
 }
 
+/**
+ * PP reports colors as { red, green, blue, alpha } floats in 0–1. Convert
+ * to a CSS rgb() string; undefined when the shape isn't recognizable.
+ */
+function ppColorToCss(c: unknown): string | undefined {
+  if (!c || typeof c !== 'object') return undefined;
+  const { red, green, blue } = c as { red?: unknown; green?: unknown; blue?: unknown };
+  if (typeof red !== 'number' || typeof green !== 'number' || typeof blue !== 'number') return undefined;
+  const to255 = (v: number) => Math.round(Math.max(0, Math.min(1, v)) * 255);
+  return `rgb(${to255(red)}, ${to255(green)}, ${to255(blue)})`;
+}
+
 function normalizeIdList(parsed: unknown): PpTimer[] {
   const list = Array.isArray(parsed) ? parsed : [];
   return list
     .map(item => {
-      const id = (item as { id?: { uuid?: string; name?: string; index?: number } }).id ?? {};
+      const rec = item as {
+        id?: { uuid?: string; name?: string; index?: number };
+        type?: unknown;
+        header_color?: unknown;
+      };
+      const id = rec.id ?? {};
       return {
         uuid: id.uuid ?? '',
         name: id.name ?? '(unnamed)',
         index: typeof id.index === 'number' ? id.index : undefined,
+        type: typeof rec.type === 'string' ? rec.type.toLowerCase() : undefined,
+        headerColor: ppColorToCss(rec.header_color),
         raw: item,
       };
     })

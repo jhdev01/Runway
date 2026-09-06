@@ -3,6 +3,7 @@ import { useAppStore } from '../state/store';
 import { useEngines } from '../state/engines';
 import type { Action, ActionPayload, ActionSequence, ActionAnchor, KeyName } from '@shared/types';
 import type { PpTimer } from '../lib/proPresenterClient';
+import { PpItemOptions } from '../components/PpItemOptions';
 import { ALL_KEYS } from '@shared/music';
 import { Toggle } from '../components/Toggle';
 import {
@@ -978,11 +979,7 @@ function PpPlaylistItemEditor({
                 ? '— playlist has no items —'
                 : '— select an item —'}
         </option>
-        {items.map(i => (
-          <option key={i.uuid} value={i.index ?? ''}>
-            {i.index !== undefined ? `${i.index + 1}. ` : ''}{i.name}
-          </option>
-        ))}
+        <PpItemOptions items={items} />
         {payload.itemIndex !== undefined && payload.itemName
           && !items.some(i => i.index === payload.itemIndex) && (
             <option value={String(payload.itemIndex)}>

@@ -6,6 +6,7 @@ import type { AudioBusConfig, MidiAction, MidiBinding, KeyName, PadFile, ProPres
 import { DEFAULT_CONFIG } from '@shared/types';
 import type { MidiDeviceSnapshot } from '../lib/midiEngine';
 import type { PpTimer } from '../lib/proPresenterClient';
+import { PpItemOptions } from '../components/PpItemOptions';
 import { runPcoKeySync, type PcoServiceType } from '../lib/planningCenterClient';
 import { RotaryKnob } from '../components/RotaryKnob';
 import { Toggle } from '../components/Toggle';
@@ -858,11 +859,7 @@ function HookCard({ hook, label, description, icon, tone, cfg, update, playlists
                     : items.length === 0 ? '— Playlist has no items (or not loaded) —'
                     : '— Select an item —'}
                 </option>
-                {items.map(i => (
-                  <option key={i.uuid} value={i.index ?? ''}>
-                    {i.index !== undefined ? `${i.index + 1}. ` : ''}{i.name}
-                  </option>
-                ))}
+                <PpItemOptions items={items} />
                 {itemIndex !== null && itemName && !items.some(i => i.index === itemIndex) && (
                   <option value={String(itemIndex)}>
                     {itemIndex + 1}. {itemName} (not loaded)

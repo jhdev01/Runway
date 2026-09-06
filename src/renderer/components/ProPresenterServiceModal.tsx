@@ -3,6 +3,7 @@ import { useAppStore } from '../state/store';
 import { useEngines } from '../state/engines';
 import type { ProPresenterServiceOverride } from '@shared/types';
 import type { PpTimer } from '../lib/proPresenterClient';
+import { PpItemOptions } from './PpItemOptions';
 
 interface Props {
   /** Header text (e.g. service or pattern name). Optional. */
@@ -280,11 +281,7 @@ export function ProPresenterServiceModal({ title, subtitle, override, onClose, o
                     : items.length === 0 ? '— No items loaded —'
                     : '— Select an item —'}
                 </option>
-                {items.map(i => (
-                  <option key={i.uuid} value={i.index ?? ''}>
-                    {i.index !== undefined ? `${i.index + 1}. ` : ''}{i.name}
-                  </option>
-                ))}
+                <PpItemOptions items={items} />
                 {itemIndex !== null && itemName && !items.some(i => i.index === itemIndex) && (
                   <option value={String(itemIndex)}>{itemIndex + 1}. {itemName} (not loaded)</option>
                 )}
