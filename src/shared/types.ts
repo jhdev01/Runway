@@ -803,12 +803,34 @@ export const DEFAULT_CONFIG: AppConfig = {
   },
 };
 
+/**
+ * Result of a re-link pass. Re-linking repoints each track's / pad's
+ * `filePath` to where the file actually lives on THIS computer (matched
+ * by filename), without touching the track id, key, trims, fades, or any
+ * playlist membership. It's how a config exported from another machine —
+ * where absolute paths embed the old username / library location — gets
+ * reconnected to the local files after a migration.
+ */
+export interface RelinkReport {
+  tracksOk: number;         // already pointed at a file that exists
+  tracksRelinked: number;   // repointed to a newly-found file
+  tracksMissing: number;    // no matching file found anywhere searched
+  padsOk: number;
+  padsRelinked: number;
+  padsMissing: number;
+  // Filenames still unresolved after the pass (tracks + pads), for the UI.
+  missingNames: string[];
+  // True when at least one path changed (so the caller knows to persist).
+  changed: boolean;
+}
+
 // IPC channel names — keeping a const enum for typo safety
 export const IPC = {
   CONFIG_GET: 'config:get',
   CONFIG_SET: 'config:set',
   CONFIG_EXPORT: 'config:export',
   CONFIG_IMPORT: 'config:import',
+  CONFIG_RELINK: 'config:relink',
   FILE_PICK: 'file:pick',
   FOLDER_PICK: 'folder:pick',
   FOLDER_SCAN: 'folder:scan',

@@ -4,7 +4,8 @@ import * as fs from 'fs';
 import * as http from 'http';
 import { ConfigStore } from './configStore';
 import { scanFolder, scanPadFolder, readTrackMetadata } from './fileScanner';
-import { IPC, type PpRequest, type PpResponse, type AppConfig, type TraySnapshot } from '../shared/types';
+import { relinkConfig } from './relink';
+import { IPC, type PpRequest, type PpResponse, type AppConfig, type RelinkReport, type TraySnapshot } from '../shared/types';
 import { RemoteServer, listLanUrls, listNetworkInterfaces, type RemoteSnapshot } from './remoteServer';
 
 const isDev = process.env.NODE_ENV === 'development';
@@ -500,7 +501,7 @@ function registerIpcHandlers() {
   // from the new file. Audio file paths in the imported config may not
   // exist on this machine — those tracks will show as "missing" in the
   // playlist UI until re-imported.
-  ipcMain.handle(IPC.CONFIG_IMPORT, async (): Promise<{ ok: boolean; reason?: string }> => {
+  ipcMain.handle(IPC.CONFIG_IMPORT, async (): Promise<{ ok: boolean; reason?: string; report?: RelinkReport }> => {
     if (!mainWindow) return { ok: false, reason: 'No window' };
     const open = await dialog.showOpenDialog(mainWindow, {
       title: 'Import Runway config',
@@ -547,11 +548,33 @@ function registerIpcHandlers() {
     }
     try {
       config.write(parsed as AppConfig);
-      return { ok: true };
+      // Auto re-link: the imported config's absolute paths embed the OTHER
+      // machine's username / library location, so they won't resolve here.
+      // Re-point tracks and pads (by filename) to this computer's managed
+      // library folders. Preserves ids, keys, trims, fades, and every
+      // playlist link — only filePath changes. The operator can point at an
+      // extra folder afterward via the "Fix missing audio files" button for
+      // anything kept outside the managed library.
+      const { config: relinked, report } = relinkConfig(config.read(), managedLibraryDirs());
+      if (report.changed) config.write(relinked);
+      return { ok: true, report };
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       return { ok: false, reason: msg };
     }
+  });
+
+  // Re-link audio/pad file paths to this machine's copies without any of the
+  // destruction of a re-import. Searches the managed library dirs first, plus
+  // any operator-chosen extra folders (recursively). Used by the "Fix missing
+  // audio files" button and after an import.
+  ipcMain.handle(IPC.CONFIG_RELINK, async (_e, opts?: { extraFolders?: string[] }): Promise<RelinkReport> => {
+    const { config: relinked, report } = relinkConfig(config.read(), {
+      ...managedLibraryDirs(),
+      extraFolders: opts?.extraFolders,
+    });
+    if (report.changed) config.write(relinked);
+    return report;
   });
 
   ipcMain.handle(IPC.FILE_PICK, async (_e, opts: { multi?: boolean }) => {
@@ -786,6 +809,15 @@ function registerIpcHandlers() {
  * Idempotent: re-importing the same file returns the existing dest. Filename
  * collisions with different content get suffixed (-1, -2, …).
  */
+/** The managed library folders where the importer copies audio and pads. */
+function managedLibraryDirs(): { audioDir: string; padsDir: string } {
+  const userDataDir = app.getPath('userData');
+  return {
+    audioDir: path.join(userDataDir, 'audio'),
+    padsDir: path.join(userDataDir, 'pads'),
+  };
+}
+
 async function importAudioFile(srcPath: string, subdir: 'audio' | 'pads' = 'audio'): Promise<string> {
   if (!fs.existsSync(srcPath)) throw new Error(`Source not found: ${srcPath}`);
   const audioDir = path.join(app.getPath('userData'), subdir);
