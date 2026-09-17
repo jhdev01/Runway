@@ -343,8 +343,31 @@ export class AudioEngine {
     // Electron blocks fetching file:// URLs from the renderer for security.
     const url = filePathToUrl(filePath);
     const res = await fetch(url);
+    // A missing/moved file makes the main-process protocol handler return a
+    // 404 whose body is the text "Not found". Without this check we'd hand
+    // those bytes straight to decodeAudioData and surface a misleading
+    // "Unable to decode audio data" — the classic symptom after migrating to
+    // a new machine, where stored absolute paths no longer resolve. Report
+    // the real cause instead (mirrors the check in EditorView).
+    if (!res.ok) {
+      throw new Error(
+        `Track file not found (HTTP ${res.status}). It may have been moved, ` +
+        `renamed, or the library was copied from another computer. ` +
+        `Re-import the track to update its location. Path: ${filePath}`,
+      );
+    }
     const arrayBuf = await res.arrayBuffer();
-    const buffer = await this.ctx.decodeAudioData(arrayBuf);
+    let buffer: AudioBuffer;
+    try {
+      buffer = await this.ctx.decodeAudioData(arrayBuf);
+    } catch {
+      throw new Error(
+        `Web Audio can't decode this file. Some MP3 rips (especially ` +
+        `YouTube/lyric-video downloads) are container formats Chromium won't ` +
+        `accept. Re-encode with ffmpeg: ` +
+        `"ffmpeg -i source.mp3 -c:a libmp3lame -b:a 192k clean.mp3". Path: ${filePath}`,
+      );
+    }
     this.bufferCache.set(filePath, buffer);
     return buffer;
   }

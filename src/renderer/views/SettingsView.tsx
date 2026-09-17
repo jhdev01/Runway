@@ -2190,8 +2190,26 @@ function RemoteSettings() {
 function BackupSection() {
   const loadConfig = useAppStore(s => s.loadConfig);
   const [status, setStatus] = useState<{ kind: 'ok' | 'err'; msg: string } | null>(null);
-  const [busy, setBusy] = useState<'export' | 'import' | null>(null);
+  const [busy, setBusy] = useState<'export' | 'import' | 'relink' | null>(null);
   const [resetOpen, setResetOpen] = useState(false);
+
+  // Turn a re-link report into a one-line operator-readable summary.
+  const relinkMsg = (r: {
+    tracksRelinked: number; padsRelinked: number;
+    tracksMissing: number; padsMissing: number;
+  }): { kind: 'ok' | 'err'; msg: string } => {
+    const missing = r.tracksMissing + r.padsMissing;
+    const relinkedBits: string[] = [];
+    if (r.tracksRelinked) relinkedBits.push(`${r.tracksRelinked} track${r.tracksRelinked === 1 ? '' : 's'}`);
+    if (r.padsRelinked) relinkedBits.push(`${r.padsRelinked} pad${r.padsRelinked === 1 ? '' : 's'}`);
+    const reconnected = relinkedBits.length
+      ? `Reconnected ${relinkedBits.join(' and ')} to this computer.`
+      : 'Nothing needed reconnecting.';
+    if (missing > 0) {
+      return { kind: 'err', msg: `${reconnected} ${missing} file${missing === 1 ? '' : 's'} still missing — click “Fix missing audio files” and point at the folder your audio is in.` };
+    }
+    return { kind: 'ok', msg: `${reconnected} All files are linked.` };
+  };
 
   const onExport = async () => {
     setBusy('export');
@@ -2212,10 +2230,38 @@ function BackupSection() {
       const res = await window.runway!.config.import();
       if (res.ok) {
         await loadConfig();
-        setStatus({ kind: 'ok', msg: 'Config imported. Tracks with missing audio files will need to be re-imported.' });
+        // Import auto-re-links to this machine's library. Report the result
+        // so a clean "copy config + audio folder" migration reads as done,
+        // and a partial one points the operator at the fix.
+        if (res.report) {
+          setStatus({ kind: relinkMsg(res.report).kind, msg: `Config imported. ${relinkMsg(res.report).msg}` });
+        } else {
+          setStatus({ kind: 'ok', msg: 'Config imported.' });
+        }
       } else if (res.reason !== 'Cancelled') {
         setStatus({ kind: 'err', msg: res.reason ?? 'Import failed' });
       }
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  // Re-link file paths to this computer without re-importing. First tries the
+  // managed library folders; if anything's still missing, offers to search a
+  // folder the operator points at. Keeps all keys, trims, fades, playlists.
+  const onRelink = async () => {
+    setBusy('relink');
+    setStatus(null);
+    try {
+      let report = await window.runway!.config.relink();
+      if (report.tracksMissing + report.padsMissing > 0) {
+        const folder = await window.runway!.files.pickFolder();
+        if (folder) {
+          report = await window.runway!.config.relink({ extraFolders: [folder] });
+        }
+      }
+      await loadConfig();
+      setStatus(relinkMsg(report));
     } finally {
       setBusy(null);
     }
@@ -2227,8 +2273,11 @@ function BackupSection() {
         <div className="settings-section-title">Backup &amp; restore</div>
         <div className="settings-section-sub" style={{ maxWidth: 560 }}>
           Export every setting to a JSON file — playlists, services, weekly pattern,
-          MIDI bindings, ProPresenter setup, defaults. Audio files aren't included
-          and need to be re-imported on the new machine.
+          MIDI bindings, ProPresenter setup, defaults. To move to a new computer:
+          copy this file <em>and</em> your audio + pad folders over, then Import here —
+          Runway automatically reconnects every track and pad to their new location,
+          keeping all keys, trims, fades, and playlists intact. Use “Fix missing audio
+          files” any time a track shows as missing (e.g. after moving your library).
         </div>
         <div style={{ display: 'flex', gap: 10, marginTop: 14, alignItems: 'center', flexWrap: 'wrap' }}>
           <button className="btn-secondary" onClick={onExport} disabled={busy !== null}>
@@ -2236,6 +2285,9 @@ function BackupSection() {
           </button>
           <button className="btn-secondary" onClick={onImport} disabled={busy !== null}>
             {busy === 'import' ? 'Importing…' : 'Import config…'}
+          </button>
+          <button className="btn-secondary" onClick={onRelink} disabled={busy !== null}>
+            {busy === 'relink' ? 'Fixing…' : 'Fix missing audio files'}
           </button>
           {status && (
             <span style={{

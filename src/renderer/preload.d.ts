@@ -1,4 +1,4 @@
-import type { AppConfig, Track, KeyName, PpRequest, PpResponse, RemoteNetworkInterface } from '@shared/types';
+import type { AppConfig, Track, KeyName, PpRequest, PpResponse, RelinkReport, RemoteNetworkInterface } from '@shared/types';
 
 export {};
 
@@ -11,7 +11,8 @@ declare global {
         get: () => Promise<AppConfig>;
         set: (config: AppConfig) => Promise<boolean>;
         export: () => Promise<{ ok: boolean; path?: string; reason?: string }>;
-        import: () => Promise<{ ok: boolean; reason?: string }>;
+        import: () => Promise<{ ok: boolean; reason?: string; report?: RelinkReport }>;
+        relink: (opts?: { extraFolders?: string[] }) => Promise<RelinkReport>;
       };
       files: {
         pickAudio: (multi?: boolean) => Promise<string[]>;

@@ -52,7 +52,7 @@ export function describeAction(action: Action): string {
     case 'pp_timer_control':
       return `${p.op} "${p.timerName ?? 'timer'}"`;
     case 'audio_fade':
-      return `${p.bus} bus → ${p.targetGainDb} dB${p.durationSec > 0 ? ` over ${p.durationSec}s` : ' (instant)'}`;
+      return `${p.bus} bus → ${p.targetGainPct}%${p.durationSec > 0 ? ` over ${p.durationSec}s` : ' (instant)'}`;
     case 'pad_action':
       return `Pad ${p.op}${p.key ? ` ${p.key}` : ''}`;
     case 'music_action':

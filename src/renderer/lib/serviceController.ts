@@ -181,7 +181,10 @@ export class ServiceController {
           void this.beginPad();
         }
         if (curService && curService.status !== 'completed') {
-          this.store.getState().setServiceStatus(armedServiceId, 'completed');
+          // curService was found by id === armedServiceId, so curService.id
+          // is that same id — and typed as a plain string (armedServiceId is
+          // string | null). No behavior change; just satisfies the type.
+          this.store.getState().setServiceStatus(curService.id, 'completed');
         }
       }, delay) as unknown as number;
     }
