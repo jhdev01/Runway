@@ -2,10 +2,11 @@ import { app, BrowserWindow, ipcMain, dialog, protocol, shell, Tray, Menu, nativ
 import * as path from 'path';
 import * as fs from 'fs';
 import * as http from 'http';
+import * as https from 'https';
 import { ConfigStore } from './configStore';
 import { scanFolder, scanPadFolder, readTrackMetadata } from './fileScanner';
 import { relinkConfig } from './relink';
-import { IPC, type PpRequest, type PpResponse, type AppConfig, type RelinkReport, type TraySnapshot } from '../shared/types';
+import { IPC, type PpRequest, type PpResponse, type PcoRequest, type PcoResponse, type AppConfig, type RelinkReport, type TraySnapshot } from '../shared/types';
 import { RemoteServer, listLanUrls, listNetworkInterfaces, type RemoteSnapshot } from './remoteServer';
 
 const isDev = process.env.NODE_ENV === 'development';
@@ -278,7 +279,7 @@ function buildAppMenu(): Electron.Menu {
         type: 'info',
         title: `About ${app.name}`,
         message: `${app.name} ${ver}`,
-        detail: 'Worship audio control: scheduled pre-service music, key-aware playlist arrangement, pad player, MIDI integration with ProPresenter.\n\nCopyright © 2026 jhdev',
+        detail: 'Worship audio control: scheduled pre-service music, key-aware playlist arrangement, pad player, MIDI integration with ProPresenter.\n\nCopyright © 2026 Grounded Labs Dev · groundedlabs.dev',
         buttons: ['OK'],
       });
     },
@@ -677,6 +678,50 @@ function registerIpcHandlers() {
     await shell.openPath(folderPath);
   });
 
+  // ---- Persistent service-timing log ----
+  // The renderer mirrors its timing-tagged console logs here so the
+  // operator can review what happened during a service without keeping
+  // DevTools open. Lives next to config.json.
+  const timingLogPath = path.join(app.getPath('userData'), 'timing.log');
+  // Local-time stamp (operator timezone) — UTC would make a Sunday-morning
+  // service read as a different day in the log.
+  const localStamp = (): string => {
+    const d = new Date();
+    const p = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+  };
+  ipcMain.on(IPC.TIMING_LOG_APPEND, (_e, line: unknown) => {
+    if (typeof line !== 'string') return;
+    try {
+      // Light rotation: keep one backup so the file can't grow without
+      // bound across months of services. Timing lines are tiny, so 2 MB
+      // already holds a very long history.
+      try {
+        const st = fs.statSync(timingLogPath);
+        if (st.size > 2 * 1024 * 1024) {
+          fs.renameSync(timingLogPath, timingLogPath + '.1');
+        }
+      } catch { /* file doesn't exist yet — fine */ }
+      void fs.promises.appendFile(timingLogPath, `${localStamp()}  ${line}\n`, 'utf8')
+        .catch(err => console.warn('[timing-log] append failed', err));
+    } catch (err) {
+      console.warn('[timing-log] append failed', err);
+    }
+  });
+  ipcMain.handle(IPC.TIMING_LOG_REVEAL, async () => {
+    try {
+      // Create an empty file if nothing's been logged yet so the reveal
+      // doesn't fail on a fresh install.
+      if (!fs.existsSync(timingLogPath)) {
+        fs.writeFileSync(timingLogPath, '', 'utf8');
+      }
+      shell.showItemInFolder(timingLogPath);
+      return { ok: true, path: timingLogPath };
+    } catch (err) {
+      return { ok: false, reason: err instanceof Error ? err.message : String(err) };
+    }
+  });
+
   // Renderer pushes tray-relevant state on store changes. Main caches
   // the latest snapshot and rebuilds the tray menu so it reflects the
   // current armed service, countdown, upcoming services, etc.
@@ -799,6 +844,41 @@ function registerIpcHandlers() {
         r.destroy(new Error('timeout'));
       });
       if (bodyStr !== undefined) r.write(bodyStr);
+      r.end();
+    });
+  });
+
+  // Planning Center API proxy. Renderer can't call api.planningcenteronline.com
+  // directly (CORS), so main forwards the GET over HTTPS with HTTP Basic auth
+  // built from the Personal Access Token (appId:secret). Read-only.
+  ipcMain.handle(IPC.PCO_REQUEST, async (_e, req: PcoRequest): Promise<PcoResponse> => {
+    return new Promise<PcoResponse>(resolve => {
+      const auth = Buffer.from(`${req.appId}:${req.secret}`).toString('base64');
+      const opts: https.RequestOptions = {
+        hostname: 'api.planningcenteronline.com',
+        port: 443,
+        path: req.path,
+        method: 'GET',
+        headers: {
+          'Authorization': `Basic ${auth}`,
+          'Accept': 'application/json',
+          'User-Agent': 'Runway',
+        },
+        timeout: req.timeoutMs ?? 8000,
+      };
+      const r = https.request(opts, res => {
+        const chunks: Buffer[] = [];
+        res.on('data', c => chunks.push(c));
+        res.on('end', () => {
+          resolve({
+            ok: (res.statusCode ?? 0) >= 200 && (res.statusCode ?? 0) < 300,
+            status: res.statusCode ?? 0,
+            body: Buffer.concat(chunks).toString('utf8'),
+          });
+        });
+      });
+      r.on('error', err => resolve({ ok: false, status: 0, body: '', error: err.message }));
+      r.on('timeout', () => r.destroy(new Error('timeout')));
       r.end();
     });
   });

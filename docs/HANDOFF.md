@@ -14,6 +14,161 @@ Living doc. Update when something material changes; replace the "Recent work" se
 
 ---
 
+## Recent work (post-v10.1.2, unreleased)
+
+### Planning Center — lead-time pull, decoupled from date (10.2.1)
+Reworked how/when the PCO key is applied. The pull now targets a SPECIFIC
+Runway service (by id) with the coming plan's key — the plan date and the
+service date do NOT have to match (so testing a day early still pulls
+Sunday's key). Trigger is a per-service lead time: `pcoSync.pullLeadSec`
+global default (4h) + optional per-service `ServiceInstance.pcoKeyLeadSec`
+override (edited in the schedule service modal, "PCO key pull … MIN
+BEFORE"). A 60s scheduler in engines.tsx (`pcoScheduleTick`) fires the pull
+for each upcoming service once its lead window opens (session Set guards
+against re-pull). `setServiceFirstSongKey(serviceId, key)` replaced
+`setFirstSongKeyForDate`. `runPcoKeySync`'s apply callback is now
+`(key) => number` so the caller picks the target. Settings "Fetch now"
+applies to the next upcoming service; Settings gained a "Pull key … minutes
+before" default field.
+
+### Planning Center key sync (10.2.1)
+Auto-sets the pad-bridge key from the first song of the upcoming PCO plan,
+so the key is right even when nobody sets it manually (built for when the
+operator is away). Read-only, Personal Access Token (App ID + Secret)
+auth. Pieces:
+- `PcoSyncConfig` on `AppConfig` (+ DEFAULT_CONFIG + store migration merge).
+- `IPC.PCO_REQUEST` — main-process HTTPS proxy to
+  api.planningcenteronline.com with Basic auth (renderer can't call it
+  directly; CORS). `PcoRequest`/`PcoResponse` in shared/types; preload
+  `window.runway.planningCenter.request`.
+- `planningCenterClient.ts` — `PcoClient` (testConnection, listServiceTypes,
+  fetchNextFirstSongKey) + `runPcoKeySync(client, cfg, apply)` shared by the
+  weekly job and the Settings "Fetch now" button.
+- `pcoKeyToRunway()` in music.ts maps PCO key strings ("Ab", "C#", "F#m",
+  "A#m", enharmonics) → canonical KeyName.
+- `setFirstSongKeyForDate(date, key)` store action applies the key to that
+  date's services (no-op if already set; others inherit via
+  resolveServiceFirstSongKey).
+- Weekly job in engines.tsx: runs on the enable/service-type transition, on
+  boot (4s deferred so config is loaded), and after each daily materialize
+  (services exist first). Writes a `lastFetched*`/`lastError` status
+  snapshot into pcoSync.
+- Settings → Planning Center tab: enable, App ID/Secret, Test connection
+  (lists service types), service-type picker, Fetch now, status + setup
+  steps. Multitracks has no public API — PCO only.
+
+### Post-service "Music fires in" shows the action time (10.2.1)
+During post-service, the "Music fires in" sub-countdown and the "Auto-arm
+scheduled for HH:MM" banner used `musicFireMs` = `targetMs -
+autoStartTargetSec` (the normal auto-arm clock). But in the action-driven
+between-services flow the next service's music is armed by the
+`arm_playlist` "music to fill" action when the prayer track ends — a
+different time — so the readout was wrong (e.g. showed 00:18 when music
+actually armed at 00:15). Added `postServiceArmMs` (resolves the earliest
+enabled `arm_playlist` action's fire time in the post-service sequence,
+mirroring `resolveSequence`) and a `displayMusicFireMs = postServiceArmMs
+?? musicFireMs` used only by those two readouts. `musicFireMs` itself is
+unchanged so the auto-arm fallback scheduler still behaves the same.
+
+### Live "Add a song" (10.2.1)
+Operator affordance to fill added time (e.g. after +2 min) with real music
+instead of a longer pad hold. `ServiceController.addSongLive()`: injects one
+song into a running pre-service runway, crossfading in now and fading to
+silence EXACTLY at `targetMs` — the service start is NOT moved. Song pick
+prefers the pad's key (`padArmedKey ?? landInKey`; exact → Camelot) from the
+service's pre-service playlist, never the currently-playing song; fallback is
+the runway's first song, then random. Pad handling per operator spec: a
+key-matched song keeps the in-key pad landing; a fallback (possibly off-key)
+song cancels the pad bridge (`skipPadBridge`) so an in-key pad can't clash.
+The tail runs on plain wall-clock setTimeouts vs the existing `targetMs` — no
+scheduling math changed. Triggers: on-screen "+ Song" button in the Live
+header time-shift group (shown only while the service runway is in music/pad
+phase) and a MIDI-bindable `add_song` action. Phone-remote command not wired
+yet (easy add if wanted).
+
+### Persistent service-timing log to disk (10.2.1)
+v10.2.0's timing diagnostics (`[arm] timing`, `[beginMusic]`,
+`[scheduleRunway]`, `[failsafe]`, `[prewarm]`, etc.) only went to the
+DevTools console — gone if DevTools wasn't open. Now they also append to
+`timing.log` next to `config.json`. Implementation: `diagnosticDiskLog.ts`
+wraps `console.log` once (installed in `engines.tsx` before the controller
+starts) and forwards any line starting with a known timing tag to main via
+the `TIMING_LOG_APPEND` one-way IPC; main appends with a local-time stamp
+and rotates at 2 MB (one `.1` backup). `[pp]` polling spam is deliberately
+excluded so the file stays readable. Settings → Engine → "Open timing log"
+reveals the file (`TIMING_LOG_REVEAL`). No call sites changed — wrapping
+`console.log` captures v10.2.0's logs, the new fixes' logs, and any future
+diagnostic line automatically.
+
+### Look-ahead pre-warm before runway-mutating actions (10.2.1)
+The between-service fill (post-service → `arm_playlist` "music to fill")
+could hit a COLD decode whenever shuffle/anchor selection picked tracks the
+current service never played — the buffer cache is keyed per-file and an arm
+only decodes its own arrangement, not the whole pool. Cold decode there =
+silence gap on the handoff + late landing. Fix: `fireDueActions` now starts a
+background decode of a runway-mutating action's target playlist pool
+(`PREWARM_LEAD_MS` = 30s before its fire time), whole pool not just one
+arrangement, once per playlist per arm cycle (`prewarmedPlaylistIds`, cleared
+with `firedActionIds`). Pure cache-warming via `loadBuffer`; the in-flight
+dedup (below) means it never double-decodes against the real arm. Fix #3
+still guarantees the landing if a decode is mid-flight when the action fires;
+pre-warm removes the silence gap on top.
+
+### Dual-audio + late-landing fixes (audio engine / auto-arm)
+Root-caused the "two songs playing at once but the runway shows one" incident
+(back-to-back services, post-service → arm_playlist "music to fill" action):
+
+- **Music-bus claim token (`musicEpoch`)** — `playMusic` / `crossfadeToMusic` /
+  `scheduleRunway` each take a token at entry and re-check it after their
+  decode awaits; a stale call bails without starting sources. Previously two
+  interleaved async starts could both complete, and the loser's sources kept
+  playing — untracked, invisible in the UI, and unreachable by Panic.
+  `fadeOutMusic` / `stopMusic` also bump the token so a panic cancels plays
+  still decoding.
+- **Panic safety net** — every music-bus source is registered in
+  `liveMusicNodes` (auto-removed on end); `panicFadeAll` sweeps the set so
+  no source can outlive a panic even if slot bookkeeping ever loses one.
+- **`loadBuffer` in-flight dedup** — concurrent loads of the same file share
+  one fetch+decode. armService's preloader and `scheduleRunway` used to
+  decode every track twice in parallel on the fill-arm path.
+- **`scheduleRunway` start-latency compensation** — decode time + lead-in is
+  now skipped INTO the first track (same as the reactive path always did)
+  instead of delaying the whole runway. Previously a cold-cache arm (the
+  arm_playlist fill flow) shifted the entire runway — anchor landing
+  included — late by ~2× the decode time, which is why the song didn't end
+  at countdown 0:00. The schedule math itself (track order, transitions,
+  landing) is unchanged; only the start-alignment error is removed.
+- **Deferred auto-arm re-check** — LiveView's musicFireMs `setTimeout` re-runs
+  its guards at fire time, so it can't double-arm a service the arm_playlist
+  action already armed (the other half of the dual-audio race).
+
+### Disarm always silences the music bus
+Operator report: "disarming a service should stop music but didn't."
+`armToggle`'s disarm only faded when the runway phase wasn't `queued`, and
+its arm branch only faded post-service audio — so arming over a playing
+Quick Play left that music rolling under the queued runway, where disarm
+couldn't reach it. Now: disarm always fades the music bus (music-only via
+`panicFadeMusic` in the queued case, so a manually fired pad survives;
+full `panicFadeAll` when the runway is audibly firing), and arming fades
+ANY audible runway (post-service, Quick Play music, lingering pad), not
+just post-service.
+
+### ProPresenter countdown delivery is now reconciled, not one-shot
+The PP countdown was a one-shot at music start with no retry — if Pro7 was
+launched after music started, crashed mid-service, or had its window closed
+and reopened while its API stayed up (macOS keeps PP running with the
+window closed, so the status light correctly stays green and there is no
+offline→online transition to react to), the timer never appeared. The 10s
+heartbeat now reconciles: while a service runway is in music/pad phase with
+targetMs in the future, it re-sends the countdown arm until one PUT
+succeeds, keyed by service|target|timer (so +2/−2 schedule edits
+re-deliver). The key clears on any failed ping so a briefly-unreachable PP
+gets the countdown again. Safe because the timer counts to an absolute
+wall-clock time — re-arming mid-song shows the correct remaining time.
+Only the timer re-arms; slide/playlist hooks do not re-fire.
+
+---
+
 ## Recent work (lead-up to v10.1.2)
 
 ### Audio engine / runway

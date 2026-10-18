@@ -1,4 +1,4 @@
-import type { AppConfig, Track, KeyName, PpRequest, PpResponse, RelinkReport, RemoteNetworkInterface } from '@shared/types';
+import type { AppConfig, Track, KeyName, PpRequest, PpResponse, PcoRequest, PcoResponse, RelinkReport, RemoteNetworkInterface } from '@shared/types';
 
 export {};
 
@@ -53,6 +53,9 @@ declare global {
       proPresenter: {
         request: (req: PpRequest) => Promise<PpResponse>;
       };
+      planningCenter: {
+        request: (req: PcoRequest) => Promise<PcoResponse>;
+      };
       remote: {
         pushSnapshot: (snap: unknown) => Promise<void>;
         lanUrls: () => Promise<{ urls: string[]; port: number }>;
@@ -68,6 +71,10 @@ declare global {
       tray: {
         update: (snapshot: import('@shared/types').TraySnapshot) => void;
         onShowWindow: (callback: () => void) => () => void;
+      };
+      diagnostics: {
+        appendTimingLog: (line: string) => void;
+        revealTimingLog: () => Promise<{ ok: boolean; path?: string; reason?: string }>;
       };
     };
   }
