@@ -966,6 +966,38 @@ function ServiceCard({ service, onEditKey, onUpdate, onDelete }: {
         </div>
 
         <div className="service-field">
+          <span className="service-field-label">PCO key pull</span>
+          <div className="service-field-control">
+            <input
+              type="number"
+              min={1}
+              max={1440}
+              step={1}
+              value={service.pcoKeyLeadSec !== undefined ? Math.round(service.pcoKeyLeadSec / 60) : ''}
+              placeholder="default"
+              onChange={e => {
+                const raw = e.target.value.trim();
+                if (raw === '') { onUpdate({ pcoKeyLeadSec: undefined }); return; }
+                const mins = Math.max(1, Math.min(1440, +raw || 1));
+                onUpdate({ pcoKeyLeadSec: mins * 60 });
+              }}
+              style={{
+                flex: 1,
+                minWidth: 0,
+                background: 'transparent',
+                border: 'none',
+                color: 'var(--text)',
+                padding: 0,
+                fontFamily: 'inherit',
+                fontSize: 14,
+              }}
+              title="Minutes before this service to pull the first-song key from Planning Center. Blank = use the global default."
+            />
+            <span style={{ color: 'var(--text-dim)', fontSize: 11, letterSpacing: '0.04em' }}>MIN BEFORE</span>
+          </div>
+        </div>
+
+        <div className="service-field">
           <span className="service-field-label">Pad bridge</span>
           <label
             className="service-field-control"

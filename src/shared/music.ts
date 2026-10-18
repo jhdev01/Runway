@@ -52,6 +52,39 @@ export function canonicalKey(label: string): KeyName | undefined {
   return SHARP_TO_FLAT[label];
 }
 
+// Enharmonic spellings Planning Center may use that aren't covered by the
+// sharp↔flat table above (which only handles the four standard sharp
+// majors + A#m). PCO minor keys come through with an "m" suffix; majors
+// bare. These map the remaining spellings onto Runway's canonical names.
+const PCO_ENHARMONIC: Record<string, KeyName> = {
+  'Gb': 'F#', 'Cb': 'B', 'B#': 'C', 'E#': 'F',
+  'Ebm': 'D#m', 'Abm': 'G#m', 'Dbm': 'C#m', 'Gbm': 'F#m',
+};
+
+/**
+ * Map a Planning Center key string (e.g. "G", "Ab", "C#", "Em", "F#m",
+ * "A#m") to Runway's canonical KeyName. PCO writes minor keys with a
+ * trailing "m" and uses a mix of sharps/flats; we normalise whitespace,
+ * try the canonical table, then the sharp↔flat table, then the extra
+ * enharmonic spellings. Returns undefined when the string can't be
+ * resolved (caller should skip + surface it, not guess).
+ */
+export function pcoKeyToRunway(pcoKey: string | null | undefined): KeyName | undefined {
+  if (!pcoKey) return undefined;
+  // Trim, drop any surrounding whitespace and a leading "of " some plans
+  // include; keep only the first token (PCO occasionally appends notes).
+  const raw = pcoKey.trim().split(/\s+/)[0];
+  if (!raw) return undefined;
+  // Normalise the accidental to a capital letter + optional #/b + optional m.
+  const m = raw.match(/^([A-Ga-g])([#b]?)(m?)$/);
+  if (!m) {
+    // Fall back to a direct lookup for already-canonical or sharp labels.
+    return canonicalKey(raw) ?? PCO_ENHARMONIC[raw];
+  }
+  const label = m[1].toUpperCase() + m[2] + m[3];
+  return canonicalKey(label) ?? PCO_ENHARMONIC[label];
+}
+
 /**
  * Returns true if `from` and `to` are considered musically compatible
  * for transitions: same key, relative major/minor, or perfect 4th/5th.

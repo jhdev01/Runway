@@ -315,3 +315,42 @@ div.rw-tip-anchor { display: block; }
   from { opacity: 0; }
   to   { opacity: 1; }
 }
+
+/* ---- ProPresenter item picker — custom dropdown so playlist headers can
+   carry a solid fill in their PP color (native <select> menus strip row
+   background colors, especially on macOS). ---- */
+.pp-picker { position: relative; flex: 1 1 auto; min-width: 0; width: 100%; }
+.pp-picker-trigger {
+  width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  background: var(--bg-elev); border: 1px solid var(--border); border-radius: 5px;
+  padding: 7px 10px; color: var(--text); font-size: 14px; font-family: inherit;
+  text-align: left; cursor: pointer;
+}
+.pp-picker-trigger:hover:not(:disabled) { border-color: var(--border-bright); }
+.pp-picker-trigger:disabled { opacity: 0.55; cursor: default; }
+.pp-picker-trigger.is-placeholder .pp-picker-label { color: var(--text-dim); }
+.pp-picker-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pp-picker-chevron { color: var(--text-faint); flex-shrink: 0; }
+.pp-picker-menu {
+  position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 60;
+  max-height: 320px; overflow-y: auto;
+  background: var(--bg-elev); border: 1px solid var(--border-bright); border-radius: 6px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45); padding: 4px;
+}
+.pp-picker-item {
+  display: block; width: 100%; text-align: left; background: transparent; border: none;
+  border-radius: 4px; padding: 7px 10px; color: var(--text); font-size: 14px; font-family: inherit;
+  cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.pp-picker-item:hover { background: var(--bg-elev-2); }
+.pp-picker-item.is-nested { padding-left: 22px; }
+.pp-picker-item.is-selected { color: var(--accent-bright); }
+.pp-picker-item.is-stale { color: var(--text-dim); font-style: italic; }
+/* Header row: non-interactive section label, filled with the PP header
+   color via inline style; text color is picked for contrast. */
+.pp-picker-header {
+  margin: 6px 0 2px; padding: 5px 10px; border-radius: 4px;
+  font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+  cursor: default; user-select: none;
+}
+.pp-picker-menu > .pp-picker-header:first-of-type { margin-top: 2px; }

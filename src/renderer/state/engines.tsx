@@ -3,8 +3,10 @@ import { AudioEngine } from '../lib/audioEngine';
 import { MidiEngine } from '../lib/midiEngine';
 import { ServiceController } from '../lib/serviceController';
 import { PpClient } from '../lib/proPresenterClient';
+import { PcoClient, runPcoKeySync } from '../lib/planningCenterClient';
 import { useAppStore } from '../state/store';
 import { todayISO } from '../lib/format';
+import { installDiagnosticDiskLog } from '../lib/diagnosticDiskLog';
 import type { MidiAction } from '@shared/types';
 
 interface EnginesContextValue {
@@ -12,6 +14,7 @@ interface EnginesContextValue {
   midi: MidiEngine;
   controller: ServiceController;
   pp: PpClient;
+  pco: PcoClient;
 }
 
 const EnginesContext = createContext<EnginesContextValue | null>(null);
@@ -21,22 +24,96 @@ export function EnginesProvider({ children }: { children: React.ReactNode }) {
   const midiRef = useRef<MidiEngine | null>(null);
   const controllerRef = useRef<ServiceController | null>(null);
   const ppRef = useRef<PpClient | null>(null);
+  const pcoRef = useRef<PcoClient | null>(null);
   const [ready, setReady] = useState(false);
 
   if (!audioRef.current) audioRef.current = new AudioEngine();
   if (!midiRef.current) midiRef.current = new MidiEngine();
   if (!controllerRef.current) controllerRef.current = new ServiceController(audioRef.current, useAppStore);
   if (!ppRef.current) ppRef.current = new PpClient(useAppStore.getState().config.proPresenterSync);
+  if (!pcoRef.current) pcoRef.current = new PcoClient(useAppStore.getState().config.pcoSync ?? { enabled: false, appId: '', secret: '', serviceTypeId: null, serviceTypeName: null });
   // Hand the controller refs to the MIDI + PP engines so Action Sequence
   // dispatch can route through them.
   controllerRef.current.setEngines({ midi: midiRef.current, pp: ppRef.current });
 
   useEffect(() => {
+    // Mirror timing-tagged console logs to timing.log before the
+    // controller starts ticking, so the first arm of the day is captured.
+    installDiagnosticDiskLog();
     const audio = audioRef.current!;
     const midi = midiRef.current!;
     const controller = controllerRef.current!;
     const pp = ppRef.current!;
+    const pco = pcoRef.current!;
     controller.start();
+
+    // ---- Planning Center key sync ----
+    // Pull the NEXT upcoming PCO plan's first-song key and set it on a
+    // specific Runway service. The plan date and the service date do NOT
+    // have to match — the service whose lead window opened just gets the
+    // coming plan's key (so a day-early test still pulls Sunday's key).
+    // Writes a status snapshot into pcoSync for the Settings panel.
+    const PCO_DEFAULT_LEAD_SEC = 14400; // 4h, matches DEFAULT_CONFIG
+    const serviceStartMs = (svc: { date: string; startTime: string }): number => {
+      const d = new Date(svc.date + 'T00:00:00');
+      const [h, m] = svc.startTime.split(':').map(Number);
+      d.setHours(h, m, 0, 0);
+      return d.getTime();
+    };
+    const pullPcoKeyForService = async (serviceId: string) => {
+      const cfg = useAppStore.getState().config.pcoSync;
+      if (!cfg?.enabled || !cfg.serviceTypeId) return;
+      const outcome = await runPcoKeySync(pco, cfg, (key) =>
+        useAppStore.getState().setServiceFirstSongKey(serviceId, key),
+      );
+      const cur = useAppStore.getState().config.pcoSync;
+      if (!cur) return;
+      useAppStore.getState().updateConfig({
+        pcoSync: {
+          ...cur,
+          lastFetchedAt: Date.now(),
+          lastFetchedKey: outcome.result?.key ?? null,
+          lastFetchedRawKey: outcome.result?.rawKey ?? null,
+          lastFetchedSong: outcome.result?.song ?? null,
+          lastFetchedPlanDate: outcome.result?.planDate ?? null,
+          lastError: outcome.ok ? null : (outcome.reason ?? 'Sync failed'),
+        },
+      });
+      console.log('[pco] pull', {
+        serviceId,
+        applied: outcome.applied,
+        key: outcome.result?.key,
+        rawKey: outcome.result?.rawKey,
+        song: outcome.result?.song,
+        planDate: outcome.result?.planDate,
+        reason: outcome.reason,
+      });
+    };
+    // Scheduler: once a minute, fire the pull for any upcoming service
+    // whose lead window has opened (and hasn't been pulled yet this
+    // session). Session-scoped Set so a given service occurrence pulls once.
+    const pcoPulled = new Set<string>();
+    const pcoScheduleTick = () => {
+      const state = useAppStore.getState();
+      const cfg = state.config.pcoSync;
+      if (!cfg?.enabled || !cfg.serviceTypeId) return;
+      const now = Date.now();
+      const defLead = cfg.pullLeadSec ?? PCO_DEFAULT_LEAD_SEC;
+      for (const s of state.config.services) {
+        if (pcoPulled.has(s.id)) continue;
+        const startMs = serviceStartMs(s);
+        if (startMs <= now) continue; // already started / past
+        const leadSec = s.pcoKeyLeadSec ?? defLead;
+        if (now >= startMs - leadSec * 1000) {
+          pcoPulled.add(s.id);
+          void pullPcoKeyForService(s.id);
+        }
+      }
+    };
+    let lastPcoSig = `${useAppStore.getState().config.pcoSync?.enabled}|${useAppStore.getState().config.pcoSync?.serviceTypeId}`;
+    // First check shortly after boot (config loaded), then every 60s.
+    const pcoBootTimer = window.setTimeout(() => pcoScheduleTick(), 4000);
+    const pcoScheduleTimer = window.setInterval(() => pcoScheduleTick(), 60_000);
 
     let lastAutoArmedKey: string | null = null;
     const unsubAudio = audio.subscribe(state => {
@@ -255,16 +332,60 @@ export function EnginesProvider({ children }: { children: React.ReactNode }) {
     // immediate ping when PP sync is enabled, instead of waiting up to 10s for
     // the next heartbeat tick.
     let lastConnectedAt = 0;
+    // Countdown-arm reconciliation. The PUT that arms PP's countdown can
+    // be lost in ways the status light never sees: PP launched after music
+    // started, PP crashed and relaunched between two pings, or PP's window
+    // closed and reopened while its API stayed up the whole time (no
+    // offline→online transition at all — the operator hit exactly this).
+    // So instead of re-arming only on status transitions, every heartbeat
+    // checks "music/pad is rolling + PP reachable + this arm cycle's
+    // countdown not yet delivered" and re-sends the arm until one PUT
+    // succeeds. Keyed by service|target|timer so a schedule edit (+2/−2)
+    // re-delivers with the new time. Cleared on any failed ping so a PP
+    // that was even briefly unreachable gets the countdown again once
+    // it's back. The timer counts to an absolute wall-clock time, so
+    // re-arming mid-song always yields the correct remaining time.
+    // Slide/playlist hooks are NOT re-fired by this path — only the timer.
+    let timerArmedKey: string | null = null;
     const pingPp = async () => {
       const cfg = useAppStore.getState().config.proPresenterSync;
       if (!cfg.enabled) {
         useAppStore.getState().setPpStatus('disabled');
+        timerArmedKey = null;
         return;
       }
       try {
         await pp.testConnection();
         const wasConnected = useAppStore.getState().ppStatus === 'ok';
         useAppStore.getState().setPpStatus('ok');
+        const s = useAppStore.getState();
+        const runway = s.currentRunway;
+        if (
+          runway && runway.serviceId && !runway.isPostService
+          && (runway.phase === 'music' || runway.phase === 'pad')
+          && runway.targetMs > Date.now()
+        ) {
+          const svc = s.config.services.find(x => x.id === runway.serviceId);
+          const ov = svc?.proPresenterOverride;
+          const effective = ov ? { ...cfg, ...ov } : cfg;
+          const key = `${runway.serviceId}|${runway.targetMs}|${effective.timerUuid ?? ''}`;
+          if (effective.timerUuid && timerArmedKey !== key) {
+            try {
+              await pp.armCountdownToTime(effective.timerUuid, runway.targetMs);
+              timerArmedKey = key;
+              console.log('[pp] heartbeat (re)armed countdown', {
+                timerUuid: effective.timerUuid,
+                target: new Date(runway.targetMs).toLocaleString(),
+              });
+            } catch (err) {
+              console.warn('[pp] heartbeat countdown arm failed — will retry', err);
+            }
+          }
+        } else {
+          // No armed runway audibly running — the next arm cycle should
+          // deliver its countdown fresh.
+          timerArmedKey = null;
+        }
         // Pre-fetch timers + playlists on (re)connect so the Settings tab is
         // populated the instant it's opened — no manual Test press needed.
         // Throttle to once per minute on continuous-ok pings.
@@ -283,6 +404,9 @@ export function EnginesProvider({ children }: { children: React.ReactNode }) {
         }
       } catch {
         useAppStore.getState().setPpStatus('err');
+        // PP unreachable — assume it may have lost the timer (crash /
+        // restart) and re-deliver the countdown once it's back.
+        timerArmedKey = null;
       }
     };
 
@@ -312,6 +436,19 @@ export function EnginesProvider({ children }: { children: React.ReactNode }) {
     const unsubStore = useAppStore.subscribe(() => {
       const state = useAppStore.getState();
       pp.updateConfig(state.config.proPresenterSync);
+      if (state.config.pcoSync) pco.updateConfig(state.config.pcoSync);
+
+      // Re-check when Planning Center gets enabled or the service type
+      // changes — clear the pulled set so eligible services re-pull, then
+      // run the scheduler tick immediately.
+      const pcoSig = `${state.config.pcoSync?.enabled}|${state.config.pcoSync?.serviceTypeId}`;
+      if (pcoSig !== lastPcoSig) {
+        lastPcoSig = pcoSig;
+        if (state.config.pcoSync?.enabled && state.config.pcoSync.serviceTypeId) {
+          pcoPulled.clear();
+          pcoScheduleTick();
+        }
+      }
 
       if (state.config.midiBindings !== lastBindingsRef) {
         lastBindingsRef = state.config.midiBindings;
@@ -444,9 +581,15 @@ export function EnginesProvider({ children }: { children: React.ReactNode }) {
             const uuid = effective.timerUuid;
             const target = runway.targetMs;
             console.log('[pp] arming on music_start', { uuid, target: new Date(target).toLocaleString(), override: !!ov });
-            void pp.armCountdownToTime(uuid, target).catch(err => {
-              console.warn('[pp] armCountdownToTime failed', err);
-            });
+            void pp.armCountdownToTime(uuid, target)
+              // Mark this arm cycle delivered so the heartbeat
+              // reconciliation doesn't immediately re-send the same PUT.
+              // On failure the key stays unset and the heartbeat retries
+              // every 10s until PP accepts it.
+              .then(() => { timerArmedKey = `${armedServiceId}|${target}|${uuid}`; })
+              .catch(err => {
+                console.warn('[pp] armCountdownToTime failed', err);
+              });
           }
           runAction(
             'music_start',
@@ -530,6 +673,9 @@ export function EnginesProvider({ children }: { children: React.ReactNode }) {
       scheduledMaterializeTimer = window.setTimeout(() => {
         scheduledMaterializeTimer = null;
         runMaterializer();
+        // New services may now exist — let the PCO scheduler pick up any
+        // whose lead window is already open.
+        pcoScheduleTick();
         scheduleNextMaterialize();
       }, delayMs) as unknown as number;
       // Track the signature so the store-subscription below knows when to
@@ -815,6 +961,8 @@ export function EnginesProvider({ children }: { children: React.ReactNode }) {
       unsubRemote();
       window.clearInterval(ppHeartbeat);
       if (scheduledMaterializeTimer !== null) window.clearTimeout(scheduledMaterializeTimer);
+      window.clearTimeout(pcoBootTimer);
+      window.clearInterval(pcoScheduleTimer);
       window.clearInterval(remoteHeartbeat);
       window.clearInterval(trayHeartbeat);
       controller.stop();
@@ -829,6 +977,7 @@ export function EnginesProvider({ children }: { children: React.ReactNode }) {
       midi: midiRef.current!,
       controller: controllerRef.current!,
       pp: ppRef.current!,
+      pco: pcoRef.current!,
     }}>
       {children}
     </EnginesContext.Provider>
@@ -862,6 +1011,11 @@ function handleMidiAction(action: MidiAction, _audio: AudioEngine, controller: S
       case 'arm_toggle':
         void controller.armToggle({
           onArmError: (msg) => console.warn('[midi] arm_toggle:', msg),
+        });
+        break;
+      case 'add_song':
+        void controller.addSongLive().then(res => {
+          if (!res.ok) console.warn('[midi] add_song:', res.reason);
         });
         break;
     }

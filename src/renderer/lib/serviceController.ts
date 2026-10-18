@@ -41,6 +41,18 @@ export class ServiceController {
   // Per-arm Set of fired action ids. Cleared whenever the runway pointer
   // changes so re-arming runs the sequence fresh.
   private firedActionIds: Set<string> = new Set();
+  // Playlists whose track pool we've already kicked a background decode
+  // for this arm cycle (look-ahead pre-warm before a runway-mutating
+  // action fires). Cleared alongside firedActionIds so each new arm
+  // re-warms fresh. Decoding a playlist the operator never reaches is
+  // cheap and harmless — buffers just sit in the cache.
+  private prewarmedPlaylistIds: Set<string> = new Set();
+  // How far ahead of a runway-mutating action's fire time to start
+  // decoding its target pool. Cold decode of a multi-track pool runs
+  // ~5-15s, so 30s gives real headroom; if the postservice track is
+  // shorter than that the prewarm just starts as soon as the runway
+  // arms. Pure cache-warming — no timing math depends on this value.
+  private static readonly PREWARM_LEAD_MS = 30_000;
   private lastRunwaySig: string = '';
   // Wall-clock failsafes installed when a real pre-service runway arms.
   // Independent of audio-engine timing — pure setTimeout against the
@@ -801,6 +813,203 @@ export class ServiceController {
     return { ok: true };
   }
 
+  /** Pick a pad file for a key: exact → Camelot-compatible → first mapped. */
+  private pickPadForKey(
+    state: ReturnType<Store['getState']>,
+    key: KeyName | undefined,
+  ): PadFile | undefined {
+    if (key) {
+      const exact = state.config.pads.find(p => p.key === key);
+      if (exact) return exact;
+      for (const k of compatibleKeys(key)) {
+        const m = state.config.pads.find(p => p.key === k);
+        if (m) return m;
+      }
+    }
+    return state.config.pads[0];
+  }
+
+  /**
+   * Live "Add a song" — inject one more song into a running pre-service
+   * runway to fill added time (e.g. after pressing +2 min). Behaviour,
+   * per operator spec:
+   *
+   *  - Service start is NOT moved. The song plays now and fades to
+   *    silence EXACTLY at service start (targetMs), so with +2 min armed
+   *    the operator hears ~2 minutes of it.
+   *  - Song pick prefers the PAD's key (exact → Camelot-compatible),
+   *    drawn from this service's pre-service playlist, and never the song
+   *    currently playing. No key match → fall back to the runway's first
+   *    song, then a random one.
+   *  - Pad bridge: a key-matched song keeps the in-key pad landing; a
+   *    fallback (possibly off-key) song CANCELS the pad bridge so an
+   *    in-key pad can't clash with it.
+   *
+   * The tail is driven by plain wall-clock setTimeouts against the
+   * runway's existing targetMs — no existing scheduling math is changed;
+   * this is a new operator-triggered action layered on top.
+   */
+  async addSongLive(): Promise<{ ok: boolean; reason?: string }> {
+    const state = this.store.getState();
+    const runway = state.currentRunway;
+    if (!runway || runway.serviceId === null || runway.isPostService) {
+      return { ok: false, reason: 'No live service to add a song to' };
+    }
+    if (runway.phase !== 'music' && runway.phase !== 'pad') {
+      return { ok: false, reason: 'Service music has not started yet' };
+    }
+    const now = Date.now();
+    const remainingSec = (runway.targetMs - now) / 1000;
+    if (remainingSec < 5) {
+      return { ok: false, reason: 'Too close to service start — add time first' };
+    }
+
+    // Never replay the song that's on right now.
+    const currentTrackId = state.musicPlayback.trackId ?? undefined;
+
+    // Candidate pool = this service's pre-service playlist, minus the
+    // currently-playing song.
+    const playlist = runway.sourcePlaylistId
+      ? state.config.playlists.find(p => p.id === runway.sourcePlaylistId)
+      : undefined;
+    const poolIds = (playlist?.trackIds ?? runway.trackIds).filter(id => id !== currentTrackId);
+    const pool = poolIds
+      .map(id => state.config.tracks.find(t => t.id === id))
+      .filter((t): t is Track => !!t);
+    if (pool.length === 0) {
+      return { ok: false, reason: 'No other song available to add' };
+    }
+
+    // Prefer a candidate long enough to fill the remaining window so the
+    // added song reaches service start without a silent gap; fall back to
+    // any candidate in the tier.
+    const pickFrom = (cands: Track[]): Track | undefined => {
+      if (cands.length === 0) return undefined;
+      const longEnough = cands.filter(t => effectiveDuration(t) >= remainingSec);
+      const from = longEnough.length > 0 ? longEnough : cands;
+      return from[Math.floor(Math.random() * from.length)];
+    };
+
+    // Key to match = the service's SET landing key (what the runway
+    // actually resolves to — firstSongKey or inherited), falling back to
+    // the armed pad key only if the service has no key. This keeps the
+    // added song in-key with the landing/pad that follows, instead of
+    // whatever pad happened to be armed. Camelot-compatible keys still
+    // count as a match below, so e.g. a C song qualifies for a G landing.
+    const key = runway.landInKey ?? state.padArmedKey;
+    let chosen: Track | undefined;
+    let keyMatched = false;
+    if (key) {
+      chosen = pickFrom(pool.filter(t => t.key === key));
+      if (chosen) keyMatched = true;
+      if (!chosen) {
+        for (const k of compatibleKeys(key)) {
+          const m = pickFrom(pool.filter(t => t.key === k));
+          if (m) { chosen = m; keyMatched = true; break; }
+        }
+      }
+    }
+    // Fallback: the runway's first song (unless it's the excluded
+    // currently-playing one), else a random pool song.
+    if (!chosen) {
+      const firstId = runway.trackIds[0];
+      const first = firstId && firstId !== currentTrackId
+        ? pool.find(t => t.id === firstId)
+        : undefined;
+      chosen = first ?? pickFrom(pool);
+      keyMatched = false;
+    }
+    if (!chosen) return { ok: false, reason: 'Could not pick a song' };
+
+    const targetMs = runway.targetMs;
+    const serviceId = runway.serviceId;
+
+    // We take over the runway tail. Clear the pre-target pad watchdog so
+    // it can't fire beginPad against the injected song; the service-start
+    // watchdog stays as a backstop (it force-completes at target and
+    // respects skipPadBridge).
+    if (this.padFailsafeTimer !== null) {
+      window.clearTimeout(this.padFailsafeTimer);
+      this.padFailsafeTimer = null;
+    }
+
+    // No key match → cancel the pad bridge for the landing so an off-key
+    // fallback song can't clash with an in-key pad.
+    const addedIdx = runway.trackIds.indexOf(chosen.id);
+    state.patchCurrentRunway({
+      phase: 'music',
+      currentTrackIndex: addedIdx >= 0 ? addedIdx : runway.currentTrackIndex,
+      skipPadBridge: keyMatched ? runway.skipPadBridge : true,
+    });
+
+    // Fade out any pad that's currently up — we're putting music back on.
+    this.audio.fadeOutPad(state.config.defaults.padFadeOutSec ?? 2);
+
+    // Crossfade the chosen song in now.
+    const crossfadeSec = Math.max(0.5, Math.min(state.config.defaults.crossfadeSec ?? 3, remainingSec / 2));
+    try {
+      await this.audio.crossfadeToMusic(chosen.filePath, {
+        crossfadeSec,
+        trackId: chosen.id,
+        startAtSec: chosen.trimStartSec,
+        endAtSec: chosen.trimEndSec,
+      });
+    } catch (err) {
+      console.error('[addSong] play failed', err);
+      return { ok: false, reason: `Could not play "${chosen.title}"` };
+    }
+
+    console.log('[addSong] injected', {
+      title: chosen.title,
+      key: chosen.key,
+      keyMatched,
+      remainingSec: +remainingSec.toFixed(1),
+      serviceId,
+    });
+
+    // Fade the song to silence ENDING exactly at service start.
+    const songFadeSec = Math.max(1, Math.min(state.config.defaults.musicFadeToPadSec ?? 5, remainingSec / 3));
+    window.setTimeout(() => {
+      if (this.store.getState().currentRunway?.serviceId !== serviceId) return;
+      this.audio.fadeOutMusic(songFadeSec);
+    }, Math.max(0, (remainingSec - songFadeSec) * 1000));
+
+    // Key match → the in-key pad bridges the landing: fire it so it's up
+    // at service start and holds/fades per the runway's pad settings.
+    const padFile = keyMatched ? this.pickPadForKey(state, key ?? chosen.key) : undefined;
+    const padLeadSec = Math.max(0.5, state.config.defaults.padLeadInSec ?? 5);
+    const padHoldSec = Math.max(0, runway.padBridgeSec || 0);
+    const padFadeOutSec = Math.max(0.5, runway.padFadeOutSec || 0);
+    if (padFile) {
+      window.setTimeout(() => {
+        if (this.store.getState().currentRunway?.serviceId !== serviceId) return;
+        void this.audio.playPad(padFile.filePath, { fadeInSec: padLeadSec, loop: true });
+        if (padFile.key) this.store.getState().setPadArmedKey(padFile.key);
+        window.setTimeout(() => {
+          if (this.store.getState().currentRunway?.serviceId !== serviceId) return;
+          this.audio.fadeOutPad(padFadeOutSec);
+        }, (padLeadSec + padHoldSec) * 1000);
+      }, Math.max(0, (remainingSec - padLeadSec) * 1000));
+    }
+
+    // Mark the service completed at start (backstop: the service-start
+    // failsafe does too), then clear the runway once the tail finishes so
+    // the schedule rolls forward.
+    window.setTimeout(() => {
+      if (this.store.getState().currentRunway?.serviceId !== serviceId) return;
+      this.store.getState().setServiceStatus(serviceId, 'completed');
+    }, Math.max(0, targetMs - Date.now()));
+    const tailEndMs = padFile
+      ? targetMs + (padHoldSec + padFadeOutSec) * 1000 + 200
+      : targetMs + songFadeSec * 1000 + 200;
+    window.setTimeout(() => {
+      if (this.store.getState().currentRunway?.serviceId !== serviceId) return;
+      this.store.getState().setCurrentRunway(null);
+    }, Math.max(0, tailEndMs - Date.now()));
+
+    return { ok: true, };
+  }
+
   /**
    * Delete a service safely. If the service has the currently-running
    * runway, fade audio out first so the user doesn't hear a hard cut, then
@@ -1047,9 +1256,15 @@ export class ServiceController {
         return;
       }
       console.log('[armToggle] performing disarm');
-      // If already firing, fade audio so the disarm isn't a hard cut.
+      // Disarm must ALWAYS end with a silent music bus. A queued runway
+      // "shouldn't" have audio, but historically could (e.g. Quick Play
+      // music left rolling under a newly-armed runway) — so the queued
+      // case fades the music bus too (music-only, so a manually fired
+      // pad survives). An audibly-firing runway gets the full panic fade.
       if (state.currentRunway && state.currentRunway.phase !== 'queued') {
         this.audio.panicFadeAll(state.config.defaults.panicFadeSec);
+      } else {
+        this.audio.panicFadeMusic(state.config.defaults.panicFadeSec);
       }
       state.disarmService(activeService.id);
       state.setAutoArmEnabled(false);
@@ -1063,11 +1278,17 @@ export class ServiceController {
 
     // Not armed — arm and re-enable auto-arm so subsequent services follow.
     state.setAutoArmEnabled(true);
-    // If post-service music is currently rolling, fade it out so arming
-    // doesn't leave the old playlist running concurrently with the new
-    // pre-service runway. armService overwrites currentRunway anyway, so
-    // we only need to silence the audio bus here.
-    if (state.currentRunway?.isPostService) {
+    // If ANY audible runway is currently rolling (post-service playlist,
+    // Quick Play/Test music, a lingering pad bridge), fade it out so
+    // arming doesn't leave the old audio running concurrently with the
+    // new pre-service runway. armService overwrites currentRunway but
+    // never touches audio, so the bus must be silenced here. (Previously
+    // only post-service was faded — arming over a playing Quick Play left
+    // its music rolling under the queued runway, where disarm couldn't
+    // reach it either.)
+    const curPhase = state.currentRunway?.phase;
+    if (state.currentRunway
+        && (state.currentRunway.isPostService || curPhase === 'music' || curPhase === 'pad')) {
       this.audio.panicFadeAll(state.config.defaults.panicFadeSec);
     }
     const result = await state.armService(
@@ -1089,6 +1310,7 @@ export class ServiceController {
     const sig = runway ? String(runway.armEpoch ?? 0) : '';
     if (sig !== this.lastRunwaySig) {
       this.firedActionIds.clear();
+      this.prewarmedPlaylistIds.clear();
       this.lastRunwaySig = sig;
       // New arm or runway swap — reset bus levels so a prior run's
       // audio_fade actions can't bleed into the new arm. Only on actual
@@ -1165,6 +1387,26 @@ export class ServiceController {
         this.firedActionIds.add(action.id);
         continue;
       }
+      // Look-ahead pre-warm: a runway-mutating action (arm_playlist /
+      // change_setlist) is about to install a NEW playlist's runway. As
+      // it approaches its fire time, kick a background decode of that
+      // playlist's WHOLE pool so the tracks are warm by the time the
+      // action arms — even if shuffle picks songs the current service
+      // never played. Without this, the next service's fill can hit a
+      // cold decode (silence gap + late landing). Fires once per
+      // playlist per arm cycle. Pure cache-warming via loadBuffer; the
+      // in-flight dedup means it never double-decodes against the real
+      // arm that follows.
+      if (now >= fireAtMs - ServiceController.PREWARM_LEAD_MS) {
+        const targetPlaylistId =
+          action.payload.type === 'arm_playlist' || action.payload.type === 'change_setlist'
+            ? action.payload.playlistId
+            : undefined;
+        if (targetPlaylistId && !this.prewarmedPlaylistIds.has(targetPlaylistId)) {
+          this.prewarmedPlaylistIds.add(targetPlaylistId);
+          this.prewarmPlaylistPool(targetPlaylistId);
+        }
+      }
       if (now < fireAtMs) continue;
       // Skip cues whose fire time was already missed by more than 30s
       // before this runway armed — keeps a service that arms 1h late
@@ -1187,6 +1429,33 @@ export class ServiceController {
       });
       void this.dispatchAction(action, runway).catch(err =>
         console.warn('[actions] dispatch failed', action.label || action.id, err),
+      );
+    }
+  }
+
+  /**
+   * Background-decode every track in a playlist's pool so an imminent
+   * arm_playlist / change_setlist swap finds them warm. Fire-and-forget:
+   * decode failures are swallowed (the real arm will surface any genuine
+   * load error). Decodes the WHOLE pool, not a particular arrangement,
+   * because shuffle/anchor selection can pick any subset at arm time.
+   */
+  private prewarmPlaylistPool(playlistId: string): void {
+    const state = this.store.getState();
+    const playlist = state.config.playlists.find(p => p.id === playlistId);
+    if (!playlist) return;
+    const paths = playlist.trackIds
+      .map(id => state.config.tracks.find(t => t.id === id)?.filePath)
+      .filter((p): p is string => !!p);
+    if (paths.length === 0) return;
+    console.log('[prewarm] decoding pool', {
+      playlistId,
+      playlistName: playlist.name,
+      trackCount: paths.length,
+    });
+    for (const p of paths) {
+      void this.audio.loadBuffer(p).catch(err =>
+        console.warn('[prewarm] decode failed', p, err),
       );
     }
   }
@@ -1246,19 +1515,46 @@ export class ServiceController {
         await this.engines.pp.triggerActiveSlide(p.slideIndex);
         log(`pp slide ${p.slideIndex}`);
         return;
-      case 'pp_trigger_playlist_item':
+      case 'pp_trigger_playlist_item': {
         if (!this.engines.pp) return;
-        // If a slide index is set the operator wants to drop straight
-        // onto a specific slide of the item; otherwise we fire the item
-        // from its first slide (the historical behavior).
+        // ProPresenter triggers playlist items by INDEX. If the playlist is
+        // reordered/edited in PP, a saved index silently points at a
+        // different item: PP still returns success, the wrong slide fires,
+        // and the log looks clean (observed 2026-09-06 — "LCC Pre-Roll"
+        // saved as item #0 no longer sat at index 0). So resolve the item
+        // by its saved NAME at fire time and use whatever index it lives
+        // at now; fall back to the saved index if the name can't be found
+        // or PP can't be asked. Logs the resolved index and warns on a
+        // reorder or a missing name so this is diagnosable from timing.log.
+        let itemIndex = p.itemIndex;
+        if (p.itemName) {
+          const want = p.itemName.trim().toLowerCase();
+          try {
+            const items = await this.engines.pp.listPlaylistItems(p.playlistUuid);
+            const pos = items.findIndex(it => it.name.trim().toLowerCase() === want);
+            if (pos >= 0) {
+              const found = items[pos];
+              const resolved = typeof found.index === 'number' ? found.index : pos;
+              if (resolved !== p.itemIndex) {
+                log(`pp playlist item "${p.itemName}" moved: saved #${p.itemIndex} → now #${resolved} (using current)`);
+              }
+              itemIndex = resolved;
+            } else {
+              log(`pp playlist item "${p.itemName}" not found by name in ${p.playlistName ?? p.playlistUuid} — falling back to saved #${p.itemIndex}`);
+            }
+          } catch (err) {
+            log(`pp playlist lookup failed (${err instanceof Error ? err.message : String(err)}) — falling back to saved #${p.itemIndex}`);
+          }
+        }
         if (typeof p.slideIndex === 'number') {
-          await this.engines.pp.triggerPlaylistSlide(p.playlistUuid, p.itemIndex, p.slideIndex);
-          log(`pp playlist ${p.playlistName ?? p.playlistUuid}#${p.itemIndex} slide ${p.slideIndex}`);
+          await this.engines.pp.triggerPlaylistSlide(p.playlistUuid, itemIndex, p.slideIndex);
+          log(`pp playlist ${p.playlistName ?? p.playlistUuid}#${itemIndex} slide ${p.slideIndex}`);
         } else {
-          await this.engines.pp.triggerPlaylistItem(p.playlistUuid, p.itemIndex);
-          log(`pp playlist ${p.playlistName ?? p.playlistUuid}#${p.itemIndex}`);
+          await this.engines.pp.triggerPlaylistItem(p.playlistUuid, itemIndex);
+          log(`pp playlist ${p.playlistName ?? p.playlistUuid}#${itemIndex}`);
         }
         return;
+      }
       case 'pp_set_timer':
         if (!this.engines.pp) return;
         if (p.mode === 'count_down_to_service') {
@@ -1676,20 +1972,29 @@ export class ServiceController {
     let trackIndex = 0;
     let trackOffset = 0;
     let cumWallclock = 0;
+    // Head-trim is a budget consumed across leading tracks, NOT a first-track-
+    // only skip. When startOff exceeds the first track's length it must carry
+    // onto the next track(s); otherwise the leftover trim is silently dropped
+    // and the runway overshoots service start (the arrange now drops fully-
+    // trimmed leading songs too, so this is normally a no-op — kept as a
+    // safety net). This does not change timing for the common case where
+    // startOff lands inside the first track.
+    let trimRemaining = startOff;
     for (let i = 0; i < runway.trackIds.length; i++) {
       const t = state.config.tracks.find(tr => tr.id === runway.trackIds[i]);
       if (!t) continue;
       const effDur = effectiveDuration(t);
       const isLast = i === runway.trackIds.length - 1;
-      const headTrim = i === 0 ? startOff : 0;
+      const headTrim = Math.min(trimRemaining, effDur);
+      trimRemaining -= headTrim;
       const tailCrossfade = isLast ? 0 : xfade;
       const wallclockContribution = Math.max(0, effDur - headTrim - tailCrossfade);
       if (cumWallclock + wallclockContribution > lateSec) {
         trackIndex = i;
         const wallclockInto = lateSec - cumWallclock;
         // Audible offset within this track:
-        //  - First track: head-trim already skipped, plus wallclock-elapsed since start
-        //  - Later tracks: started at audible 0, so offset = wallclock since start
+        //  - Trimmed track: head-trim already skipped, plus wallclock-elapsed since start
+        //  - Untrimmed later tracks: started at audible 0, so offset = wallclock since start
         trackOffset = headTrim + wallclockInto;
         break;
       }

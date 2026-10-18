@@ -3,6 +3,7 @@ import { useAppStore } from '../state/store';
 import { useEngines } from '../state/engines';
 import type { ProPresenterServiceOverride } from '@shared/types';
 import type { PpTimer } from '../lib/proPresenterClient';
+import { PpItemPicker } from './PpItemPicker';
 
 interface Props {
   /** Header text (e.g. service or pattern name). Optional. */
@@ -269,26 +270,18 @@ export function ProPresenterServiceModal({ title, subtitle, override, onClose, o
                   <option value={playlistUuid}>{playlistName} (not loaded)</option>
                 )}
               </select>
-              <select
+              <PpItemPicker
+                items={items}
                 value={itemIndex !== null ? String(itemIndex) : ''}
-                onChange={e => onPickItem(hook, e.target.value)}
+                onChange={raw => onPickItem(hook, raw)}
                 disabled={!playlistUuid || busy}
-              >
-                <option value="">
-                  {!playlistUuid ? '— Pick a playlist first —'
-                    : busy ? '— Loading items… —'
-                    : items.length === 0 ? '— No items loaded —'
-                    : '— Select an item —'}
-                </option>
-                {items.map(i => (
-                  <option key={i.uuid} value={i.index ?? ''}>
-                    {i.index !== undefined ? `${i.index + 1}. ` : ''}{i.name}
-                  </option>
-                ))}
-                {itemIndex !== null && itemName && !items.some(i => i.index === itemIndex) && (
-                  <option value={String(itemIndex)}>{itemIndex + 1}. {itemName} (not loaded)</option>
-                )}
-              </select>
+                placeholder={!playlistUuid ? '— Pick a playlist first —'
+                  : busy ? '— Loading items… —'
+                  : items.length === 0 ? '— No items loaded —'
+                  : '— Select an item —'}
+                savedIndex={itemIndex}
+                savedName={itemName}
+              />
             </>
           )}
         </div>
