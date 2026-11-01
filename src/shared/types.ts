@@ -875,6 +875,45 @@ export interface RelinkReport {
   changed: boolean;
 }
 
+// ---- Playlist + audio bundles (Settings → Backup & restore) ----
+
+/** library.json inside an exported "Runway Library" folder. File paths in
+ *  tracks/pads are relative to the bundle folder (audio/…, pads/…). */
+export interface LibraryBundleManifest {
+  format: 'runway-library';
+  version: number;
+  exportedAt: string;
+  appVersion: string;
+  playlists: Playlist[];
+  tracks: Track[];
+  pads: PadFile[];
+}
+
+/** add = import as new copies; merge = add missing songs to same-named
+ *  playlists; replace = overwrite same-named playlists. */
+export type LibraryImportMode = 'add' | 'merge' | 'replace';
+
+export interface LibraryBundlePreview {
+  bundleDir: string;
+  exportedAt: string;
+  playlists: Array<{ name: string; trackCount: number; existsAlready: boolean }>;
+  trackCount: number;
+  padCount: number;
+}
+
+export interface LibraryImportReport {
+  mode: LibraryImportMode;
+  playlistsAdded: number;
+  playlistsMerged: number;
+  playlistsReplaced: number;
+  tracksAdded: number;
+  tracksReused: number;
+  filesCopied: number;
+  padsAdded: number;
+  padsReplaced: number;
+  missingFiles: string[];
+}
+
 // IPC channel names — keeping a const enum for typo safety
 export const IPC = {
   CONFIG_GET: 'config:get',
@@ -882,6 +921,9 @@ export const IPC = {
   CONFIG_EXPORT: 'config:export',
   CONFIG_IMPORT: 'config:import',
   CONFIG_RELINK: 'config:relink',
+  LIBRARY_EXPORT: 'library:export',
+  LIBRARY_PREVIEW: 'library:preview',
+  LIBRARY_IMPORT: 'library:import',
   FILE_PICK: 'file:pick',
   FOLDER_PICK: 'folder:pick',
   FOLDER_SCAN: 'folder:scan',

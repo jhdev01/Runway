@@ -9,6 +9,9 @@ const IPC = {
   CONFIG_EXPORT: 'config:export',
   CONFIG_IMPORT: 'config:import',
   CONFIG_RELINK: 'config:relink',
+  LIBRARY_EXPORT: 'library:export',
+  LIBRARY_PREVIEW: 'library:preview',
+  LIBRARY_IMPORT: 'library:import',
   FILE_PICK: 'file:pick',
   FOLDER_PICK: 'folder:pick',
   FOLDER_SCAN: 'folder:scan',
@@ -53,6 +56,10 @@ contextBridge.exposeInMainWorld('runway', {
     export: () => ipcRenderer.invoke(IPC.CONFIG_EXPORT),
     import: () => ipcRenderer.invoke(IPC.CONFIG_IMPORT),
     relink: (opts?: { extraFolders?: string[] }) => ipcRenderer.invoke(IPC.CONFIG_RELINK, opts),
+    exportLibrary: () => ipcRenderer.invoke(IPC.LIBRARY_EXPORT),
+    previewLibrary: () => ipcRenderer.invoke(IPC.LIBRARY_PREVIEW),
+    importLibrary: (bundleDir: string, mode: string) =>
+      ipcRenderer.invoke(IPC.LIBRARY_IMPORT, { bundleDir, mode }),
   },
   files: {
     pickAudio: (multi = true) => ipcRenderer.invoke(IPC.FILE_PICK, { multi }),
