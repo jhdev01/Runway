@@ -379,6 +379,9 @@ export function EnginesProvider({ children }: { children: React.ReactNode }) {
           // relaunching) while its API stayed reachable — the case the
           // status light can't see. Older PP without /v1/timers/current
           // returns null and we keep trusting the cached key.
+          // INTENTIONAL: this also restarts a countdown the operator stopped
+          // by hand in PP. Joey wants the countdown always showing while
+          // pre-service music/pad is rolling — don't "respect" manual stops.
           if (effective.timerUuid && timerArmedKey === key) {
             const running = await pp.isTimerRunning(effective.timerUuid).catch(() => null);
             if (running === false) {
