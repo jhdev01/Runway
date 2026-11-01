@@ -16,6 +16,30 @@
 
 export type BusName = 'music' | 'pad';
 
+/** Why a track's audio couldn't be loaded — logged to timing.log. */
+export type TrackLoadReason = 'missing' | 'empty' | 'undecodable' | 'unreadable';
+
+export class TrackLoadError extends Error {
+  constructor(public reason: TrackLoadReason, detail: string, public filePath: string) {
+    super(`${detail} Path: ${filePath}`);
+    this.name = 'TrackLoadError';
+  }
+}
+
+/** Short operator-readable reason + full detail for a load failure. */
+export function describeLoadError(err: unknown): { reason: string; detail: string } {
+  if (err instanceof TrackLoadError) {
+    const label: Record<TrackLoadReason, string> = {
+      missing: 'file missing',
+      empty: 'file empty',
+      undecodable: "can't decode",
+      unreadable: "can't read",
+    };
+    return { reason: label[err.reason], detail: err.message };
+  }
+  return { reason: 'unknown', detail: err instanceof Error ? err.message : String(err) };
+}
+
 /**
  * Convert an absolute file system path to a URL the renderer can fetch.
  * Uses the runway-audio:// custom protocol registered by the main process,
@@ -363,7 +387,16 @@ export class AudioEngine {
     // Electron blocks fetching file:// URLs from the renderer for security.
     const load = (async () => {
       const url = filePathToUrl(filePath);
-      const res = await fetch(url);
+      let res: Response;
+      try {
+        res = await fetch(url);
+      } catch (err) {
+        throw new TrackLoadError(
+          'unreadable',
+          `Couldn't read the file (${err instanceof Error ? err.message : String(err)}).`,
+          filePath,
+        );
+      }
       // A missing/moved file makes the main-process protocol handler return a
       // 404 whose body is the text "Not found". Without this check we'd hand
       // those bytes straight to decodeAudioData and surface a misleading
@@ -371,10 +404,12 @@ export class AudioEngine {
       // a new machine, where stored absolute paths no longer resolve. Report
       // the real cause instead (mirrors the check in EditorView).
       if (!res.ok) {
-        throw new Error(
-          `Track file not found (HTTP ${res.status}). It may have been moved, ` +
-          `renamed, or the library was copied from another computer. ` +
-          `Re-import the track to update its location. Path: ${filePath}`,
+        throw new TrackLoadError(
+          'missing',
+          `File not found on this computer (HTTP ${res.status}). It may have been moved, ` +
+          `renamed, or the config came from another computer without the audio. ` +
+          `Fix: Settings → Backup & restore → Fix missing audio files.`,
+          filePath,
         );
       }
       const arrayBuf = await res.arrayBuffer();
@@ -382,11 +417,15 @@ export class AudioEngine {
       try {
         buffer = await this.ctx.decodeAudioData(arrayBuf);
       } catch {
-        throw new Error(
-          `Web Audio can't decode this file. Some MP3 rips (especially ` +
-          `YouTube/lyric-video downloads) are container formats Chromium won't ` +
-          `accept. Re-encode with ffmpeg: ` +
-          `"ffmpeg -i source.mp3 -c:a libmp3lame -b:a 192k clean.mp3". Path: ${filePath}`,
+        throw new TrackLoadError(
+          arrayBuf.byteLength === 0 ? 'empty' : 'undecodable',
+          arrayBuf.byteLength === 0
+            ? `File is empty (0 bytes) — it was probably only partly copied. Copy it again or re-import it.`
+            : `File exists but can't be decoded. Some MP3 rips (especially ` +
+              `YouTube/lyric-video downloads) are container formats Chromium won't ` +
+              `accept. Re-encode with ffmpeg: ` +
+              `"ffmpeg -i source.mp3 -c:a libmp3lame -b:a 192k clean.mp3".`,
+          filePath,
         );
       }
       this.bufferCache.set(filePath, buffer);

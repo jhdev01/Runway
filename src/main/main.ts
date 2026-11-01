@@ -6,7 +6,8 @@ import * as https from 'https';
 import { ConfigStore } from './configStore';
 import { scanFolder, scanPadFolder, readTrackMetadata } from './fileScanner';
 import { relinkConfig } from './relink';
-import { IPC, type PpRequest, type PpResponse, type PcoRequest, type PcoResponse, type AppConfig, type RelinkReport, type TraySnapshot } from '../shared/types';
+import { exportLibraryBundle, readBundle, previewBundle, applyBundle } from './libraryBundle';
+import { IPC, type PpRequest, type PpResponse, type PcoRequest, type PcoResponse, type AppConfig, type RelinkReport, type TraySnapshot, type LibraryImportMode } from '../shared/types';
 import { RemoteServer, listLanUrls, listNetworkInterfaces, type RemoteSnapshot } from './remoteServer';
 
 const isDev = process.env.NODE_ENV === 'development';
@@ -576,6 +577,64 @@ function registerIpcHandlers() {
     });
     if (report.changed) config.write(relinked);
     return report;
+  });
+
+  // ---- Playlist + audio bundles ----
+  // Export every playlist, track record, and pad PLUS the audio files into a
+  // self-contained folder another computer can import.
+  ipcMain.handle(IPC.LIBRARY_EXPORT, async () => {
+    if (!mainWindow) return { ok: false, reason: 'No window' };
+    const pick = await dialog.showOpenDialog(mainWindow, {
+      title: 'Choose where to save the playlist + audio export',
+      buttonLabel: 'Export here',
+      properties: ['openDirectory', 'createDirectory'],
+    });
+    if (pick.canceled || pick.filePaths.length === 0) return { ok: false, reason: 'Cancelled' };
+    try {
+      const res = await exportLibraryBundle(config.read(), pick.filePaths[0], app.getVersion());
+      return { ok: true, ...res };
+    } catch (err) {
+      return { ok: false, reason: err instanceof Error ? err.message : String(err) };
+    }
+  });
+
+  // Step 1 of import: pick a bundle folder and summarise it so the renderer
+  // can ask Add / Merge / Replace with real playlist names.
+  ipcMain.handle(IPC.LIBRARY_PREVIEW, async () => {
+    if (!mainWindow) return { ok: false, reason: 'No window' };
+    const pick = await dialog.showOpenDialog(mainWindow, {
+      title: 'Choose a Runway playlist + audio export folder',
+      buttonLabel: 'Import',
+      properties: ['openDirectory'],
+    });
+    if (pick.canceled || pick.filePaths.length === 0) return { ok: false, reason: 'Cancelled' };
+    try {
+      const dir = pick.filePaths[0];
+      const manifest = await readBundle(dir);
+      return { ok: true, preview: previewBundle(config.read(), manifest, dir) };
+    } catch (err) {
+      return { ok: false, reason: err instanceof Error ? err.message : String(err) };
+    }
+  });
+
+  // Step 2: apply with the chosen mode. Backs up config.json first, then
+  // runs a relink pass so anything still unresolved is reported.
+  ipcMain.handle(IPC.LIBRARY_IMPORT, async (_e, args: { bundleDir: string; mode: LibraryImportMode }) => {
+    const mode: LibraryImportMode = args?.mode === 'merge' || args?.mode === 'replace' ? args.mode : 'add';
+    try {
+      const manifest = await readBundle(args.bundleDir);
+      try {
+        await fs.promises.copyFile(config.getPath(), config.getPath() + '.bak-' + Date.now());
+      } catch { /* no existing config to back up */ }
+      const { config: next, report } = await applyBundle(
+        config.read(), manifest, args.bundleDir, mode, managedLibraryDirs(),
+      );
+      const { config: relinked, report: relink } = relinkConfig(next, managedLibraryDirs());
+      config.write(relinked);
+      return { ok: true, report, relink };
+    } catch (err) {
+      return { ok: false, reason: err instanceof Error ? err.message : String(err) };
+    }
   });
 
   ipcMain.handle(IPC.FILE_PICK, async (_e, opts: { multi?: boolean }) => {

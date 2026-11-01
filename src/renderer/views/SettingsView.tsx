@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useAppStore, generateId } from '../state/store';
 import { useEngines } from '../state/engines';
 import { ALL_KEYS, MAJOR_KEYS, MINOR_KEYS, keyColor, displayKey } from '@shared/music';
-import type { AudioBusConfig, MidiAction, MidiBinding, KeyName, PadFile, ProPresenterSyncConfig, MidiDevicePref } from '@shared/types';
+import type { RelinkReport, LibraryBundlePreview, LibraryImportMode, AudioBusConfig, MidiAction, MidiBinding, KeyName, PadFile, ProPresenterSyncConfig, MidiDevicePref } from '@shared/types';
 import { DEFAULT_CONFIG } from '@shared/types';
 import type { MidiDeviceSnapshot } from '../lib/midiEngine';
 import type { PpTimer } from '../lib/proPresenterClient';
@@ -571,6 +571,8 @@ function ProPresenterSettings() {
       pp.updateConfig(cfg);
       const res = await pp.testConnection();
       setTestStatus({ kind: 'ok', msg: res.version ? `Connected — PP ${res.version}` : 'Connected' });
+      // Re-send the countdown to PP if a pre-service runway is rolling.
+      window.dispatchEvent(new Event('runway:pp-resync'));
       const [tList, pList] = await Promise.all([pp.listTimers(), pp.listPlaylists()]);
       setTimers(tList);
       setPlaylists(pList);
@@ -2200,8 +2202,14 @@ function RemoteSettings() {
 function BackupSection() {
   const loadConfig = useAppStore(s => s.loadConfig);
   const [status, setStatus] = useState<{ kind: 'ok' | 'err'; msg: string } | null>(null);
-  const [busy, setBusy] = useState<'export' | 'import' | 'relink' | null>(null);
+  const [busy, setBusy] = useState<'export' | 'import' | 'relink' | 'libExport' | 'libImport' | null>(null);
+  const [libPreview, setLibPreview] = useState<LibraryBundlePreview | null>(null);
   const [resetOpen, setResetOpen] = useState(false);
+  // Set after an import / fix pass that left files unresolved — opens the
+  // "find your missing audio" prompt so the operator isn't left with a
+  // library that silently can't play.
+  const [missingReport, setMissingReport] = useState<RelinkReport | null>(null);
+  const hasMissing = (r: RelinkReport) => r.tracksMissing + r.padsMissing > 0;
 
   // Turn a re-link report into a one-line operator-readable summary.
   const relinkMsg = (r: {
@@ -2245,11 +2253,76 @@ function BackupSection() {
         // and a partial one points the operator at the fix.
         if (res.report) {
           setStatus({ kind: relinkMsg(res.report).kind, msg: `Config imported. ${relinkMsg(res.report).msg}` });
+          if (hasMissing(res.report)) setMissingReport(res.report);
         } else {
           setStatus({ kind: 'ok', msg: 'Config imported.' });
         }
       } else if (res.reason !== 'Cancelled') {
         setStatus({ kind: 'err', msg: res.reason ?? 'Import failed' });
+      }
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  // Export every playlist + the audio itself to a folder.
+  const onExportLibrary = async () => {
+    setBusy('libExport');
+    setStatus(null);
+    try {
+      const res = await window.runway!.config.exportLibrary();
+      if (res.ok) {
+        const miss = res.missingFiles?.length ?? 0;
+        setStatus({
+          kind: miss ? 'err' : 'ok',
+          msg: `Exported ${res.playlists} playlist${res.playlists === 1 ? '' : 's'} and ${res.tracks} song${res.tracks === 1 ? '' : 's'} to ${res.bundleDir}.`
+            + (miss ? ` ${miss} file${miss === 1 ? ' was' : 's were'} missing on this computer and couldn't be included.` : ''),
+        });
+      } else if (res.reason !== 'Cancelled') {
+        setStatus({ kind: 'err', msg: res.reason ?? 'Export failed' });
+      }
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  // Import step 1: pick the export folder, then show the Add/Merge/Replace chooser.
+  const onImportLibrary = async () => {
+    setBusy('libImport');
+    setStatus(null);
+    try {
+      const res = await window.runway!.config.previewLibrary();
+      if (res.ok && res.preview) setLibPreview(res.preview);
+      else if (res.reason !== 'Cancelled') setStatus({ kind: 'err', msg: res.reason ?? 'Import failed' });
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  // Import step 2: apply with the chosen mode.
+  const runLibraryImport = async (mode: LibraryImportMode) => {
+    if (!libPreview) return;
+    setBusy('libImport');
+    try {
+      const res = await window.runway!.config.importLibrary(libPreview.bundleDir, mode);
+      setLibPreview(null);
+      if (!res.ok || !res.report) {
+        setStatus({ kind: 'err', msg: res.reason ?? 'Import failed' });
+        return;
+      }
+      await loadConfig();
+      const r = res.report;
+      const bits: string[] = [];
+      if (r.playlistsAdded) bits.push(`added ${r.playlistsAdded} playlist${r.playlistsAdded === 1 ? '' : 's'}`);
+      if (r.playlistsMerged) bits.push(`merged ${r.playlistsMerged}`);
+      if (r.playlistsReplaced) bits.push(`replaced ${r.playlistsReplaced}`);
+      if (r.tracksAdded) bits.push(`${r.tracksAdded} new song${r.tracksAdded === 1 ? '' : 's'}`);
+      const summary = `Imported: ${bits.join(', ') || 'nothing changed'}.`;
+      if (res.relink && hasMissing(res.relink)) {
+        setStatus({ kind: 'err', msg: `${summary} Some audio is still missing.` });
+        setMissingReport(res.relink);
+      } else {
+        setStatus({ kind: 'ok', msg: `${summary} All files are linked.` });
       }
     } finally {
       setBusy(null);
@@ -2272,6 +2345,7 @@ function BackupSection() {
       }
       await loadConfig();
       setStatus(relinkMsg(report));
+      if (hasMissing(report)) setMissingReport(report);
     } finally {
       setBusy(null);
     }
@@ -2298,6 +2372,20 @@ function BackupSection() {
           </button>
           <button className="btn-secondary" onClick={onRelink} disabled={busy !== null}>
             {busy === 'relink' ? 'Fixing…' : 'Fix missing audio files'}
+          </button>
+        </div>
+        <div className="settings-section-sub" style={{ maxWidth: 560, marginTop: 18 }}>
+          <strong>Playlists + audio.</strong> Export every playlist together with the
+          actual song and pad files into one folder — copy that folder to another
+          computer (USB drive, AirDrop, shared drive) and import it there. When
+          importing you choose whether to add, merge, or replace playlists.
+        </div>
+        <div style={{ display: 'flex', gap: 10, marginTop: 14, alignItems: 'center', flexWrap: 'wrap' }}>
+          <button className="btn-secondary" onClick={onExportLibrary} disabled={busy !== null}>
+            {busy === 'libExport' ? 'Exporting audio…' : 'Export playlists + audio…'}
+          </button>
+          <button className="btn-secondary" onClick={onImportLibrary} disabled={busy !== null}>
+            {busy === 'libImport' ? 'Importing…' : 'Import playlists + audio…'}
           </button>
           {status && (
             <span style={{
@@ -2334,6 +2422,26 @@ function BackupSection() {
         </div>
       </section>
 
+      {libPreview && (
+        <LibraryImportModal
+          preview={libPreview}
+          busy={busy === 'libImport'}
+          onCancel={() => setLibPreview(null)}
+          onChoose={runLibraryImport}
+        />
+      )}
+
+      {missingReport && (
+        <MissingAudioModal
+          report={missingReport}
+          onClose={() => setMissingReport(null)}
+          onResolved={(r) => {
+            setStatus(relinkMsg(r));
+            setMissingReport(hasMissing(r) ? r : null);
+          }}
+        />
+      )}
+
       {resetOpen && (
         <FactoryResetModal
           onClose={() => setResetOpen(false)}
@@ -2342,6 +2450,203 @@ function BackupSection() {
         />
       )}
     </>
+  );
+}
+
+/**
+ * Add / Merge / Replace chooser for importing a playlist + audio export.
+ * Only edits playlist and track records and copies files — no timing.
+ */
+function LibraryImportModal({ preview, busy, onCancel, onChoose }: {
+  preview: LibraryBundlePreview;
+  busy: boolean;
+  onCancel: () => void;
+  onChoose: (mode: LibraryImportMode) => void;
+}) {
+  const [mode, setMode] = useState<LibraryImportMode>('merge');
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !busy) onCancel(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onCancel, busy]);
+
+  const existing = preview.playlists.filter(p => p.existsAlready).length;
+  const options: Array<{ mode: LibraryImportMode; title: string; body: string }> = [
+    {
+      mode: 'add',
+      title: 'Add as new playlists',
+      body: 'Every imported playlist is added alongside yours. Names that already exist get “(imported)” added. Nothing you have changes.',
+    },
+    {
+      mode: 'merge',
+      title: 'Merge into matching playlists',
+      body: 'Playlists with the same name get any songs they’re missing added at the end. Your playlist settings and song edits stay as they are. New playlists are added.',
+    },
+    {
+      mode: 'replace',
+      title: 'Replace matching playlists',
+      body: 'Playlists with the same name are overwritten with the imported version (songs, order, settings, and song edits). Services and actions still point at them. Playlists not in the export are kept.',
+    },
+  ];
+
+  return (
+    <div className="key-modal-backdrop" onClick={() => { if (!busy) onCancel(); }}>
+      <div className="key-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 580, padding: 28 }}>
+        <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 6 }}>Import playlists + audio</div>
+        <div style={{ fontSize: 13, color: 'var(--text-dim)', lineHeight: 1.45, marginBottom: 12 }}>
+          {preview.playlists.length} playlist{preview.playlists.length === 1 ? '' : 's'}, {preview.trackCount} song
+          {preview.trackCount === 1 ? '' : 's'}{preview.padCount ? `, ${preview.padCount} pads` : ''}
+          {preview.exportedAt ? ` — exported ${new Date(preview.exportedAt).toLocaleString()}` : ''}.
+          {existing > 0 && ` ${existing} of these playlist${existing === 1 ? '' : 's'} already exist here.`}
+        </div>
+        <div style={{ maxHeight: 120, overflowY: 'auto', fontSize: 12, color: 'var(--text-dim)', marginBottom: 14 }}>
+          {preview.playlists.map((p, i) => (
+            <div key={i}>
+              {p.name} · {p.trackCount} song{p.trackCount === 1 ? '' : 's'}
+              {p.existsAlready && <span style={{ color: 'var(--accent-bright)' }}> · already here</span>}
+            </div>
+          ))}
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
+          {options.map(o => (
+            <label
+              key={o.mode}
+              style={{
+                display: 'flex', gap: 10, alignItems: 'flex-start', cursor: 'pointer',
+                padding: 10, borderRadius: 8,
+                border: `1px solid ${mode === o.mode ? 'var(--accent-bright)' : 'var(--border, #333)'}`,
+              }}
+            >
+              <input
+                type="radio"
+                name="lib-import-mode"
+                checked={mode === o.mode}
+                onChange={() => setMode(o.mode)}
+                style={{ marginTop: 3 }}
+              />
+              <span>
+                <div style={{ fontWeight: 600, fontSize: 13 }}>{o.title}</div>
+                <div style={{ fontSize: 12, color: 'var(--text-dim)', lineHeight: 1.4 }}>{o.body}</div>
+              </span>
+            </label>
+          ))}
+        </div>
+        <div style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 14 }}>
+          Songs are never duplicated — ones already in your library are reused. A backup of
+          your current config is saved first.
+        </div>
+
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+          <button className="btn-secondary" onClick={onCancel} disabled={busy}>Cancel</button>
+          <button className="btn-primary" onClick={() => onChoose(mode)} disabled={busy}>
+            {busy ? 'Importing…' : 'Import'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * "Some audio is missing" prompt — shown right after a config import (or a
+ * Fix pass) leaves tracks/pads pointing at files that aren't on this
+ * computer. Lists the missing songs and the playlists they break, and lets
+ * the operator point at a folder to search. Repeats until everything is
+ * linked or they choose "Later". Only rewrites file locations — no timing.
+ */
+function MissingAudioModal({ report, onClose, onResolved }: {
+  report: RelinkReport;
+  onClose: () => void;
+  onResolved: (r: RelinkReport) => void;
+}) {
+  const loadConfig = useAppStore(s => s.loadConfig);
+  const tracks = useAppStore(s => s.config.tracks);
+  const playlists = useAppStore(s => s.config.playlists);
+  const [searching, setSearching] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !searching) onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose, searching]);
+
+  const missingIds = new Set(report.missingTrackIds ?? []);
+  const affectedPlaylists = playlists
+    .map(pl => ({ name: pl.name, count: pl.trackIds.filter(id => missingIds.has(id)).length }))
+    .filter(x => x.count > 0);
+  const missingTotal = report.tracksMissing + report.padsMissing;
+  const SHOW = 10;
+  const names = report.missingNames;
+  // Prefer the track's title over the raw filename where we have it.
+  const titleByFile = new Map(tracks.map(t => [t.filePath.split(/[\\/]/).pop() ?? '', t.title]));
+
+  const onFind = async () => {
+    const folder = await window.runway!.files.pickFolder();
+    if (!folder) return;
+    setSearching(true);
+    try {
+      const before = missingTotal;
+      const r = await window.runway!.config.relink({ extraFolders: [folder] });
+      await loadConfig();
+      const after = r.tracksMissing + r.padsMissing;
+      setNote(after === before
+        ? `No matching files found in that folder. Pick the folder you copied the audio into.`
+        : null);
+      onResolved(r);
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  return (
+    <div className="key-modal-backdrop" onClick={() => { if (!searching) onClose(); }}>
+      <div className="key-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 560, padding: 28 }}>
+        <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--red-bright)', marginBottom: 6 }}>
+          {missingTotal} audio file{missingTotal === 1 ? ' is' : 's are'} missing
+        </div>
+        <div style={{ fontSize: 13, color: 'var(--text-dim)', lineHeight: 1.45, marginBottom: 14 }}>
+          These songs are in your library but their audio isn't on this computer,
+          so they can't play. Copy them over from the other computer (or find
+          where they are), then click <strong>Find missing files…</strong> and
+          pick that folder. Runway matches them by filename and keeps every key,
+          trim, fade, and playlist.
+        </div>
+
+        {affectedPlaylists.length > 0 && (
+          <div style={{ fontSize: 13, marginBottom: 12 }}>
+            <div style={{ fontWeight: 600, marginBottom: 4 }}>Playlists affected</div>
+            {affectedPlaylists.map(pl => (
+              <div key={pl.name} style={{ color: 'var(--text-dim)' }}>
+                {pl.name} — {pl.count} song{pl.count === 1 ? '' : 's'} missing
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div style={{ fontSize: 13, marginBottom: 16 }}>
+          <div style={{ fontWeight: 600, marginBottom: 4 }}>Missing files</div>
+          <div style={{ maxHeight: 180, overflowY: 'auto', color: 'var(--text-dim)' }}>
+            {names.slice(0, SHOW).map((n, i) => (
+              <div key={i}>{titleByFile.get(n) ? `${titleByFile.get(n)} (${n})` : n}</div>
+            ))}
+            {names.length > SHOW && <div>…and {names.length - SHOW} more</div>}
+          </div>
+        </div>
+
+        {note && (
+          <div style={{ fontSize: 12, color: 'var(--red-bright)', marginBottom: 12 }}>{note}</div>
+        )}
+
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+          <button className="btn-secondary" onClick={onClose} disabled={searching}>Later</button>
+          <button className="btn-primary" onClick={onFind} disabled={searching}>
+            {searching ? 'Searching…' : 'Find missing files…'}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 

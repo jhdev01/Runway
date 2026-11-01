@@ -1,4 +1,4 @@
-import type { AppConfig, Track, KeyName, PpRequest, PpResponse, PcoRequest, PcoResponse, RelinkReport, RemoteNetworkInterface } from '@shared/types';
+import type { LibraryBundlePreview, LibraryImportMode, LibraryImportReport, AppConfig, Track, KeyName, PpRequest, PpResponse, PcoRequest, PcoResponse, RelinkReport, RemoteNetworkInterface } from '@shared/types';
 
 export {};
 
@@ -13,6 +13,13 @@ declare global {
         export: () => Promise<{ ok: boolean; path?: string; reason?: string }>;
         import: () => Promise<{ ok: boolean; reason?: string; report?: RelinkReport }>;
         relink: (opts?: { extraFolders?: string[] }) => Promise<RelinkReport>;
+        exportLibrary: () => Promise<{
+          ok: boolean; reason?: string; bundleDir?: string;
+          playlists?: number; tracks?: number; pads?: number; missingFiles?: string[];
+        }>;
+        previewLibrary: () => Promise<{ ok: boolean; reason?: string; preview?: LibraryBundlePreview }>;
+        importLibrary: (bundleDir: string, mode: LibraryImportMode) =>
+          Promise<{ ok: boolean; reason?: string; report?: LibraryImportReport; relink?: RelinkReport }>;
       };
       files: {
         pickAudio: (multi?: boolean) => Promise<string[]>;

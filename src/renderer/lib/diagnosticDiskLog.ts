@@ -29,12 +29,16 @@ const TIMING_TAGS = [
   '[reanchor]',
   '[actions]',
   '[addSong]',
+  '[ppTimer]',
 ];
 
 let installed = false;
 
 function safeStringify(v: unknown): string {
   if (typeof v === 'string') return v;
+  // Error objects JSON-serialize to "{}" (message/stack aren't enumerable),
+  // which hid the actual cause of every "preload failed" line. Log the message.
+  if (v instanceof Error) return JSON.stringify({ error: v.message });
   try {
     return JSON.stringify(v);
   } catch {

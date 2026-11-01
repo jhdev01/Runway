@@ -8,6 +8,7 @@ import {
 } from '@shared/types';
 import { compatibleKeys } from '@shared/music';
 import { todayISO } from '../lib/format';
+import { describeLoadError } from '../lib/audioEngine';
 
 export type ViewName = 'live' | 'playlists' | 'library' | 'schedule' | 'actions' | 'editor' | 'settings';
 
@@ -232,6 +233,9 @@ interface AppStoreState {
       playlistOverrideId?: string;
       // Override the global `repeatToFill` default for this arm only.
       repeatToFill?: boolean;
+      // Internal: set on the automatic re-arm after a preload failure so it
+      // can't loop.
+      isUnplayableRetry?: boolean;
     },
   ) => Promise<{ ok: boolean; reason?: string; warning?: string }>;
   disarmService: (serviceId: string) => void;
@@ -259,6 +263,12 @@ const MAX_LOG_ENTRIES = 200;
 // real arms from position-only patches via patchCurrentRunway.
 let _armEpochCounter = 0;
 const nextArmEpoch = () => ++_armEpochCounter;
+
+// Audio files that failed to load/decode during an arm's preload. Kept for
+// the life of the window (not persisted) so later arms leave them out of the
+// arrangement up front. Cleared per-file the moment a preload succeeds (e.g.
+// after the operator re-imports or re-encodes the track).
+const unplayablePaths = new Set<string>();
 
 export const useAppStore = create<AppStoreState>((set, get) => ({
   view: 'live',
@@ -935,10 +945,23 @@ export const useAppStore = create<AppStoreState>((set, get) => ({
       ? state.config.playlists.find(p => p.id === playlistId)
       : undefined;
     if (!playlist) return { ok: false, reason: 'No pre-service playlist on this service' };
-    const pool = playlist.trackIds
+    const fullPool = playlist.trackIds
       .map(tid => state.config.tracks.find(t => t.id === tid))
       .filter(Boolean) as Track[];
-    if (pool.length === 0) return { ok: false, reason: 'Playlist has no tracks' };
+    if (fullPool.length === 0) return { ok: false, reason: 'Playlist has no tracks' };
+    // Leave out tracks whose audio already failed to load this session. One
+    // undecodable file in the arrangement makes the whole scheduled runway
+    // fail to start (silent music), so it's far better to arrange around it.
+    // If EVERY track is bad, fall back to the full pool so the failure stays
+    // visible instead of silently refusing to arm.
+    const playablePool = fullPool.filter(t => !unplayablePaths.has(t.filePath));
+    const pool = playablePool.length > 0 ? playablePool : fullPool;
+    const skippedUnplayable = fullPool.length - pool.length;
+    if (skippedUnplayable > 0) {
+      console.warn('[arm] skipping unplayable tracks', {
+        skipped: fullPool.filter(t => !pool.includes(t)).map(t => t.title ?? t.filePath),
+      });
+    }
 
     let trackIds: string[];
     let totalSec: number;
@@ -954,7 +977,9 @@ export const useAppStore = create<AppStoreState>((set, get) => ({
     const { value: requestedKey } = resolveServiceFirstSongKey(service, state.config.services);
     const { value: pinnedTrackId } = resolveServiceLastSongTrackId(service, state.config.services);
     let landInKey: KeyName | undefined = requestedKey;
-    let warning: string | undefined;
+    let warning: string | undefined = skippedUnplayable > 0
+      ? `Skipped ${skippedUnplayable} track${skippedUnplayable === 1 ? '' : 's'} that couldn't be loaded — re-import or re-encode ${skippedUnplayable === 1 ? 'it' : 'them'} (details in timing.log).`
+      : undefined;
 
     // leadOverrideSec lets "Start music early" re-arm with a longer lead so
     // the playlist fills the new (now → service-start) window. Falls back
@@ -1228,6 +1253,7 @@ export const useAppStore = create<AppStoreState>((set, get) => ({
       };
     }
 
+    const myArmEpoch = nextArmEpoch();
     set(s => ({
       currentRunway: {
         serviceId,
@@ -1248,7 +1274,7 @@ export const useAppStore = create<AppStoreState>((set, get) => ({
         phase: 'queued',
         currentTrackIndex: 0,
         sourcePlaylistId: playlist.id,
-        armEpoch: nextArmEpoch(),
+        armEpoch: myArmEpoch,
       },
       config: {
         ...s.config,
@@ -1269,12 +1295,34 @@ export const useAppStore = create<AppStoreState>((set, get) => ({
     // the first run after launch, then are instant on subsequent arms.
     if (preloader) {
       const tracks = state.config.tracks;
-      const paths = trackIds
+      const paths = [...new Set(trackIds
         .map(id => tracks.find(t => t.id === id)?.filePath)
-        .filter(Boolean) as string[];
-      await Promise.all(paths.map(p => preloader(p).catch(err => {
-        console.warn('[arm] preload failed', p, err);
+        .filter(Boolean) as string[])];
+      const failed: string[] = [];
+      await Promise.all(paths.map(p => preloader(p).then(() => {
+        unplayablePaths.delete(p);
+      }, err => {
+        unplayablePaths.add(p);
+        failed.push(p);
+        const t = tracks.find(tr => tr.filePath === p);
+        const { reason, detail } = describeLoadError(err);
+        console.warn(`[arm] song can't load: "${t?.title ?? p}" — ${reason}`, { detail });
       })));
+
+      // A track in this arrangement can't be decoded. The scheduled runway
+      // loads every track before starting any of them, so leaving it in
+      // means NO music plays at all (this is what forced operators to
+      // refresh until a shuffle happened to miss the bad file). Re-arm once
+      // with the bad file(s) left out. Timing is unaffected: the re-arm
+      // computes musicStartMs back from the same service start (targetMs),
+      // and if it lands a moment late the controller joins mid-runway at
+      // the right offset exactly as it does for any late arm.
+      const stillOurs = get().currentRunway?.armEpoch === myArmEpoch;
+      const haveAlternatives = fullPool.some(t => !unplayablePaths.has(t.filePath));
+      if (failed.length > 0 && stillOurs && haveAlternatives && !opts?.isUnplayableRetry) {
+        console.warn('[arm] re-arming without unplayable tracks', { failed });
+        return get().armService(serviceId, preloader, { ...opts, isUnplayableRetry: true });
+      }
     }
 
     return { ok: true, warning };

@@ -122,6 +122,7 @@ When proposing changes that visibly affect the UI:
 - **`getActiveService()` in serviceController** returns upcoming/running services only. For end-of-service triggers (post-service), use `getMostRecentServiceToday()` so the right service's overrides apply after the service is past.
 - **Auto-arm timing**: pre-service music materializes on the controller tick when `now >= musicStartMs`. Don't pre-schedule audio earlier than that.
 - **`triggerPostService` guards**: refuses when an actively-playing pre-service runway (phase music or pad) exists. Queued is fine to clobber. Don't tighten the guard.
+- **PP countdown is self-healing on purpose**: while pre-service music/pad is rolling, the PP heartbeat in `engines.tsx` (`pingPp`) re-arms the countdown whenever PP reports it isn't running — including after the operator manually stops it in PP. That's the operator's explicit wish; don't change it to respect manual stops.
 - **Settings → Engine → Auto-schedule services** has a configurable daily check time (`autoScheduleTime`). The materializer fires as a one-shot `setTimeout` to the next configured time, not on a heartbeat. Don't switch back to interval-based.
 
 ---
