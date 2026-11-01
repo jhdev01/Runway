@@ -2060,6 +2060,12 @@ export class ServiceController {
           // firstTrackOffsetSec for where in the track to start; this
           // just stops bypassing the fade envelope.
           musicFadeInSec: fadeInSec,
+        }).catch(err => {
+          // Previously an unhandled rejection: a single undecodable/missing
+          // track made the whole runway silently fail to start, with nothing
+          // in timing.log. Record it so it's diagnosable. armService's
+          // preload re-arms around the bad file, which re-queues the runway.
+          console.warn('[beginMusic] failed to start runway', err);
         });
       } else {
         const trimStart = track.trimStartSec ?? 0;
