@@ -288,6 +288,7 @@ export function EnginesProvider({ children }: { children: React.ReactNode }) {
     let lastBindingsRef = useAppStore.getState().config.midiBindings;
     let lastDevicePrefsRef = useAppStore.getState().config.midiDevices;
     let lastPpEnabled = useAppStore.getState().config.proPresenterSync.enabled;
+    let lastPpConnSig: string | null = null;
     let lastRoutingSig = '';
     let lastPadLevelSig = '';
 
@@ -358,6 +359,10 @@ export function EnginesProvider({ children }: { children: React.ReactNode }) {
         await pp.testConnection();
         const wasConnected = useAppStore.getState().ppStatus === 'ok';
         useAppStore.getState().setPpStatus('ok');
+        // Just (re)connected — re-deliver the countdown. Previously this
+        // relied on a failed ping having already cleared the key, which
+        // never happens when PP restarts between two heartbeats.
+        if (!wasConnected) timerArmedKey = null;
         const s = useAppStore.getState();
         const runway = s.currentRunway;
         if (
@@ -369,16 +374,28 @@ export function EnginesProvider({ children }: { children: React.ReactNode }) {
           const ov = svc?.proPresenterOverride;
           const effective = ov ? { ...cfg, ...ov } : cfg;
           const key = `${runway.serviceId}|${runway.targetMs}|${effective.timerUuid ?? ''}`;
+          // Already delivered? Confirm with PP that the countdown is still
+          // actually running. Covers PP's window closing/reopening (or PP
+          // relaunching) while its API stayed reachable — the case the
+          // status light can't see. Older PP without /v1/timers/current
+          // returns null and we keep trusting the cached key.
+          if (effective.timerUuid && timerArmedKey === key) {
+            const running = await pp.isTimerRunning(effective.timerUuid).catch(() => null);
+            if (running === false) {
+              console.log('[ppTimer] countdown not running in ProPresenter — re-syncing');
+              timerArmedKey = null;
+            }
+          }
           if (effective.timerUuid && timerArmedKey !== key) {
             try {
               await pp.armCountdownToTime(effective.timerUuid, runway.targetMs);
               timerArmedKey = key;
-              console.log('[pp] heartbeat (re)armed countdown', {
+              console.log('[ppTimer] countdown synced to service start', {
                 timerUuid: effective.timerUuid,
                 target: new Date(runway.targetMs).toLocaleString(),
               });
             } catch (err) {
-              console.warn('[pp] heartbeat countdown arm failed — will retry', err);
+              console.warn('[ppTimer] countdown sync failed — will retry', err instanceof Error ? err.message : err);
             }
           }
         } else {
@@ -477,9 +494,21 @@ export function EnginesProvider({ children }: { children: React.ReactNode }) {
       // immediately instead of sitting on "Checking…" until the next heartbeat.
       const ppEnabledNow = state.config.proPresenterSync.enabled;
       if (ppEnabledNow && !lastPpEnabled) {
+        timerArmedKey = null; // re-enabled → deliver the countdown again
         void pingPp();
       }
       lastPpEnabled = ppEnabledNow;
+      // Pointed at a different ProPresenter (host/port/password changed) —
+      // that machine hasn't been given the countdown yet.
+      const ppConn = state.config.proPresenterSync;
+      const connSig = `${ppConn.host}|${ppConn.port}|${ppConn.password ?? ''}`;
+      if (connSig !== lastPpConnSig) {
+        if (lastPpConnSig !== null) {
+          timerArmedKey = null;
+          void pingPp();
+        }
+        lastPpConnSig = connSig;
+      }
 
       const cfg = state.config.proPresenterSync;
       const runway = state.currentRunway;
@@ -623,6 +652,10 @@ export function EnginesProvider({ children }: { children: React.ReactNode }) {
     // enable transitions so the user doesn't see "Checking…" hang.
     void pingPp(); // initial check
     const ppHeartbeat = window.setInterval(() => void pingPp(), 10000);
+    // Settings → "Test connection & reload timers" (and its auto-run when PP
+    // comes back) asks for an immediate countdown re-sync.
+    const onPpResync = () => { timerArmedKey = null; void pingPp(); };
+    window.addEventListener('runway:pp-resync', onPpResync);
 
     // ---- Weekly pattern materialization ----
     // On app boot we always materialize today's services immediately so the
@@ -960,6 +993,7 @@ export function EnginesProvider({ children }: { children: React.ReactNode }) {
       unsubStore();
       unsubRemote();
       window.clearInterval(ppHeartbeat);
+      window.removeEventListener('runway:pp-resync', onPpResync);
       if (scheduledMaterializeTimer !== null) window.clearTimeout(scheduledMaterializeTimer);
       window.clearTimeout(pcoBootTimer);
       window.clearInterval(pcoScheduleTimer);

@@ -108,6 +108,26 @@ export class PpClient {
     }
   }
 
+  /**
+   * Is this timer currently counting in ProPresenter? Reads
+   * /v1/timers/current (PP 7.9+), whose entries look like
+   *   { id: { uuid, name, index }, time: "-00:12:34", state: "running" }
+   * Returns null when PP doesn't support the endpoint or the timer isn't
+   * listed — callers treat null as "unknown" and leave things alone.
+   */
+  async isTimerRunning(uuid: string): Promise<boolean | null> {
+    const res = await this.get('/v1/timers/current');
+    if (!res.ok) return null;
+    let parsed: unknown;
+    try { parsed = JSON.parse(res.body); } catch { return null; }
+    if (!Array.isArray(parsed)) return null;
+    const entry = parsed.find(t => (t as { id?: { uuid?: string } })?.id?.uuid === uuid) as
+      { state?: string } | undefined;
+    if (!entry || typeof entry.state !== 'string') return null;
+    const state = entry.state.toLowerCase();
+    return state === 'running' || state === 'overrunning';
+  }
+
   /** Stop the timer (panic / disarm). */
   async stopTimer(uuid: string): Promise<void> {
     await this.get(`/v1/timer/${encodeURIComponent(uuid)}/stop`);

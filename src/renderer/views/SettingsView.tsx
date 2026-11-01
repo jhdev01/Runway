@@ -571,6 +571,8 @@ function ProPresenterSettings() {
       pp.updateConfig(cfg);
       const res = await pp.testConnection();
       setTestStatus({ kind: 'ok', msg: res.version ? `Connected — PP ${res.version}` : 'Connected' });
+      // Re-send the countdown to PP if a pre-service runway is rolling.
+      window.dispatchEvent(new Event('runway:pp-resync'));
       const [tList, pList] = await Promise.all([pp.listTimers(), pp.listPlaylists()]);
       setTimers(tList);
       setPlaylists(pList);

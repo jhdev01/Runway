@@ -29,6 +29,7 @@ const TIMING_TAGS = [
   '[reanchor]',
   '[actions]',
   '[addSong]',
+  '[ppTimer]',
 ];
 
 let installed = false;
