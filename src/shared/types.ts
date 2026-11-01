@@ -868,6 +868,9 @@ export interface RelinkReport {
   padsMissing: number;
   // Filenames still unresolved after the pass (tracks + pads), for the UI.
   missingNames: string[];
+  // Ids of tracks still unresolved — lets the UI show which playlists are
+  // affected. Optional so older callers keep compiling.
+  missingTrackIds?: string[];
   // True when at least one path changed (so the caller knows to persist).
   changed: boolean;
 }

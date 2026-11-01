@@ -16,7 +16,7 @@
  * Rehearsal services are deleted in the 'done' transition.
  */
 
-import type { AudioEngine } from './audioEngine';
+import { describeLoadError, type AudioEngine } from './audioEngine';
 import type { MidiEngine } from './midiEngine';
 import type { PpClient } from './proPresenterClient';
 import type { useAppStore } from '../state/store';
@@ -1454,9 +1454,11 @@ export class ServiceController {
       trackCount: paths.length,
     });
     for (const p of paths) {
-      void this.audio.loadBuffer(p).catch(err =>
-        console.warn('[prewarm] decode failed', p, err),
-      );
+      void this.audio.loadBuffer(p).catch(err => {
+        const t = state.config.tracks.find(tr => tr.filePath === p);
+        const { reason, detail } = describeLoadError(err);
+        console.warn(`[prewarm] song can't load: "${t?.title ?? p}" — ${reason}`, { detail });
+      });
     }
   }
 
@@ -2065,7 +2067,8 @@ export class ServiceController {
           // track made the whole runway silently fail to start, with nothing
           // in timing.log. Record it so it's diagnosable. armService's
           // preload re-arms around the bad file, which re-queues the runway.
-          console.warn('[beginMusic] failed to start runway', err);
+          const { reason, detail } = describeLoadError(err);
+          console.warn(`[beginMusic] runway did NOT start — a song couldn't load (${reason})`, { detail });
         });
       } else {
         const trimStart = track.trimStartSec ?? 0;

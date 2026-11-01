@@ -8,6 +8,7 @@ import {
 } from '@shared/types';
 import { compatibleKeys } from '@shared/music';
 import { todayISO } from '../lib/format';
+import { describeLoadError } from '../lib/audioEngine';
 
 export type ViewName = 'live' | 'playlists' | 'library' | 'schedule' | 'actions' | 'editor' | 'settings';
 
@@ -1303,7 +1304,9 @@ export const useAppStore = create<AppStoreState>((set, get) => ({
       }, err => {
         unplayablePaths.add(p);
         failed.push(p);
-        console.warn('[arm] preload failed', p, err);
+        const t = tracks.find(tr => tr.filePath === p);
+        const { reason, detail } = describeLoadError(err);
+        console.warn(`[arm] song can't load: "${t?.title ?? p}" — ${reason}`, { detail });
       })));
 
       // A track in this arrangement can't be decoded. The scheduled runway

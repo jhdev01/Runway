@@ -85,7 +85,7 @@ export function relinkConfig(
   const report: RelinkReport = {
     tracksOk: 0, tracksRelinked: 0, tracksMissing: 0,
     padsOk: 0, padsRelinked: 0, padsMissing: 0,
-    missingNames: [], changed: false,
+    missingNames: [], missingTrackIds: [], changed: false,
   };
 
   const tracks = (cfg.tracks ?? []).map((t) => {
@@ -97,6 +97,7 @@ export function relinkConfig(
       return { ...t, filePath: found };
     }
     report.tracksMissing++;
+    report.missingTrackIds!.push(t.id);
     report.missingNames.push(path.basename(t.filePath || t.title || 'unknown track'));
     return t;
   });

@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useAppStore, generateId } from '../state/store';
 import { useEngines } from '../state/engines';
 import { ALL_KEYS, MAJOR_KEYS, MINOR_KEYS, keyColor, displayKey } from '@shared/music';
-import type { AudioBusConfig, MidiAction, MidiBinding, KeyName, PadFile, ProPresenterSyncConfig, MidiDevicePref } from '@shared/types';
+import type { RelinkReport, AudioBusConfig, MidiAction, MidiBinding, KeyName, PadFile, ProPresenterSyncConfig, MidiDevicePref } from '@shared/types';
 import { DEFAULT_CONFIG } from '@shared/types';
 import type { MidiDeviceSnapshot } from '../lib/midiEngine';
 import type { PpTimer } from '../lib/proPresenterClient';
@@ -2202,6 +2202,11 @@ function BackupSection() {
   const [status, setStatus] = useState<{ kind: 'ok' | 'err'; msg: string } | null>(null);
   const [busy, setBusy] = useState<'export' | 'import' | 'relink' | null>(null);
   const [resetOpen, setResetOpen] = useState(false);
+  // Set after an import / fix pass that left files unresolved — opens the
+  // "find your missing audio" prompt so the operator isn't left with a
+  // library that silently can't play.
+  const [missingReport, setMissingReport] = useState<RelinkReport | null>(null);
+  const hasMissing = (r: RelinkReport) => r.tracksMissing + r.padsMissing > 0;
 
   // Turn a re-link report into a one-line operator-readable summary.
   const relinkMsg = (r: {
@@ -2245,6 +2250,7 @@ function BackupSection() {
         // and a partial one points the operator at the fix.
         if (res.report) {
           setStatus({ kind: relinkMsg(res.report).kind, msg: `Config imported. ${relinkMsg(res.report).msg}` });
+          if (hasMissing(res.report)) setMissingReport(res.report);
         } else {
           setStatus({ kind: 'ok', msg: 'Config imported.' });
         }
@@ -2272,6 +2278,7 @@ function BackupSection() {
       }
       await loadConfig();
       setStatus(relinkMsg(report));
+      if (hasMissing(report)) setMissingReport(report);
     } finally {
       setBusy(null);
     }
@@ -2334,6 +2341,17 @@ function BackupSection() {
         </div>
       </section>
 
+      {missingReport && (
+        <MissingAudioModal
+          report={missingReport}
+          onClose={() => setMissingReport(null)}
+          onResolved={(r) => {
+            setStatus(relinkMsg(r));
+            setMissingReport(hasMissing(r) ? r : null);
+          }}
+        />
+      )}
+
       {resetOpen && (
         <FactoryResetModal
           onClose={() => setResetOpen(false)}
@@ -2342,6 +2360,108 @@ function BackupSection() {
         />
       )}
     </>
+  );
+}
+
+/**
+ * "Some audio is missing" prompt — shown right after a config import (or a
+ * Fix pass) leaves tracks/pads pointing at files that aren't on this
+ * computer. Lists the missing songs and the playlists they break, and lets
+ * the operator point at a folder to search. Repeats until everything is
+ * linked or they choose "Later". Only rewrites file locations — no timing.
+ */
+function MissingAudioModal({ report, onClose, onResolved }: {
+  report: RelinkReport;
+  onClose: () => void;
+  onResolved: (r: RelinkReport) => void;
+}) {
+  const loadConfig = useAppStore(s => s.loadConfig);
+  const tracks = useAppStore(s => s.config.tracks);
+  const playlists = useAppStore(s => s.config.playlists);
+  const [searching, setSearching] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !searching) onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose, searching]);
+
+  const missingIds = new Set(report.missingTrackIds ?? []);
+  const affectedPlaylists = playlists
+    .map(pl => ({ name: pl.name, count: pl.trackIds.filter(id => missingIds.has(id)).length }))
+    .filter(x => x.count > 0);
+  const missingTotal = report.tracksMissing + report.padsMissing;
+  const SHOW = 10;
+  const names = report.missingNames;
+  // Prefer the track's title over the raw filename where we have it.
+  const titleByFile = new Map(tracks.map(t => [t.filePath.split(/[\\/]/).pop() ?? '', t.title]));
+
+  const onFind = async () => {
+    const folder = await window.runway!.files.pickFolder();
+    if (!folder) return;
+    setSearching(true);
+    try {
+      const before = missingTotal;
+      const r = await window.runway!.config.relink({ extraFolders: [folder] });
+      await loadConfig();
+      const after = r.tracksMissing + r.padsMissing;
+      setNote(after === before
+        ? `No matching files found in that folder. Pick the folder you copied the audio into.`
+        : null);
+      onResolved(r);
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  return (
+    <div className="key-modal-backdrop" onClick={() => { if (!searching) onClose(); }}>
+      <div className="key-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 560, padding: 28 }}>
+        <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--red-bright)', marginBottom: 6 }}>
+          {missingTotal} audio file{missingTotal === 1 ? ' is' : 's are'} missing
+        </div>
+        <div style={{ fontSize: 13, color: 'var(--text-dim)', lineHeight: 1.45, marginBottom: 14 }}>
+          These songs are in your library but their audio isn't on this computer,
+          so they can't play. Copy them over from the other computer (or find
+          where they are), then click <strong>Find missing files…</strong> and
+          pick that folder. Runway matches them by filename and keeps every key,
+          trim, fade, and playlist.
+        </div>
+
+        {affectedPlaylists.length > 0 && (
+          <div style={{ fontSize: 13, marginBottom: 12 }}>
+            <div style={{ fontWeight: 600, marginBottom: 4 }}>Playlists affected</div>
+            {affectedPlaylists.map(pl => (
+              <div key={pl.name} style={{ color: 'var(--text-dim)' }}>
+                {pl.name} — {pl.count} song{pl.count === 1 ? '' : 's'} missing
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div style={{ fontSize: 13, marginBottom: 16 }}>
+          <div style={{ fontWeight: 600, marginBottom: 4 }}>Missing files</div>
+          <div style={{ maxHeight: 180, overflowY: 'auto', color: 'var(--text-dim)' }}>
+            {names.slice(0, SHOW).map((n, i) => (
+              <div key={i}>{titleByFile.get(n) ? `${titleByFile.get(n)} (${n})` : n}</div>
+            ))}
+            {names.length > SHOW && <div>…and {names.length - SHOW} more</div>}
+          </div>
+        </div>
+
+        {note && (
+          <div style={{ fontSize: 12, color: 'var(--red-bright)', marginBottom: 12 }}>{note}</div>
+        )}
+
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+          <button className="btn-secondary" onClick={onClose} disabled={searching}>Later</button>
+          <button className="btn-primary" onClick={onFind} disabled={searching}>
+            {searching ? 'Searching…' : 'Find missing files…'}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
