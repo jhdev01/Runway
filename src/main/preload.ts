@@ -47,6 +47,11 @@ const IPC = {
   TIMING_LOG_APPEND: 'timing:logAppend',
   TIMING_LOG_REVEAL: 'timing:logReveal',
   PCO_REQUEST: 'pco:request',
+  SPOTIFY_TIMING_TEST: 'spotify:timingTest',
+  SPOTIFY_CONNECT: 'spotify:connect',
+  SPOTIFY_STATUS: 'spotify:status',
+  SPOTIFY_DISCONNECT: 'spotify:disconnect',
+  SPOTIFY_PLAYLIST_READ: 'spotify:playlistRead',
 } as const;
 
 contextBridge.exposeInMainWorld('runway', {
@@ -101,6 +106,13 @@ contextBridge.exposeInMainWorld('runway', {
   audio: {
     listDevices: () => ipcRenderer.invoke(IPC.AUDIO_DEVICES_LIST),
   },
+  // Experimental Spotify account link + playlist reader (read-only).
+  spotify: {
+    connect: (clientId: string) => ipcRenderer.invoke(IPC.SPOTIFY_CONNECT, clientId),
+    status: () => ipcRenderer.invoke(IPC.SPOTIFY_STATUS),
+    disconnect: () => ipcRenderer.invoke(IPC.SPOTIFY_DISCONNECT),
+    readPlaylist: (link: string) => ipcRenderer.invoke(IPC.SPOTIFY_PLAYLIST_READ, link),
+  },
   planningCenter: {
     request: (req: unknown) => ipcRenderer.invoke(IPC.PCO_REQUEST, req),
   },
@@ -149,5 +161,7 @@ contextBridge.exposeInMainWorld('runway', {
     appendTimingLog: (line: string) => ipcRenderer.send(IPC.TIMING_LOG_APPEND, line),
     // Open timing.log in the OS file browser for after-service review.
     revealTimingLog: () => ipcRenderer.invoke(IPC.TIMING_LOG_REVEAL),
+    // Experimental Spotify landing-precision test (macOS only).
+    spotifyTimingTest: (track?: string) => ipcRenderer.invoke(IPC.SPOTIFY_TIMING_TEST, track),
   },
 });

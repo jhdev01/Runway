@@ -8,6 +8,8 @@ import { scanFolder, scanPadFolder, readTrackMetadata } from './fileScanner';
 import { relinkConfig } from './relink';
 import { exportLibraryBundle, readBundle, previewBundle, applyBundle } from './libraryBundle';
 import { IPC, type PpRequest, type PpResponse, type PcoRequest, type PcoResponse, type AppConfig, type RelinkReport, type TraySnapshot, type LibraryImportMode } from '../shared/types';
+import { runSpotifyTimingTest } from './spotifyTimingTest';
+import { spotifyConnect, spotifyStatus, spotifyDisconnect, spotifyReadPlaylist } from './spotifyAccount';
 import { RemoteServer, listLanUrls, listNetworkInterfaces, type RemoteSnapshot } from './remoteServer';
 
 const isDev = process.env.NODE_ENV === 'development';
@@ -906,6 +908,18 @@ function registerIpcHandlers() {
       r.end();
     });
   });
+
+  // Experimental Spotify landing-precision test. Standalone diagnostic —
+  // drives the Spotify desktop app only; never touches Runway's audio.
+  ipcMain.handle(IPC.SPOTIFY_TIMING_TEST, async (_e, track?: string) => {
+    return runSpotifyTimingTest(typeof track === 'string' ? track : undefined);
+  });
+
+  // Experimental Spotify account link + read-only playlist reader.
+  ipcMain.handle(IPC.SPOTIFY_CONNECT, async (_e, clientId: string) => spotifyConnect(String(clientId ?? '')));
+  ipcMain.handle(IPC.SPOTIFY_STATUS, async () => spotifyStatus());
+  ipcMain.handle(IPC.SPOTIFY_DISCONNECT, async () => spotifyDisconnect());
+  ipcMain.handle(IPC.SPOTIFY_PLAYLIST_READ, async (_e, link: string) => spotifyReadPlaylist(String(link ?? '')));
 
   // Planning Center API proxy. Renderer can't call api.planningcenteronline.com
   // directly (CORS), so main forwards the GET over HTTPS with HTTP Basic auth
