@@ -16,6 +16,25 @@ Living doc. Update when something material changes; replace the "Recent work" se
 
 ## Recent work (post-v10.1.2, unreleased)
 
+### Key detection from audio (unreleased, not yet in a version bump)
+Library → "♪ Detect keys" analyses the audio itself (offline, no lookup
+service) and works out each song's key.
+- `src/shared/keyDetect.ts` — pure-TS detector (STFT peaks → tuned chroma →
+  overtone correction → 24-key profile scoring + bass + intro/outro).
+  `DEFAULT_KEY_SCORE_PARAMS` were swept against 48 real recordings with known
+  keys (46/48 exact) + 360 synthetic pop progressions. NOT yet validated on
+  real worship band recordings — the Library summary ("N matched your tag /
+  N differ") is the operator's real-world accuracy check; retune from that.
+- `src/renderer/lib/keyAnalysis.ts` + `keyDetect.worker.ts` — decodes at
+  11 kHz mono in a throwaway OfflineAudioContext, runs in a Web Worker
+  (falls back in-thread if the worker can't load). Independent of audioEngine.
+- Rules: the operator's `Track.key` is never overwritten. Blank keys are
+  filled only at confidence ≥ 0.5 (`KEY_AUTOFILL_CONFIDENCE`); otherwise the
+  result sits in `Track.detectedKey`/`keyConfidence` and the Key cell shows
+  it as a suggestion (dashed "G?" or a ≠ marker, "Use detected" in the picker).
+- Detection pauses while a runway is in phase music/pad. No timing code touched.
+- The old Spotify / GetSongBPM lookups in main.ts are still there, unused by the UI.
+
 ### Planning Center — lead-time pull, decoupled from date (10.2.1)
 Reworked how/when the PCO key is applied. The pull now targets a SPECIFIC
 Runway service (by id) with the coming plan's key — the plan date and the

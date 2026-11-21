@@ -6,7 +6,13 @@ import { AlbumArtLightbox } from '../components/AlbumArtLightbox';
 import { Tooltip } from '../components/Tooltip';
 import { effectiveDuration, type Track, type KeyName } from '@shared/types';
 import { keyColor } from '@shared/music';
+import { keyRelation } from '@shared/keyDetect';
+import { analyzeTrackKey } from '../lib/keyAnalysis';
 import { formatDuration } from '../lib/format';
+
+// How sure the key detector must be (0..1) before it fills in a blank key
+// on its own. Below this the result is only offered as a suggestion.
+const KEY_AUTOFILL_CONFIDENCE = 0.5;
 
 /**
  * Compact date string for the Added column. Shows "today", "Xd ago"
@@ -168,6 +174,14 @@ export function LibraryView() {
   const [refreshing, setRefreshing] = useState(false);
   const [refreshProgress, setRefreshProgress] = useState({ done: 0, total: 0 });
   const [keyTesterOpen, setKeyTesterOpen] = useState(false);
+  // "Detect keys" — listens to each file and works out its key. Same
+  // progress/cancel UX as the metadata refresh.
+  const [detecting, setDetecting] = useState(false);
+  const [detectProgress, setDetectProgress] = useState({ done: 0, total: 0 });
+  const [detectSummary, setDetectSummary] = useState<string | null>(null);
+  const detectCancelRef = useRef<{ cancelled: boolean } | null>(null);
+  // True while detection is holding off because a runway is playing.
+  const [detectWaiting, setDetectWaiting] = useState(false);
   const refreshCancelRef = useRef<{ cancelled: boolean } | null>(null);
   // "Show file locations" toggle — expands each row to expose the
   // on-disk path plus a folder indicator showing whether the file
@@ -274,6 +288,95 @@ export function LibraryView() {
     } finally {
       setRefreshing(false);
       refreshCancelRef.current = null;
+    }
+  };
+
+  /**
+   * Detect the musical key of some tracks by analysing the audio.
+   *  - With a selection: analyses the selected tracks.
+   *  - With nothing selected: analyses every track that has no key yet.
+   *
+   * The operator's own key tag is the source of truth and is NEVER
+   * overwritten. A blank key is filled in when the detector is reasonably
+   * sure; otherwise (or when it disagrees with an existing tag) the result
+   * is only stored as a suggestion the Key cell surfaces.
+   *
+   * Analysis waits while pre-service music or the pad is playing so it
+   * can't compete with a live runway for CPU.
+   */
+  const runDetectKeys = async (): Promise<void> => {
+    const targets = selectedIds.size > 0
+      ? tracks.filter(t => selectedIds.has(t.id))
+      : tracks.filter(t => !t.key);
+    if (targets.length === 0) {
+      setDetectSummary('Every track already has a key. Check some tracks to double-check their keys.');
+      return;
+    }
+    const cancel = { cancelled: false };
+    detectCancelRef.current = cancel;
+    setDetecting(true);
+    setDetectSummary(null);
+    setDetectProgress({ done: 0, total: targets.length });
+    let filled = 0, unsure = 0, agreed = 0, differed = 0, failed = 0;
+    try {
+      let done = 0;
+      for (const t of targets) {
+        // Hold off while a runway is audibly playing.
+        while (!cancel.cancelled) {
+          const phase = useAppStore.getState().currentRunway?.phase;
+          if (phase !== 'music' && phase !== 'pad') break;
+          setDetectWaiting(true);
+          await new Promise(r => setTimeout(r, 2000));
+        }
+        setDetectWaiting(false);
+        if (cancel.cancelled) break;
+        try {
+          const result = await analyzeTrackKey(t.filePath);
+          if (cancel.cancelled) break;
+          if (!result) {
+            failed += 1;
+          } else {
+            // Re-read the track — the operator may have set a key by hand
+            // while this one was being analysed.
+            const current = useAppStore.getState().config.tracks.find(x => x.id === t.id);
+            if (current) {
+              const patch: Partial<Track> = {
+                detectedKey: result.key,
+                keyConfidence: result.confidence,
+              };
+              if (!current.key) {
+                if (result.confidence >= KEY_AUTOFILL_CONFIDENCE) {
+                  patch.key = result.key;
+                  filled += 1;
+                } else {
+                  unsure += 1;
+                }
+              } else if (current.key === result.key) {
+                agreed += 1;
+              } else {
+                differed += 1;
+              }
+              updateTrack(t.id, patch);
+            }
+          }
+        } catch (err) {
+          console.warn('[detect keys] failed', t.filePath, err);
+          failed += 1;
+        }
+        done += 1;
+        if (!cancel.cancelled) setDetectProgress({ done, total: targets.length });
+      }
+    } finally {
+      setDetecting(false);
+      setDetectWaiting(false);
+      detectCancelRef.current = null;
+      const parts: string[] = [];
+      if (filled) parts.push(`${filled} key${filled === 1 ? '' : 's'} filled in`);
+      if (unsure) parts.push(`${unsure} not sure enough to fill — see the suggestion in the Key column`);
+      if (agreed) parts.push(`${agreed} matched your tag`);
+      if (differed) parts.push(`${differed} differ from your tag (marked ≠, your tag kept)`);
+      if (failed) parts.push(`${failed} couldn't be analysed`);
+      setDetectSummary(parts.length ? `Detect keys: ${parts.join(' · ')}.` : null);
     }
   };
 
@@ -659,6 +762,33 @@ export function LibraryView() {
           )}
         </div>
         <button
+          className="library-refresh"
+          onClick={() => {
+            if (detecting) {
+              if (detectCancelRef.current) detectCancelRef.current.cancelled = true;
+              return;
+            }
+            void runDetectKeys();
+          }}
+          title={
+            detecting
+              ? detectWaiting
+                ? 'Key detection is paused while music or the pad is playing, and picks up again by itself afterwards. Click to cancel.'
+                : 'Stop detecting keys'
+              : selectedIds.size > 0
+                ? `Listen to the ${selectedIds.size} selected track${selectedIds.size === 1 ? '' : 's'} and work out the key. Keys you set yourself are never changed.`
+                : 'Listen to every track that has no key and work it out. Keys you set yourself are never changed.'
+          }
+        >
+          {detecting
+            ? detectWaiting
+              ? `Paused while music plays · ${detectProgress.done}/${detectProgress.total}`
+              : `Cancel · ${detectProgress.done}/${detectProgress.total}`
+            : selectedIds.size > 0
+              ? `♪ Detect key for ${selectedIds.size}`
+              : '♪ Detect keys'}
+        </button>
+        <button
           className={`library-refresh ${keyTesterOpen ? 'active' : ''}`}
           onClick={() => setKeyTesterOpen(o => !o)}
           title={keyTesterOpen ? 'Close the pad player' : 'Open the pad player — fire any mapped pad to audition against tracks in the library.'}
@@ -744,6 +874,13 @@ export function LibraryView() {
           </button>
         )}
       </header>
+
+      {detectSummary && (
+        <div className="library-detect-summary">
+          <span>{detectSummary}</span>
+          <button className="library-bulkbar-link" onClick={() => setDetectSummary(null)}>Dismiss</button>
+        </div>
+      )}
 
       {selectedIds.size > 0 && (
         <div className="library-bulkbar">
@@ -1235,24 +1372,56 @@ function KeyCell({ track, onChange }: { track: Track; onChange: (key?: KeyName) 
   }, [open]);
 
   const c = track.key ? keyColor(track.key as KeyName) : null;
+  // A detected key that isn't what's tagged (or nothing is tagged) is
+  // offered as a suggestion — never applied on its own.
+  const suggestion = track.detectedKey && track.detectedKey !== track.key ? track.detectedKey : undefined;
+  const pct = Math.round((track.keyConfidence ?? 0) * 100);
+  const relation = suggestion && track.key ? keyRelation(track.key, suggestion) : null;
+  const relationNote =
+    relation === 'relative' ? ' — the relative major/minor of your tag (same notes)'
+    : relation === 'fifth' ? ' — a neighbouring key to your tag (one note different)'
+    : relation === 'parallel' ? ' — same root as your tag, major vs minor'
+    : '';
+  const sc = suggestion ? keyColor(suggestion) : null;
   return (
     <div className="library-key-edit-wrap" ref={wrapRef}>
       <button
         className="library-key-edit-trigger"
         onClick={() => setOpen(o => !o)}
-        title={track.key ? `Click to change · ${track.key}` : 'Click to set key'}
+        title={
+          suggestion
+            ? track.key
+              ? `Tagged ${track.key} · detected ${suggestion} (${pct}% sure)${relationNote}. Click to review.`
+              : `Detected ${suggestion} (${pct}% sure) — not sure enough to fill in. Click to review.`
+            : track.key
+              ? track.detectedKey === track.key
+                ? `Click to change · ${track.key} · confirmed by detection`
+                : `Click to change · ${track.key}`
+              : 'Click to set key'
+        }
       >
         {track.key ? (
           <span
             className="library-key-tag"
             style={c ? { background: c.bg, color: c.fg, borderColor: c.fg } : undefined}
           >{track.key}</span>
+        ) : suggestion ? (
+          <span className="library-key-suggested">{suggestion}?</span>
         ) : (
           <span className="library-key-empty">—</span>
         )}
+        {suggestion && track.key && <span className="library-key-differs">≠</span>}
       </button>
       {open && (
         <div className="library-key-dropdown" onClick={e => e.stopPropagation()}>
+          {suggestion && sc && (
+            <button
+              className="library-key-option library-key-option-suggest"
+              style={{ color: sc.fg, borderColor: sc.fg, background: sc.bg }}
+              onClick={() => { onChange(suggestion); setOpen(false); }}
+              title={`Use the detected key${relationNote}`}
+            >Use detected: {suggestion} · {pct}%</button>
+          )}
           <button
             className="library-key-option library-key-option-clear"
             onClick={() => { onChange(undefined); setOpen(false); }}

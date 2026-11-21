@@ -30,7 +30,11 @@ export interface Track {
   key?: KeyName;
   bpm?: number;
   addedAt: string;          // ISO timestamp
-  // Auto-detection metadata; set if auto-tagged
+  // Key detected from the audio itself (Library → "Detect keys"). Kept
+  // separate from `key` so the operator's own tag is never overwritten —
+  // `key` is only auto-filled when it was blank. `keyConfidence` is 0..1
+  // for `detectedKey`.
+  detectedKey?: KeyName;
   keyConfidence?: number;
   // Non-destructive edits — applied at playback time. The source file is
   // never modified.
