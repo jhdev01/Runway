@@ -47,6 +47,7 @@ const IPC = {
   TIMING_LOG_APPEND: 'timing:logAppend',
   TIMING_LOG_REVEAL: 'timing:logReveal',
   PCO_REQUEST: 'pco:request',
+  SPOTIFY_TIMING_TEST: 'spotify:timingTest',
 } as const;
 
 contextBridge.exposeInMainWorld('runway', {
@@ -149,5 +150,7 @@ contextBridge.exposeInMainWorld('runway', {
     appendTimingLog: (line: string) => ipcRenderer.send(IPC.TIMING_LOG_APPEND, line),
     // Open timing.log in the OS file browser for after-service review.
     revealTimingLog: () => ipcRenderer.invoke(IPC.TIMING_LOG_REVEAL),
+    // Experimental Spotify landing-precision test (macOS only).
+    spotifyTimingTest: (track?: string) => ipcRenderer.invoke(IPC.SPOTIFY_TIMING_TEST, track),
   },
 });

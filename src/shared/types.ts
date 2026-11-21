@@ -954,6 +954,9 @@ export const IPC = {
   TIMING_LOG_REVEAL: 'timing:logReveal',
   // Planning Center forwarded HTTPS GET (proxied through main for auth/CORS).
   PCO_REQUEST: 'pco:request',
+  // Experimental: measure how precisely the Spotify desktop app can be
+  // made to land a song on a planned moment (macOS, AppleScript).
+  SPOTIFY_TIMING_TEST: 'spotify:timingTest',
 } as const;
 
 /**

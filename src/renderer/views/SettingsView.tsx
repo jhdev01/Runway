@@ -1885,8 +1885,77 @@ function EngineSettings() {
         </div>
       </section>
 
+      <SpotifyTimingTestSection />
+
       <BackupSection />
     </>
+  );
+}
+
+// Experimental: measures how precisely Runway can land a Spotify song on
+// a planned moment. Standalone — doesn't touch services or Runway audio.
+function SpotifyTimingTestSection() {
+  type Result = Awaited<ReturnType<typeof window.runway.diagnostics.spotifyTimingTest>>;
+  const [link, setLink] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<Result | null>(null);
+  const run = async () => {
+    setBusy(true);
+    setResult(null);
+    try {
+      setResult(await window.runway.diagnostics.spotifyTimingTest(link.trim() || undefined));
+    } catch (e) {
+      setResult({ ok: false, reason: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setBusy(false);
+    }
+  };
+  const fmt = (ms: number) => {
+    const s = (Math.abs(ms) / 1000).toFixed(2);
+    return ms === 0 ? 'on time' : `${s}s ${ms > 0 ? 'late' : 'early'}`;
+  };
+  const worst = result?.runs?.length
+    ? Math.max(...result.runs.map(r => Math.abs(r.correctedErrorMs) + r.jitterMs / 2))
+    : null;
+  return (
+    <section className="settings-section">
+      <div className="settings-section-title">Spotify timing test (experimental)</div>
+      <div className="settings-section-sub">
+        Checks how precisely Runway can make a Spotify song end at a planned moment. Open the Spotify
+        app, then run the test: it plays the last 20 seconds of a song three times (about a minute)
+        and reports how close each landing was. Don’t run this during a service — it takes over Spotify.
+      </div>
+      <div className="pp-actions">
+        <input
+          type="text"
+          value={link}
+          onChange={e => setLink(e.target.value)}
+          placeholder="Spotify song link (optional — uses the current song if empty)"
+          style={{ flex: 1, minWidth: 260 }}
+          disabled={busy}
+        />
+        <button className="btn-secondary" onClick={run} disabled={busy}>
+          {busy ? 'Testing… (about a minute)' : 'Run timing test'}
+        </button>
+      </div>
+      {result && !result.ok && <div className="pp-status err">{result.reason}</div>}
+      {result?.ok && result.runs && (
+        <div className="settings-section-sub" style={{ marginTop: 12 }}>
+          <div><strong>{result.track}</strong></div>
+          {result.runs.map((r, i) => (
+            <div key={i}>
+              Run {i + 1}: started {fmt(r.rawErrorMs)} → after correction {fmt(r.correctedErrorMs)}
+              {' '}(wobble ±{(r.jitterMs / 2000).toFixed(2)}s, command {r.commandMs} ms)
+            </div>
+          ))}
+          {worst !== null && (
+            <div style={{ marginTop: 6 }}>
+              <strong>Worst case: about {(worst / 1000).toFixed(2)}s off the planned landing.</strong>
+            </div>
+          )}
+        </div>
+      )}
+    </section>
   );
 }
 
