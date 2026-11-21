@@ -2,8 +2,9 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useAppStore, generateId } from '../state/store';
 import { useEngines } from '../state/engines';
 import { ALL_KEYS, MAJOR_KEYS, MINOR_KEYS, keyColor, displayKey } from '@shared/music';
-import type { RelinkReport, LibraryBundlePreview, LibraryImportMode, AudioBusConfig, MidiAction, MidiBinding, KeyName, PadFile, ProPresenterSyncConfig, MidiDevicePref } from '@shared/types';
+import type { RelinkReport, LibraryBundlePreview, LibraryImportMode, AudioBusConfig, MidiAction, MidiBinding, KeyName, PadFile, ProPresenterSyncConfig, MidiDevicePref, SpotifyStatus, SpotifyPlaylistResult } from '@shared/types';
 import { DEFAULT_CONFIG } from '@shared/types';
+import { formatDuration } from '../lib/format';
 import type { MidiDeviceSnapshot } from '../lib/midiEngine';
 import type { PpTimer } from '../lib/proPresenterClient';
 import { PpItemPicker } from '../components/PpItemPicker';
@@ -1885,10 +1886,119 @@ function EngineSettings() {
         </div>
       </section>
 
+      <SpotifyAccountSection />
+
       <SpotifyTimingTestSection />
 
       <BackupSection />
     </>
+  );
+}
+
+// Experimental: sign in to Spotify and read a playlist's song list.
+// Read-only — nothing here plays audio or touches services.
+function SpotifyAccountSection() {
+  const config = useAppStore(s => s.config);
+  const updateConfig = useAppStore(s => s.updateConfig);
+  const clientId = config.spotify?.clientId ?? '';
+  const [status, setStatus] = useState<SpotifyStatus>({ connected: false });
+  const [busy, setBusy] = useState<null | 'connect' | 'read'>(null);
+  const [link, setLink] = useState('');
+  const [playlist, setPlaylist] = useState<SpotifyPlaylistResult | null>(null);
+  useEffect(() => { void window.runway.spotify.status().then(setStatus); }, []);
+
+  const connect = async () => {
+    setBusy('connect');
+    try { setStatus(await window.runway.spotify.connect(clientId)); }
+    finally { setBusy(null); }
+  };
+  const disconnect = async () => {
+    setStatus(await window.runway.spotify.disconnect());
+    setPlaylist(null);
+  };
+  const read = async () => {
+    setBusy('read');
+    setPlaylist(null);
+    try { setPlaylist(await window.runway.spotify.readPlaylist(link)); }
+    finally { setBusy(null); }
+  };
+  const totalSec = (playlist?.tracks ?? []).reduce((s, t) => s + t.durationMs, 0) / 1000;
+
+  return (
+    <section className="settings-section">
+      <div className="settings-section-title">Spotify playlists (experimental)</div>
+      <div className="settings-section-sub">
+        Sign in so Runway can read the songs in your Spotify playlists. Spotify only lets Runway read
+        playlists you created or collaborate on. This only reads the song list — it doesn’t play anything yet.
+      </div>
+      {!status.connected && (
+        <div className="settings-section-sub">
+          One-time setup: at developer.spotify.com/dashboard create an app, add the Redirect URI{' '}
+          <code>http://127.0.0.1:7813/callback</code>, tick “Web API”, then paste the app’s Client ID here.
+        </div>
+      )}
+      <div className="pp-actions">
+        {!status.connected ? (
+          <>
+            <input
+              type="text"
+              value={clientId}
+              onChange={e => updateConfig({ spotify: { ...config.spotify, clientId: e.target.value.trim() } })}
+              placeholder="Spotify Client ID"
+              style={{ flex: 1, minWidth: 260 }}
+              disabled={busy !== null}
+            />
+            <button className="btn-secondary" onClick={connect} disabled={busy !== null || !clientId}>
+              {busy === 'connect' ? 'Waiting for sign-in…' : 'Connect Spotify'}
+            </button>
+          </>
+        ) : (
+          <>
+            <span className="pp-status ok">
+              Connected{status.displayName ? ` as ${status.displayName}` : ''}
+            </span>
+            <button className="btn-secondary" onClick={disconnect} disabled={busy !== null}>Disconnect</button>
+          </>
+        )}
+      </div>
+      {!status.connected && status.reason && <div className="pp-status err">{status.reason}</div>}
+
+      {status.connected && (
+        <div className="pp-actions" style={{ marginTop: 10 }}>
+          <input
+            type="text"
+            value={link}
+            onChange={e => setLink(e.target.value)}
+            placeholder="Paste a Spotify playlist link"
+            style={{ flex: 1, minWidth: 260 }}
+            disabled={busy !== null}
+          />
+          <button className="btn-secondary" onClick={read} disabled={busy !== null || !link.trim()}>
+            {busy === 'read' ? 'Reading…' : 'Read playlist'}
+          </button>
+        </div>
+      )}
+      {playlist && !playlist.ok && <div className="pp-status err">{playlist.reason}</div>}
+      {playlist?.ok && playlist.tracks && (
+        <div className="settings-section-sub" style={{ marginTop: 12 }}>
+          <div>
+            <strong>{playlist.name}</strong> — {playlist.tracks.length} songs, {formatDuration(totalSec)} total
+            {playlist.skipped ? ` (${playlist.skipped} skipped: podcasts or local files)` : ''}
+          </div>
+          <div style={{ maxHeight: 260, overflowY: 'auto', marginTop: 6 }}>
+            {playlist.tracks.map((t, i) => (
+              <div key={`${t.uri}-${i}`} style={{ display: 'flex', gap: 8 }}>
+                <span style={{ width: 24, textAlign: 'right', opacity: 0.6 }}>{i + 1}</span>
+                <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {t.title}{t.artist ? ` — ${t.artist}` : ''}
+                </span>
+                <span>{formatDuration(t.durationMs / 1000)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </section>
   );
 }
 

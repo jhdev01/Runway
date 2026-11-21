@@ -1,4 +1,4 @@
-import type { LibraryBundlePreview, LibraryImportMode, LibraryImportReport, AppConfig, Track, KeyName, PpRequest, PpResponse, PcoRequest, PcoResponse, RelinkReport, RemoteNetworkInterface } from '@shared/types';
+import type { LibraryBundlePreview, LibraryImportMode, LibraryImportReport, AppConfig, Track, KeyName, PpRequest, PpResponse, PcoRequest, PcoResponse, RelinkReport, RemoteNetworkInterface, SpotifyStatus, SpotifyPlaylistResult } from '@shared/types';
 
 export {};
 
@@ -78,6 +78,12 @@ declare global {
       tray: {
         update: (snapshot: import('@shared/types').TraySnapshot) => void;
         onShowWindow: (callback: () => void) => () => void;
+      };
+      spotify: {
+        connect: (clientId: string) => Promise<SpotifyStatus>;
+        status: () => Promise<SpotifyStatus>;
+        disconnect: () => Promise<SpotifyStatus>;
+        readPlaylist: (link: string) => Promise<SpotifyPlaylistResult>;
       };
       diagnostics: {
         appendTimingLog: (line: string) => void;

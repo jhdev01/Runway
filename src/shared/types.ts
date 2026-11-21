@@ -957,7 +957,36 @@ export const IPC = {
   // Experimental: measure how precisely the Spotify desktop app can be
   // made to land a song on a planned moment (macOS, AppleScript).
   SPOTIFY_TIMING_TEST: 'spotify:timingTest',
+  // Experimental: Spotify account link (PKCE sign-in) + playlist reader.
+  SPOTIFY_CONNECT: 'spotify:connect',
+  SPOTIFY_STATUS: 'spotify:status',
+  SPOTIFY_DISCONNECT: 'spotify:disconnect',
+  SPOTIFY_PLAYLIST_READ: 'spotify:playlistRead',
 } as const;
+
+// ── Spotify (experimental) ────────────────────────────────────────────
+export interface SpotifyStatus {
+  connected: boolean;
+  displayName?: string;
+  reason?: string;
+}
+export interface SpotifyPlaylistTrack {
+  uri: string;             // spotify:track:…
+  title: string;
+  artist: string;
+  durationMs: number;
+  albumArtUrl?: string;
+}
+export interface SpotifyPlaylistResult {
+  ok: boolean;
+  reason?: string;
+  playlistId?: string;
+  name?: string;
+  tracks?: SpotifyPlaylistTrack[];
+  // Entries Runway can't play by link (podcast episodes, local files).
+  skipped?: number;
+}
+
 
 /**
  * Compact snapshot the renderer pushes to main on each store change.
