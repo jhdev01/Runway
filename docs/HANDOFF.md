@@ -21,10 +21,17 @@ Library → "♪ Detect keys" analyses the audio itself (offline, no lookup
 service) and works out each song's key.
 - `src/shared/keyDetect.ts` — pure-TS detector (STFT peaks → tuned chroma →
   overtone correction → 24-key profile scoring + bass + intro/outro).
-  `DEFAULT_KEY_SCORE_PARAMS` were swept against 48 real recordings with known
-  keys (46/48 exact) + 360 synthetic pop progressions. NOT yet validated on
-  real worship band recordings — the Library summary ("N matched your tag /
-  N differ") is the operator's real-world accuracy check; retune from that.
+  `DEFAULT_KEY_SCORE_PARAMS` were swept against 486 real pop/rock/country
+  band clips (GTZAN + Lerch key annotations: 77% exact, 90% exact-or-
+  compatible, right key in top two 89%; at confidence ≥ 0.5, 92% exact),
+  48 piano pieces (46/48) and synthetic pop progressions. Tried and rejected
+  under cross-validation (≤ 1 point gain, worse on piano): learned profiles,
+  chord histograms, a small MLP, a bass profile, a major-key lean, and every
+  front-end variation (window, band, compression, peak count). Don't re-run
+  those; the next real gain needs worship recordings with known keys (the
+  Library "N matched / N differ" summary is that test) or a trained model.
+- Runner-up guesses are stored in `Track.detectedKeyAlts` and offered in the
+  key picker as "or maybe …".
 - `src/renderer/lib/keyAnalysis.ts` + `keyDetect.worker.ts` — decodes at
   11 kHz mono in a throwaway OfflineAudioContext, runs in a Web Worker
   (falls back in-thread if the worker can't load). Independent of audioEngine.

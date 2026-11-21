@@ -148,13 +148,31 @@ class FFT {
 const FINE = 120;              // fine pitch-class bins per octave (10 cents each)
 const PER_SEMI = FINE / 12;
 const BASS_LO = 55, BASS_HI = 262;      // A1 .. C4 — bass fundamentals + first overtones
-const HARM_LO = 110, HARM_HI = 2000;    // A2 .. ~B6 — chords and melody
-const MAX_PEAKS = 40;
+
+/** Front-end (listening) settings. Exposed so tests can sweep them. */
+export interface KeyFrontEndParams {
+  windowSec: number;   // analysis window length
+  harmLo: number;      // harmony band, Hz
+  harmHi: number;
+  rollHz: number;      // above this, partials are progressively discounted
+  compress: number;    // magnitude exponent (0.5 = square root)
+  maxPeaks: number;    // partials kept per frame
+  peakFloor: number;   // partials quieter than this × the frame's loudest are ignored
+}
+export const DEFAULT_KEY_FRONT_END: KeyFrontEndParams = {
+  windowSec: 0.75,
+  harmLo: 110,
+  harmHi: 2000,
+  rollHz: 1000,
+  compress: 0.5,
+  maxPeaks: 40,
+  peakFloor: 0.01,
+};
 const EDGE_SEC = 10;           // how much of the start/end counts as "intro"/"outro"
 
 /** Pick the window so it's ~0.75 s regardless of sample rate (power of two). */
-function windowSizeFor(sampleRate: number): number {
-  const target = sampleRate * 0.75;
+function windowSizeFor(sampleRate: number, windowSec: number): number {
+  const target = sampleRate * windowSec;
   let n = 1024;
   while (n * 2 <= target * 1.2) n *= 2;
   return n;
@@ -181,6 +199,8 @@ export interface KeyFeatures {
   introBass: Float64Array;  // normalised bass chroma, first few seconds
   outroBass: Float64Array;  // normalised bass chroma, last few seconds
   tuningCents: number;
+  /** Per-frame tuned chroma (frame-major, 12 values per frame). */
+  frames: { harm: Float32Array; bass: Float32Array; weight: Float32Array; hopSec: number };
 }
 
 /** Scoring weights. Exposed so tests can sweep them; the app uses defaults. */
@@ -195,22 +215,40 @@ export interface KeyScoreParams {
   majorLean: number;
 }
 
-// Chosen by sweeping against 48 real recordings with known keys (Bach's
-// Well-Tempered Clavier, one piece per key) plus 360 synthesised pop/worship
-// chord progressions in every key with detuning and noise. The overtone
-// correction alone moved the real recordings from 36/48 to 46/48 — nearly
-// all the earlier misses were "a fifth too high".
+// Chosen by sweeping against real recordings with known keys:
+//   - 486 pop / rock / country / reggae / disco band clips (GTZAN + Lerch's
+//     key annotations) — the closest public stand-in for worship recordings
+//   - 48 solo-piano pieces, one per key (Bach's Well-Tempered Clavier)
+//   - 324 synthesised pop/worship progressions with detuning and noise
+// Findings worth keeping:
+//   - The overtone correction is the big win (piano 36 → 46 of 48; nearly
+//     all the earlier misses were "a fifth too high").
+//   - A hand-made bass profile HURT on band recordings (73% → 77% exact
+//     without it), so wBass is 0. Bass still feeds the intro/outro cue.
+//   - A lean toward major didn't help either.
+//   - Learned profiles, chord histograms and a small neural scorer were all
+//     tried under cross-validation and landed within ~1 point of this, while
+//     generalising worse to the piano set — so they aren't used.
+// On the band clips this scores 77% exact, 90% exact-or-compatible, and the
+// right key is in the top two 89% of the time. At confidence >= 0.5 it is
+// 92% exact / 98% exact-or-compatible.
 export const DEFAULT_KEY_SCORE_PARAMS: KeyScoreParams = {
   subFifth: 0.5,
   subThird: 0.2,
-  wBass: 0.3,
+  wBass: 0,
   wEdge: 0.25,
   introShare: 0.4,
-  majorLean: 0.02,
+  majorLean: 0,
 };
 
-export function extractKeyFeatures(samples: Float32Array, sampleRate: number): KeyFeatures | null {
-  const N = windowSizeFor(sampleRate);
+export function extractKeyFeatures(
+  samples: Float32Array,
+  sampleRate: number,
+  frontEnd: Partial<KeyFrontEndParams> = {},
+): KeyFeatures | null {
+  const fe = { ...DEFAULT_KEY_FRONT_END, ...frontEnd };
+  const HARM_LO = fe.harmLo, HARM_HI = fe.harmHi, MAX_PEAKS = fe.maxPeaks;
+  const N = windowSizeFor(sampleRate, fe.windowSec);
   const hop = N >> 2;
   if (samples.length < N * 2) return null;
 
@@ -256,7 +294,7 @@ export function extractKeyFeatures(samples: Float32Array, sampleRate: number): K
     if (frameMax <= 0) continue;
 
     // Local maxima within 40 dB of the frame's loudest partial.
-    const floor = frameMax * 0.01;
+    const floor = frameMax * fe.peakFloor;
     peakBins.length = 0;
     for (let b = loBin; b <= hiBin; b++) {
       const m = mag[b];
@@ -284,12 +322,12 @@ export function extractKeyFeatures(samples: Float32Array, sampleRate: number): K
       if (fine < 0) fine += FINE;
 
       // Square-root compression so one loud instrument doesn't drown the rest.
-      const w = Math.sqrt(mag[b]);
+      const w = Math.pow(mag[b], fe.compress);
       if (freq <= BASS_HI) bassFrames[base + fine] += w;
       if (freq >= HARM_LO) {
         // Roll off above 1 kHz — up there it's mostly overtones, which
         // carry the fifth/third of the note rather than the note itself.
-        const roll = freq <= 1000 ? 1 : 1000 / freq;
+        const roll = freq <= fe.rollHz ? 1 : fe.rollHz / freq;
         harmFrames[base + fine] += w * roll;
       }
     }
@@ -340,18 +378,30 @@ export function extractKeyFeatures(samples: Float32Array, sampleRate: number): K
   const tuningCents = tuneBins * (100 / PER_SEMI);
 
   /** Fold a fine histogram to 12 pitch classes around the tuned centres. */
-  const fold = (fineHist: Float64Array): Float64Array => {
+  const fold = (fineHist: ArrayLike<number>, offset = 0): Float64Array => {
     const out = new Float64Array(12);
     for (let i = 0; i < FINE; i++) {
-      if (fineHist[i] === 0) continue;
+      const v = fineHist[offset + i];
+      if (v === 0) continue;
       const pos = (i - tuneBins) / PER_SEMI;       // in semitones, tuned
       const pc = Math.round(pos);
       const dev = pos - pc;                         // -0.5..0.5
       const w = Math.cos(Math.PI * dev) ** 2;       // 1 on-centre → 0 between notes
-      out[((pc % 12) + 12) % 12] += fineHist[i] * w;
+      out[((pc % 12) + 12) % 12] += v * w;
     }
     return out;
   };
+
+  // Per-frame 12-bin chroma (tuned), for chord-level analysis.
+  const frameHarm = new Float32Array(active.length * 12);
+  const frameBass = new Float32Array(active.length * 12);
+  const frameWeights = new Float32Array(active.length);
+  for (let idx = 0; idx < active.length; idx++) {
+    const f = active[idx];
+    frameHarm.set(fold(harmFrames, f * FINE), idx * 12);
+    frameBass.set(fold(bassFrames, f * FINE), idx * 12);
+    frameWeights[idx] = frameWeight(f);
+  }
 
   const harm = fold(harmFine);
   const bass = fold(bassFine);
@@ -368,7 +418,10 @@ export function extractKeyFeatures(samples: Float32Array, sampleRate: number): K
   };
   const introBass = normalise(fold(sumFine(bassFrames, 0, edgeFrames)));
   const outroBass = normalise(fold(sumFine(bassFrames, active.length - edgeFrames, active.length)));
-  return { harm, bass, introBass, outroBass, tuningCents };
+  return {
+    harm, bass, introBass, outroBass, tuningCents,
+    frames: { harm: frameHarm, bass: frameBass, weight: frameWeights, hopSec: frameSec },
+  };
 }
 
 /**

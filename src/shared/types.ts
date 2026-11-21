@@ -36,6 +36,10 @@ export interface Track {
   // for `detectedKey`.
   detectedKey?: KeyName;
   keyConfidence?: number;
+  // The detector's next-best guesses, best first. The right key is in the
+  // top two far more often than it is the top pick, so the Key cell offers
+  // these as one-click alternatives.
+  detectedKeyAlts?: KeyName[];
   // Non-destructive edits — applied at playback time. The source file is
   // never modified.
   trimStartSec?: number;    // play starts at this offset in the buffer

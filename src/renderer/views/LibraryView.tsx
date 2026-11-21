@@ -343,6 +343,7 @@ export function LibraryView() {
               const patch: Partial<Track> = {
                 detectedKey: result.key,
                 keyConfidence: result.confidence,
+                detectedKeyAlts: result.candidates.slice(1, 3).map(c => c.key),
               };
               if (!current.key) {
                 if (result.confidence >= KEY_AUTOFILL_CONFIDENCE) {
@@ -1383,6 +1384,10 @@ function KeyCell({ track, onChange }: { track: Track; onChange: (key?: KeyName) 
     : relation === 'parallel' ? ' — same root as your tag, major vs minor'
     : '';
   const sc = suggestion ? keyColor(suggestion) : null;
+  // Runner-up guesses — worth showing whenever the tag isn't confirmed.
+  const alts = track.detectedKey && track.detectedKey !== track.key
+    ? (track.detectedKeyAlts ?? []).filter(k => k !== track.key)
+    : [];
   return (
     <div className="library-key-edit-wrap" ref={wrapRef}>
       <button
@@ -1421,6 +1426,25 @@ function KeyCell({ track, onChange }: { track: Track; onChange: (key?: KeyName) 
               onClick={() => { onChange(suggestion); setOpen(false); }}
               title={`Use the detected key${relationNote}`}
             >Use detected: {suggestion} · {pct}%</button>
+          )}
+          {alts.length > 0 && (
+            <div className="library-key-alts">
+              <span className="library-key-alts-label">
+                {suggestion ? 'or maybe' : 'detection also considered'}
+              </span>
+              {alts.map(k => {
+                const ac = keyColor(k);
+                return (
+                  <button
+                    key={k}
+                    className="library-key-option"
+                    style={{ color: ac.fg, borderColor: ac.fg, background: ac.bg }}
+                    onClick={() => { onChange(k); setOpen(false); }}
+                    title="The detector's next-best guess. Use the pad player to check by ear."
+                  >{k}</button>
+                );
+              })}
+            </div>
           )}
           <button
             className="library-key-option library-key-option-clear"
