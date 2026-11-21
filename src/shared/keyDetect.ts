@@ -34,6 +34,8 @@ export interface KeyDetectResult {
   candidates: KeyCandidate[];
   /** Estimated tuning offset from A=440, in cents (-50..+50). */
   tuningCents: number;
+  /** The note profiles the decision was made from (12 values each, C first). */
+  chroma: { harm: number[]; bass: number[]; introBass: number[]; outroBass: number[] };
 }
 
 // Canonical KeyName per pitch class (0 = C), matching shared/types.ts.
@@ -488,6 +490,12 @@ export function scoreKeyFeatures(
     confidence,
     candidates: scored.slice(0, 4),
     tuningCents,
+    chroma: {
+      harm: Array.from(features.harm),
+      bass: Array.from(features.bass),
+      introBass: Array.from(introBass),
+      outroBass: Array.from(outroBass),
+    },
   };
 }
 

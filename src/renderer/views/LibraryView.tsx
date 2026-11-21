@@ -8,6 +8,8 @@ import { effectiveDuration, type Track, type KeyName } from '@shared/types';
 import { keyColor } from '@shared/music';
 import { keyRelation } from '@shared/keyDetect';
 import { analyzeTrackKey } from '../lib/keyAnalysis';
+import { buildKeyTestReport, summariseKeyTest, type KeyTestRow } from '@shared/keyTestReport';
+import { todayISO } from '../lib/format';
 import { formatDuration } from '../lib/format';
 
 // How sure the key detector must be (0..1) before it fills in a blank key
@@ -180,6 +182,10 @@ export function LibraryView() {
   const [detectProgress, setDetectProgress] = useState({ done: 0, total: 0 });
   const [detectSummary, setDetectSummary] = useState<string | null>(null);
   const detectCancelRef = useRef<{ cancelled: boolean } | null>(null);
+  // Developer mode → "Key test": score detection against existing tags.
+  const developerMode = useAppStore(s => s.config.ui?.developerMode ?? false);
+  const [keyTestRows, setKeyTestRows] = useState<KeyTestRow[] | null>(null);
+  const [keyTestRunning, setKeyTestRunning] = useState(false);
   // True while detection is holding off because a runway is playing.
   const [detectWaiting, setDetectWaiting] = useState(false);
   const refreshCancelRef = useRef<{ cancelled: boolean } | null>(null);
@@ -378,6 +384,63 @@ export function LibraryView() {
       if (differed) parts.push(`${differed} differ from your tag (marked ≠, your tag kept)`);
       if (failed) parts.push(`${failed} couldn't be analysed`);
       setDetectSummary(parts.length ? `Detect keys: ${parts.join(' · ')}.` : null);
+    }
+  };
+
+  /** Resolves once no runway is audibly playing (or the job is cancelled). */
+  const waitForQuietRunway = async (cancel: { cancelled: boolean }): Promise<void> => {
+    while (!cancel.cancelled) {
+      const phase = useAppStore.getState().currentRunway?.phase;
+      if (phase !== 'music' && phase !== 'pad') break;
+      setDetectWaiting(true);
+      await new Promise(r => setTimeout(r, 2000));
+    }
+    setDetectWaiting(false);
+  };
+
+  /**
+   * Developer mode: run detection on tracks that already have a key and
+   * compare. Read-only — never writes to any track. Uses the selection when
+   * there is one, otherwise every tagged track.
+   */
+  const runKeyTest = async (): Promise<void> => {
+    const pool = selectedIds.size > 0 ? tracks.filter(t => selectedIds.has(t.id)) : tracks;
+    const targets = pool.filter(t => t.key);
+    if (targets.length === 0) {
+      setDetectSummary('Key test needs songs that already have a key set.');
+      return;
+    }
+    const cancel = { cancelled: false };
+    detectCancelRef.current = cancel;
+    setKeyTestRunning(true);
+    setDetectSummary(null);
+    setDetectProgress({ done: 0, total: targets.length });
+    const rows: KeyTestRow[] = [];
+    try {
+      for (const t of targets) {
+        await waitForQuietRunway(cancel);
+        if (cancel.cancelled) break;
+        const row: KeyTestRow = {
+          title: t.title,
+          artist: t.artist,
+          durationSec: t.durationSec,
+          tagged: t.key as KeyName,
+          result: null,
+        };
+        try {
+          row.result = await analyzeTrackKey(t.filePath);
+        } catch (err) {
+          row.error = err instanceof Error ? err.message : String(err);
+        }
+        rows.push(row);
+        setDetectProgress({ done: rows.length, total: targets.length });
+      }
+    } finally {
+      setKeyTestRunning(false);
+      setDetectWaiting(false);
+      detectCancelRef.current = null;
+      // Show whatever finished, even after a cancel.
+      if (rows.length > 0) setKeyTestRows(rows);
     }
   };
 
@@ -764,6 +827,7 @@ export function LibraryView() {
         </div>
         <button
           className="library-refresh"
+          disabled={keyTestRunning}
           onClick={() => {
             if (detecting) {
               if (detectCancelRef.current) detectCancelRef.current.cancelled = true;
@@ -789,6 +853,32 @@ export function LibraryView() {
               ? `♪ Detect key for ${selectedIds.size}`
               : '♪ Detect keys'}
         </button>
+        {developerMode && (
+          <button
+            className="library-refresh library-dev-button"
+            disabled={detecting}
+            onClick={() => {
+              if (keyTestRunning) {
+                if (detectCancelRef.current) detectCancelRef.current.cancelled = true;
+                return;
+              }
+              void runKeyTest();
+            }}
+            title={
+              keyTestRunning
+                ? 'Stop the test and show the results so far'
+                : 'Developer tool: run key detection on songs that already have a key and compare. Does not change any tags.'
+            }
+          >
+            {keyTestRunning
+              ? detectWaiting
+                ? `Paused while music plays · ${detectProgress.done}/${detectProgress.total}`
+                : `Stop test · ${detectProgress.done}/${detectProgress.total}`
+              : selectedIds.size > 0
+                ? `🧪 Key test (${selectedIds.size})`
+                : '🧪 Key test'}
+          </button>
+        )}
         <button
           className={`library-refresh ${keyTesterOpen ? 'active' : ''}`}
           onClick={() => setKeyTesterOpen(o => !o)}
@@ -1183,6 +1273,7 @@ export function LibraryView() {
         );
       })()}
       {keyTesterOpen && <KeyTesterPiano onClose={() => setKeyTesterOpen(false)} />}
+      {keyTestRows && <KeyTestModal rows={keyTestRows} onClose={() => setKeyTestRows(null)} />}
       {lightboxOpen && previewingId && (() => {
         const pt = tracks.find(x => x.id === previewingId);
         if (!pt?.albumArtUrl) return null;
@@ -1760,6 +1851,68 @@ function ArtworkPicker({ track, onPick, onClear, onClose }: {
           Remove artwork
         </button>
       )}
+    </div>
+  );
+}
+
+
+/**
+ * Developer-mode results for the Library "Key test": headline numbers plus
+ * a plain-text report to copy and paste.
+ */
+function KeyTestModal({ rows, onClose }: { rows: KeyTestRow[]; onClose: () => void }) {
+  const [includeData, setIncludeData] = useState(true);
+  const [copied, setCopied] = useState(false);
+  const summary = useMemo(() => summariseKeyTest(rows), [rows]);
+  const report = useMemo(
+    () => buildKeyTestReport(rows, { appVersion: __APP_VERSION__, date: todayISO(), includeData }),
+    [rows, includeData],
+  );
+  const textRef = useRef<HTMLTextAreaElement | null>(null);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(report);
+    } catch {
+      // Clipboard API refused — fall back to select + copy.
+      textRef.current?.select();
+      document.execCommand('copy');
+    }
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 2500);
+  };
+
+  const n = summary.analysed;
+  const pct = (x: number) => (n > 0 ? `${Math.round((100 * x) / n)}%` : '—');
+  return (
+    <div className="key-modal-backdrop" onClick={onClose}>
+      <div className="library-keytest-modal" onClick={e => e.stopPropagation()}>
+        <div className="key-modal-title">Key test results</div>
+        <div className="library-keytest-stats">
+          <div><strong>{pct(summary.exact)}</strong><span>exact ({summary.exact} of {n})</span></div>
+          <div><strong>{pct(summary.compatible)}</strong><span>exact or compatible</span></div>
+          <div><strong>{pct(summary.top2)}</strong><span>your key in its top 2</span></div>
+          {summary.failed > 0 && <div><strong>{summary.failed}</strong><span>couldn't be analysed</span></div>}
+        </div>
+        <textarea ref={textRef} className="library-keytest-report" readOnly value={report} />
+        <div className="library-keytest-actions">
+          <label className="library-keytest-check">
+            <input type="checkbox" checked={includeData} onChange={e => setIncludeData(e.target.checked)} />
+            Include per-song data (longer, but lets the detector be re-tuned from the paste alone)
+          </label>
+          <div className="library-bulkbar-spacer" />
+          <button className="library-refresh" onClick={onClose}>Close</button>
+          <button className="library-upload" onClick={() => void copy()}>
+            {copied ? 'Copied ✓' : 'Copy results'}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

@@ -39,6 +39,12 @@ service) and works out each song's key.
   filled only at confidence ≥ 0.5 (`KEY_AUTOFILL_CONFIDENCE`); otherwise the
   result sits in `Track.detectedKey`/`keyConfidence` and the Key cell shows
   it as a suggestion (dashed "G?" or a ≠ marker, "Use detected" in the picker).
+- Developer mode (Settings → Display → "Show developer tools",
+  `config.ui.developerMode`) adds a Library "🧪 Key test" button: runs
+  detection on already-tagged tracks (selection, or all tagged), read-only,
+  and shows a copyable report (`src/shared/keyTestReport.ts`). The DATA lines
+  carry each song's note/bass/intro/outro profiles (ints summing to 1000, C
+  first), enough to re-score with new `KeyScoreParams` without the audio.
 - Detection pauses while a runway is in phase music/pad. No timing code touched.
 - The old Spotify / GetSongBPM lookups in main.ts are still there, unused by the UI.
 

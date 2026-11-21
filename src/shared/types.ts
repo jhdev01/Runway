@@ -690,6 +690,9 @@ export interface AppConfig {
     // ahead. Toggle on to keep the full runway visible (useful for
     // post-mortem during a service or just personal preference).
     showPlayedTracks?: boolean;
+    // Shows testing tools meant for development (e.g. the Library "Key
+    // test" that scores key detection against the operator's own tags).
+    developerMode?: boolean;
   };
   // Engine
   sampleRate: number;
