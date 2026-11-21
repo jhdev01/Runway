@@ -97,7 +97,7 @@ export function KeyTesterPiano({ onClose }: Props) {
       <header className="key-tester-head">
         <div className="key-tester-titlewrap">
           <h2>Pad Player</h2>
-          <p>Click any key to fire its pad on the pad bus. Use this to audition pads against tracks playing in the list above.</p>
+          <p>Click a key to play its pad. Use this to check pads against songs playing in the list above.</p>
         </div>
         <button
           type="button"
@@ -139,7 +139,7 @@ export function KeyTesterPiano({ onClose }: Props) {
               style={has ? { background: c.bg, color: c.fg, borderColor: c.fg } : undefined}
               onClick={() => onPadClick(k)}
               disabled={!has}
-              title={has ? `Play ${k} pad` : `No pad mapped for ${k} — assign one in Settings → Pad Library`}
+              title={has ? `Play ${k} pad` : `No pad for ${k}. Assign one in Settings → Pad Library.`}
             >
               <span className="key-tester-pad-letter">{k}</span>
               <span className="key-tester-pad-state">

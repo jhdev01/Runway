@@ -363,7 +363,7 @@ function PlaylistEditor({ playlist }: { playlist: Playlist }) {
 
       <div className="pl-tracks">
         {playlistEntries.length === 0 ? (
-          <div className="pl-empty">No tracks yet. Add some via the area above.</div>
+          <div className="pl-empty">No tracks yet. Upload files or add from the library above.</div>
         ) : (
           <>
             {missingCount > 0 && (
@@ -378,7 +378,7 @@ function PlaylistEditor({ playlist }: { playlist: Playlist }) {
                     const cleaned = playlistEntries.filter(e => e.track).map(e => e.id);
                     reorderPlaylistTracks(playlist.id, cleaned);
                   }}
-                  title="Drop every missing-track entry from this playlist"
+                  title="Remove every missing track from this playlist"
                 >
                   Remove all missing
                 </button>
@@ -394,7 +394,7 @@ function PlaylistEditor({ playlist }: { playlist: Playlist }) {
                     <div className="pl-track-num">{idx + 1}</div>
                     <div className="pl-track-handle" />
                     <div className="pl-track-info">
-                      <div className="pl-track-name">— missing track —</div>
+                      <div className="pl-track-name">Missing track</div>
                       <div className="pl-track-artist" style={{ fontFamily: 'IBM Plex Mono, monospace' }}>
                         id: {entry.id}
                       </div>
@@ -406,7 +406,7 @@ function PlaylistEditor({ playlist }: { playlist: Playlist }) {
                     <div className="pl-track-actions">
                       <button
                         className="pl-track-action danger"
-                        title="Remove this stale entry"
+                        title="Remove this missing track"
                         onClick={() => {
                           const next = playlist.trackIds.filter((_, i) => i !== idx);
                           reorderPlaylistTracks(playlist.id, next);
@@ -527,7 +527,7 @@ function PlaylistEditor({ playlist }: { playlist: Playlist }) {
                           padding: '2px 6px',
                           borderRadius: 3,
                         }}
-                        title={`Timer marker at ${t.editServiceLandSec.toFixed(2)}s — service-start countdown lands on this point instead of the track's trim end.`}
+                        title={`Timer marker at ${t.editServiceLandSec.toFixed(2)}s. The countdown hits zero here instead of at the track's trim end.`}
                       >
                         Timer
                       </span>
@@ -624,7 +624,7 @@ function PlaylistSettingsStrip({ playlist }: { playlist: Playlist }) {
     <div className="pl-settings">
       <div className="pl-settings-grid">
         <div className="pl-setting">
-          <span className="pl-setting-label">Playlist Kind</span>
+          <span className="pl-setting-label">Playlist type</span>
           <div className="pl-toggle">
             {(['pre', 'post', 'special'] as const).map(k => (
               <button key={k}
@@ -637,7 +637,7 @@ function PlaylistSettingsStrip({ playlist }: { playlist: Playlist }) {
         </div>
 
         <div className="pl-setting">
-          <span className="pl-setting-label">Playback Order</span>
+          <span className="pl-setting-label">Playback order</span>
           <div className="pl-toggle">
             {(['smart', 'sequential', 'shuffle'] as const).map(o => (
               <button key={o}
@@ -650,7 +650,7 @@ function PlaylistSettingsStrip({ playlist }: { playlist: Playlist }) {
         </div>
 
         <div className="pl-setting">
-          <span className="pl-setting-label">Track Transitions</span>
+          <span className="pl-setting-label">Track transitions</span>
           <div className="pl-toggle">
             {(['crossfade', 'gapless'] as const).map(m => (
               <button key={m}
@@ -663,7 +663,7 @@ function PlaylistSettingsStrip({ playlist }: { playlist: Playlist }) {
         </div>
 
         <div className={`pl-setting ${playlist.transitionMode === 'gapless' ? 'disabled' : ''}`}>
-          <span className="pl-setting-label">Crossfade Length</span>
+          <span className="pl-setting-label">Crossfade length</span>
           <Stepper
             value={playlist.crossfadeSec}
             onChange={v => updatePlaylist(playlist.id, { crossfadeSec: v })}
@@ -685,7 +685,7 @@ function PlaylistSettingsStrip({ playlist }: { playlist: Playlist }) {
 
         <div
           className="pl-setting"
-          title="ON: music begins earlier so the opening track plays from its very start (intro intact). OFF: head-trims the first track to start mid-song, so the runway begins exactly at the lead-time mark."
+          title="On: music starts a little earlier so the first song plays from the top. Off: the first song starts partway in, so music starts exactly at the lead time."
         >
           <span className="pl-setting-label">
             Don't trim opening song
@@ -718,7 +718,7 @@ function PlaylistSettingsStrip({ playlist }: { playlist: Playlist }) {
 
         <div className="pl-setting">
           <span className="pl-setting-label" title="How long the pad keeps playing after service start, before fading out.">
-            Pad Hold
+            Pad hold
           </span>
           <Stepper
             value={playlist.padBridgeSec}
@@ -727,7 +727,7 @@ function PlaylistSettingsStrip({ playlist }: { playlist: Playlist }) {
         </div>
 
         <div className="pl-setting">
-          <span className="pl-setting-label">Pad Fade Out</span>
+          <span className="pl-setting-label">Pad fade out</span>
           <Stepper
             value={playlist.padFadeOutSec}
             onChange={v => updatePlaylist(playlist.id, { padFadeOutSec: v })}
@@ -933,7 +933,7 @@ function EditorTargetInput({ valueSec, onChange }: {
             (e.target as HTMLInputElement).blur();
           }
         }}
-        title="Editor target in minutes — leave blank for auto (uses scheduled service or the global default)"
+        title="Target length in minutes. Leave blank to use the scheduled service's lead time or the Settings default."
         className="pl-stepper-text"
       />
       <button className="pl-stepper-btn" onClick={() => adjust(1)}>+</button>
@@ -1001,7 +1001,7 @@ function LibraryPicker({
             <div className="pl-picker-title">Add from library</div>
             <div className="pl-picker-sub">
               {tracks.length === 0
-                ? 'Library is empty — upload a file first.'
+                ? 'The library is empty. Upload a file first.'
                 : `${filtered.length} of ${tracks.length} track${tracks.length === 1 ? '' : 's'} available`}
             </div>
           </div>

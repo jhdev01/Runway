@@ -174,7 +174,7 @@
             clearSavedPin();
             autoSubmittedPin = false;
             openPinOverlay();
-            showPinError('PIN changed — please re-enter.');
+            showPinError('PIN changed. Enter the new PIN.');
           } else {
             showPinError(msg.payload.error);
           }
@@ -674,7 +674,7 @@
   function forceReconnect(reason) {
     connectAttempt = 0;
     if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
-    setConn('connecting', `reconnecting (${reason})…`);
+    setConn('connecting', 'reconnecting…');
     connect();
   }
   document.addEventListener('visibilitychange', () => {
@@ -986,12 +986,12 @@
     if (snap && unlocked) {
       const armed = !!snap.armed;
       const confirming = !!snap.armConfirmDisarm;
-      els.armLabel.textContent = confirming ? 'Tap to disarm' : (armed ? 'Disarm' : 'Arm');
+      els.armLabel.textContent = confirming ? 'Tap to Disarm' : (armed ? 'Disarm' : 'Arm');
       els.armBtn.classList.toggle('armed', armed && !confirming);
       els.armBtn.classList.toggle('confirm-disarm', confirming);
 
       const padPlaying = !!snap.padPlaying;
-      els.padLabel.textContent = padPlaying ? 'Pad Stop' : 'Pad Play';
+      els.padLabel.textContent = padPlaying ? 'Stop Pad' : 'Play Pad';
       els.padBtn.classList.toggle('playing', padPlaying);
 
       // Music Early + Shuffle only matter during the pre-service

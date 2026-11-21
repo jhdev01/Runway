@@ -143,12 +143,12 @@ export function EditorView() {
         const res = await fetch(url);
         if (!res.ok) {
           throw new Error(
-            `File not reachable (HTTP ${res.status}). The track may have been moved or deleted. Path: ${selectedTrack.filePath}`,
+            `Can't open this file. It may have been moved or deleted. Path: ${selectedTrack.filePath} (HTTP ${res.status})`,
           );
         }
         const ab = await res.arrayBuffer();
         if (ab.byteLength < 1024) {
-          throw new Error(`File appears empty or truncated (${ab.byteLength} bytes).`);
+          throw new Error(`This file is empty or incomplete (${ab.byteLength} bytes).`);
         }
         const ctx = audio.getContextForEditor();
         let buf: AudioBuffer;
@@ -156,9 +156,9 @@ export function EditorView() {
           buf = await ctx.decodeAudioData(ab.slice(0));
         } catch (decodeErr) {
           throw new Error(
-            `Web Audio can't decode this file. Some MP3 rips (especially YouTube/lyric video downloads) ` +
-            `are container formats Chromium doesn't accept. Try re-encoding with ffmpeg: ` +
-            `"ffmpeg -i source.mp3 -c:a libmp3lame -b:a 192k clean.mp3"`,
+            `Runway can't play this file. MP3s downloaded from YouTube or lyric videos often cause this. ` +
+            `Re-save it as a standard MP3 (for example with ffmpeg: ` +
+            `"ffmpeg -i source.mp3 -c:a libmp3lame -b:a 192k clean.mp3")`,
           );
         }
         if (cancelled) return;
@@ -479,14 +479,14 @@ export function EditorView() {
       <div className="editor-toolbar">
         <h2 className="editor-title">Audio Editor</h2>
         <span className="editor-subtitle">
-          Non-destructive — trim and fades are saved on the track.
+          Your original file is never changed. Trims and fades are saved with the track.
         </span>
         <select
           value={trackId}
           onChange={e => setTrackId(e.target.value)}
           className="editor-track-select"
         >
-          <option value="">— pick a track —</option>
+          <option value="">Pick a track</option>
           {tracks.map(t => (
             <option key={t.id} value={t.id}>
               {t.title}{t.artist ? ` · ${t.artist}` : ''} · {formatDuration(t.durationSec)}
@@ -501,7 +501,7 @@ export function EditorView() {
           title="Which tracks to show in the picker"
         >
           <option value="inPlaylists">In playlists</option>
-          <option value="library">Managed library</option>
+          <option value="library">Library</option>
           <option value="all">All tracks</option>
         </select>
         {hiddenCount > 0 && (
@@ -518,7 +518,7 @@ export function EditorView() {
                 className="btn-secondary"
                 onClick={() => void onRelinkFile()}
                 style={{ padding: '4px 10px', fontSize: 12 }}
-                title="Pick a new audio file for this track entry. Use after renaming or moving the source file."
+                title="Choose the audio file again after renaming or moving it."
               >
                 Relink file…
               </button>
@@ -660,7 +660,7 @@ export function EditorView() {
             <button
               className="btn-secondary"
               onClick={() => void onRelinkFile()}
-              title="Point this track entry at a different audio file. Useful after renaming, moving, or re-encoding the source."
+              title="Choose the audio file again after renaming, moving, or re-saving it."
             >
               Relink file…
             </button>
@@ -676,7 +676,7 @@ export function EditorView() {
               <button
                 className="btn-secondary"
                 onClick={() => setLandSec(null)}
-                title="Clear the timer-end marker — the timer will land on trim end again."
+                title="Remove the marker. The countdown will hit zero at the end of the trim again."
               >
                 ✕ Clear timer marker
               </button>

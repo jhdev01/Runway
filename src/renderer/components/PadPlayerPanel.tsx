@@ -197,7 +197,7 @@ export function PadPlayerPanel() {
         <button
           className={`pad-t-btn ${loopForever ? 'active' : ''}`}
           onClick={() => setLoopForever(v => !v)}
-          title={loopForever ? 'Looping forever — click to play once' : 'Plays once — click to loop forever'}
+          title={loopForever ? 'Looping. Click to play once.' : 'Plays once. Click to loop.'}
           data-loop={loopForever ? 'true' : 'false'}
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
@@ -210,7 +210,7 @@ export function PadPlayerPanel() {
         <button
           className="pad-t-btn pad-t-gear"
           onClick={() => openSettings('pads')}
-          title="Open Pad Library settings — assign pads, adjust volume/gain, switch sharp/flat"
+          title="Pad Library settings: assign pads, set volume, choose sharps or flats"
           aria-label="Pad settings"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

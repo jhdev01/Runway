@@ -73,7 +73,7 @@ function MeterRow({ label, level }: { label: string; level: Level }) {
   const peakPct = ampToPct(level.hold);
   const clipping = level.peak >= 0.99;
   return (
-    <div className="bus-meter-row" title={`${label} — RMS ${Math.round(rmsPct)}% / peak ${Math.round(peakPct)}%`}>
+    <div className="bus-meter-row" title={`${label}: average ${Math.round(rmsPct)}%, peak ${Math.round(peakPct)}%`}>
       <div className="bus-meter-label">{label}</div>
       <div className="bus-meter-track">
         <div
