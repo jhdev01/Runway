@@ -2998,7 +2998,9 @@ function DisplaySettings() {
   const updateConfig = useAppStore(s => s.updateConfig);
   const showPlayedTracks = ui?.showPlayedTracks ?? false;
 
-  const setUi = (patch: { showPlayedTracks?: boolean }) => {
+  const developerMode = ui?.developerMode ?? false;
+
+  const setUi = (patch: { showPlayedTracks?: boolean; developerMode?: boolean }) => {
     updateConfig({ ui: { ...ui, ...patch } });
   };
 
@@ -3033,6 +3035,41 @@ function DisplaySettings() {
               <div style={{ fontSize: 12, color: 'var(--text-faint)', marginTop: 2 }}>
                 Played songs stay in the runway, dimmed, so you can review the
                 whole service afterward.
+              </div>
+            </div>
+          </label>
+        </div>
+      </section>
+
+      <section className="settings-section">
+        <div className="settings-section-title">Developer mode</div>
+        <div className="settings-section-sub" style={{ maxWidth: 580 }}>
+          Testing tools for working on Runway itself. Nothing here affects
+          playback or timing.
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 18, marginTop: 18 }}>
+          <label
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 14,
+              cursor: 'pointer',
+              maxWidth: 580,
+            }}
+          >
+            <Toggle
+              checked={developerMode}
+              onChange={(next) => setUi({ developerMode: next })}
+              ariaLabel="Developer mode"
+            />
+            <div>
+              <div style={{ fontSize: 14, color: 'var(--text)', fontWeight: 600 }}>
+                Show developer tools
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--text-faint)', marginTop: 2 }}>
+                Adds a "Key test" button to the Library. It runs key detection
+                on songs you've already tagged, compares the two, and gives
+                you a report to copy. It never changes your tags.
               </div>
             </div>
           </label>

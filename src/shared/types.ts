@@ -30,8 +30,16 @@ export interface Track {
   key?: KeyName;
   bpm?: number;
   addedAt: string;          // ISO timestamp
-  // Auto-detection metadata; set if auto-tagged
+  // Key detected from the audio itself (Library → "Detect keys"). Kept
+  // separate from `key` so the operator's own tag is never overwritten —
+  // `key` is only auto-filled when it was blank. `keyConfidence` is 0..1
+  // for `detectedKey`.
+  detectedKey?: KeyName;
   keyConfidence?: number;
+  // The detector's next-best guesses, best first. The right key is in the
+  // top two far more often than it is the top pick, so the Key cell offers
+  // these as one-click alternatives.
+  detectedKeyAlts?: KeyName[];
   // Non-destructive edits — applied at playback time. The source file is
   // never modified.
   trimStartSec?: number;    // play starts at this offset in the buffer
@@ -682,6 +690,9 @@ export interface AppConfig {
     // ahead. Toggle on to keep the full runway visible (useful for
     // post-mortem during a service or just personal preference).
     showPlayedTracks?: boolean;
+    // Shows testing tools meant for development (e.g. the Library "Key
+    // test" that scores key detection against the operator's own tags).
+    developerMode?: boolean;
   };
   // Engine
   sampleRate: number;

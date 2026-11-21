@@ -1241,3 +1241,94 @@
   text-decoration-color: var(--border-bright);
 }
 .library-attribution a:hover { color: var(--accent-bright); }
+
+/* ---- Detect keys ---- */
+.library-key-option-suggest {
+  grid-column: 1 / -1;
+  font-weight: 700;
+}
+/* Detected but not confident enough to auto-fill — dashed + dim so it
+   reads as "suggestion", not a real tag. */
+.library-key-suggested {
+  display: inline-flex;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 7px;
+  border-radius: 3px;
+  border: 1px dashed var(--border-bright, #2d3748);
+  color: var(--text-dim);
+}
+/* Tagged key and detected key disagree. */
+.library-key-differs {
+  margin-left: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--amber-bright, #fbbf24);
+}
+.library-detect-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 16px;
+  font-size: 12.5px;
+  color: var(--text);
+  background: var(--bg-elev-2, #11171f);
+  border-bottom: 1px solid var(--border);
+}
+
+.library-key-alts {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.library-key-alts-label {
+  font-size: 11px;
+  color: var(--text-faint);
+  margin-right: 2px;
+}
+.library-key-alts .library-key-option { padding: 4px 10px; }
+
+/* ---- Developer mode: key test ---- */
+.library-dev-button { border-style: dashed; }
+.library-refresh:disabled { opacity: 0.45; cursor: default; }
+.library-keytest-modal {
+  background: var(--bg-elev);
+  border: 1px solid var(--border-bright);
+  border-radius: 12px;
+  padding: 24px;
+  width: min(860px, 92vw);
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.library-keytest-stats { display: flex; gap: 28px; flex-wrap: wrap; }
+.library-keytest-stats > div { display: flex; flex-direction: column; }
+.library-keytest-stats strong { font-size: 26px; font-weight: 700; color: var(--text); }
+.library-keytest-stats span { font-size: 12px; color: var(--text-dim); }
+.library-keytest-report {
+  flex: 1;
+  min-height: 300px;
+  resize: none;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11.5px;
+  line-height: 1.5;
+  white-space: pre;
+}
+.library-keytest-actions { display: flex; align-items: center; gap: 10px; }
+.library-keytest-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-dim);
+  cursor: pointer;
+}
