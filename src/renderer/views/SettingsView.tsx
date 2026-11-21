@@ -1929,7 +1929,7 @@ function SpotifyAccountSection() {
   const [busy, setBusy] = useState<null | 'connect' | 'read'>(null);
   const [link, setLink] = useState('');
   const [playlist, setPlaylist] = useState<SpotifyPlaylistResult | null>(null);
-  useEffect(() => { void window.runway.spotify.status().then(setStatus); }, []);
+  useEffect(() => { void window.runway?.spotify?.status().then(setStatus); }, []);
 
   const connect = async () => {
     setBusy('connect');
