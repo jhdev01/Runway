@@ -30,8 +30,16 @@ export interface Track {
   key?: KeyName;
   bpm?: number;
   addedAt: string;          // ISO timestamp
-  // Auto-detection metadata; set if auto-tagged
+  // Key detected from the audio itself (Library → "Detect keys"). Kept
+  // separate from `key` so the operator's own tag is never overwritten —
+  // `key` is only auto-filled when it was blank. `keyConfidence` is 0..1
+  // for `detectedKey`.
+  detectedKey?: KeyName;
   keyConfidence?: number;
+  // The detector's next-best guesses, best first. The right key is in the
+  // top two far more often than it is the top pick, so the Key cell offers
+  // these as one-click alternatives.
+  detectedKeyAlts?: KeyName[];
   // Non-destructive edits — applied at playback time. The source file is
   // never modified.
   trimStartSec?: number;    // play starts at this offset in the buffer
@@ -636,6 +644,38 @@ export interface PcoSyncConfig {
   lastError?: string | null;            // populated when the last fetch failed
 }
 
+/**
+ * One MultiTracks.com catalog hit, scored against a local track.
+ * `key` is already normalized to a canonical KeyName.
+ */
+export interface MultitracksCandidate {
+  key: KeyName;
+  /** Song title as MultiTracks spells it. */
+  title: string;
+  /** Primary artist as MultiTracks spells it. */
+  artist: string;
+  album: string;
+  /** Absolute multitracks.com URL, so the operator can verify a match. */
+  url: string;
+  /** Track length in seconds, per MultiTracks. Used for disambiguation. */
+  durationSec?: number;
+  /** 0..1 match confidence. See scoreCandidate() in main/multitracksLookup.ts. */
+  score: number;
+}
+
+export interface MultitracksResult {
+  /** Best candidate, or undefined when nothing cleared the match floor. */
+  best?: MultitracksCandidate;
+  /**
+   * Other plausible matches whose key DISAGREES with `best`, best-first.
+   * Live/radio/acoustic cuts often sit in different keys, so the UI
+   * offers a choice instead of guessing.
+   */
+  alternates: MultitracksCandidate[];
+  /** Set when there's no usable match. Human-readable, safe to display. */
+  reason?: string;
+}
+
 export interface AppConfig {
   version: 1;
   playlists: Playlist[];
@@ -682,6 +722,9 @@ export interface AppConfig {
     // ahead. Toggle on to keep the full runway visible (useful for
     // post-mortem during a service or just personal preference).
     showPlayedTracks?: boolean;
+    // Shows testing tools meant for development (e.g. the Library "Key
+    // test" that scores key detection against the operator's own tags).
+    developerMode?: boolean;
   };
   // Engine
   sampleRate: number;
@@ -731,6 +774,12 @@ export interface AppConfig {
     // time, loop tracks to fill the time. When false, music starts late and
     // still ends exactly at the right time.
     repeatToFill: boolean;
+    // On import, look up each new track's key on MultiTracks.com and
+    // apply it when the match is confident and unambiguous. Tracks that
+    // arrive with a key already in their tags are left alone, and
+    // anything the catalog is unsure about is held for review rather
+    // than guessed. Off = the Library button is the only way in.
+    autoKeyTagOnImport: boolean;
     // 3-band EQ — gains in dB. 0 = flat.
     eqLowDb: number;
     eqMidDb: number;
@@ -843,6 +892,7 @@ export const DEFAULT_CONFIG: AppConfig = {
     musicFadeToPadSec: 5,
     padLeadInSec: 5,
     repeatToFill: true,
+    autoKeyTagOnImport: true,
     eqLowDb: 0,
     eqMidDb: 0,
     eqHighDb: 0,
@@ -954,7 +1004,40 @@ export const IPC = {
   TIMING_LOG_REVEAL: 'timing:logReveal',
   // Planning Center forwarded HTTPS GET (proxied through main for auth/CORS).
   PCO_REQUEST: 'pco:request',
+  // Experimental: measure how precisely the Spotify desktop app can be
+  // made to land a song on a planned moment (macOS, AppleScript).
+  SPOTIFY_TIMING_TEST: 'spotify:timingTest',
+  // Experimental: Spotify account link (PKCE sign-in) + playlist reader.
+  SPOTIFY_CONNECT: 'spotify:connect',
+  SPOTIFY_STATUS: 'spotify:status',
+  SPOTIFY_DISCONNECT: 'spotify:disconnect',
+  SPOTIFY_PLAYLIST_READ: 'spotify:playlistRead',
+  MULTITRACKS_LOOKUP: 'track:multitracks',
 } as const;
+
+// ── Spotify (experimental) ────────────────────────────────────────────
+export interface SpotifyStatus {
+  connected: boolean;
+  displayName?: string;
+  reason?: string;
+}
+export interface SpotifyPlaylistTrack {
+  uri: string;             // spotify:track:…
+  title: string;
+  artist: string;
+  durationMs: number;
+  albumArtUrl?: string;
+}
+export interface SpotifyPlaylistResult {
+  ok: boolean;
+  reason?: string;
+  playlistId?: string;
+  name?: string;
+  tracks?: SpotifyPlaylistTrack[];
+  // Entries Runway can't play by link (podcast episodes, local files).
+  skipped?: number;
+}
+
 
 /**
  * Compact snapshot the renderer pushes to main on each store change.

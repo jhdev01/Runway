@@ -1,4 +1,4 @@
-import type { LibraryBundlePreview, LibraryImportMode, LibraryImportReport, AppConfig, Track, KeyName, PpRequest, PpResponse, PcoRequest, PcoResponse, RelinkReport, RemoteNetworkInterface } from '@shared/types';
+import type { LibraryBundlePreview, LibraryImportMode, LibraryImportReport, AppConfig, Track, KeyName, PpRequest, PpResponse, PcoRequest, PcoResponse, RelinkReport, RemoteNetworkInterface, SpotifyStatus, SpotifyPlaylistResult, MultitracksResult } from '@shared/types';
 
 export {};
 
@@ -50,6 +50,11 @@ declare global {
           title: string,
           apiKey: string,
         ) => Promise<{ key?: string; bpm?: number; reason?: string } | null>;
+        multitracksLookup: (
+          artist: string,
+          title: string,
+          durationSec?: number,
+        ) => Promise<MultitracksResult>;
         libraryPaths: () => Promise<{ audioDir: string; padsDir: string; userDataDir: string }>;
         revealFolder: (folderPath: string) => Promise<void>;
         writeWav: (req: { suggestedName: string; bytes: ArrayBuffer }) => Promise<string | null>;
@@ -79,9 +84,19 @@ declare global {
         update: (snapshot: import('@shared/types').TraySnapshot) => void;
         onShowWindow: (callback: () => void) => () => void;
       };
+      spotify: {
+        connect: (clientId: string) => Promise<SpotifyStatus>;
+        status: () => Promise<SpotifyStatus>;
+        disconnect: () => Promise<SpotifyStatus>;
+        readPlaylist: (link: string) => Promise<SpotifyPlaylistResult>;
+      };
       diagnostics: {
         appendTimingLog: (line: string) => void;
         revealTimingLog: () => Promise<{ ok: boolean; path?: string; reason?: string }>;
+        spotifyTimingTest: (track?: string) => Promise<{
+          ok: boolean; reason?: string; track?: string;
+          runs?: Array<{ rawErrorMs: number; correctedErrorMs: number; jitterMs: number; commandMs: number; samples: number }>;
+        }>;
       };
     };
   }

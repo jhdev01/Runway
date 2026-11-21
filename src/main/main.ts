@@ -8,7 +8,10 @@ import { scanFolder, scanPadFolder, readTrackMetadata } from './fileScanner';
 import { relinkConfig } from './relink';
 import { exportLibraryBundle, readBundle, previewBundle, applyBundle } from './libraryBundle';
 import { IPC, type PpRequest, type PpResponse, type PcoRequest, type PcoResponse, type AppConfig, type RelinkReport, type TraySnapshot, type LibraryImportMode } from '../shared/types';
+import { runSpotifyTimingTest } from './spotifyTimingTest';
+import { spotifyConnect, spotifyStatus, spotifyDisconnect, spotifyReadPlaylist } from './spotifyAccount';
 import { RemoteServer, listLanUrls, listNetworkInterfaces, type RemoteSnapshot } from './remoteServer';
+import { multitracksLookup } from './multitracksLookup';
 
 const isDev = process.env.NODE_ENV === 'development';
 
@@ -707,6 +710,23 @@ function registerIpcHandlers() {
     return await getsongbpmLookup(artist, title, apiKey);
   });
 
+  // MultiTracks.com key lookup. No credentials — the endpoint the
+  // site's own search box uses is unauthenticated. Failures come back
+  // as { alternates: [], reason } so the UI can explain itself.
+  ipcMain.handle(IPC.MULTITRACKS_LOOKUP, async (_e, args: {
+    artist?: string;
+    title?: string;
+    durationSec?: number;
+  }) => {
+    const artist = (args?.artist ?? '').trim();
+    const title = (args?.title ?? '').trim();
+    if (!title) return { alternates: [], reason: 'No title provided' };
+    const durationSec = typeof args?.durationSec === 'number' && args.durationSec > 0
+      ? args.durationSec
+      : undefined;
+    return await multitracksLookup(artist, title, durationSec);
+  });
+
   ipcMain.handle(IPC.FILE_IMPORT, async (_e, srcPath: string) => {
     return await importAudioFile(srcPath, 'audio');
   });
@@ -906,6 +926,18 @@ function registerIpcHandlers() {
       r.end();
     });
   });
+
+  // Experimental Spotify landing-precision test. Standalone diagnostic —
+  // drives the Spotify desktop app only; never touches Runway's audio.
+  ipcMain.handle(IPC.SPOTIFY_TIMING_TEST, async (_e, track?: string) => {
+    return runSpotifyTimingTest(typeof track === 'string' ? track : undefined);
+  });
+
+  // Experimental Spotify account link + read-only playlist reader.
+  ipcMain.handle(IPC.SPOTIFY_CONNECT, async (_e, clientId: string) => spotifyConnect(String(clientId ?? '')));
+  ipcMain.handle(IPC.SPOTIFY_STATUS, async () => spotifyStatus());
+  ipcMain.handle(IPC.SPOTIFY_DISCONNECT, async () => spotifyDisconnect());
+  ipcMain.handle(IPC.SPOTIFY_PLAYLIST_READ, async (_e, link: string) => spotifyReadPlaylist(String(link ?? '')));
 
   // Planning Center API proxy. Renderer can't call api.planningcenteronline.com
   // directly (CORS), so main forwards the GET over HTTPS with HTTP Basic auth

@@ -47,7 +47,25 @@ const IPC = {
   TIMING_LOG_APPEND: 'timing:logAppend',
   TIMING_LOG_REVEAL: 'timing:logReveal',
   PCO_REQUEST: 'pco:request',
+  SPOTIFY_TIMING_TEST: 'spotify:timingTest',
+  SPOTIFY_CONNECT: 'spotify:connect',
+  SPOTIFY_STATUS: 'spotify:status',
+  SPOTIFY_DISCONNECT: 'spotify:disconnect',
+  SPOTIFY_PLAYLIST_READ: 'spotify:playlistRead',
+  // MultiTracks.com song lookup — returns the published original master
+  // key for worship songs, plus alternates when the catalog disagrees.
+  MULTITRACKS_LOOKUP: 'track:multitracks',
 } as const;
+
+interface MtCandidate {
+  key: string;
+  title: string;
+  artist: string;
+  album: string;
+  url: string;
+  durationSec?: number;
+  score: number;
+}
 
 contextBridge.exposeInMainWorld('runway', {
   config: {
@@ -92,6 +110,19 @@ contextBridge.exposeInMainWorld('runway', {
       apiKey: string,
     ): Promise<{ key?: string; bpm?: number; reason?: string } | null> =>
       ipcRenderer.invoke(IPC.GETSONGBPM_LOOKUP, { artist, title, apiKey }),
+    // Return shape mirrors MultitracksResult in main/multitracksLookup.ts.
+    // Spelled out rather than imported: this file deliberately carries no
+    // relative imports (see the IPC note above).
+    multitracksLookup: (
+      artist: string,
+      title: string,
+      durationSec?: number,
+    ): Promise<{
+      best?: MtCandidate;
+      alternates: MtCandidate[];
+      reason?: string;
+    }> =>
+      ipcRenderer.invoke(IPC.MULTITRACKS_LOOKUP, { artist, title, durationSec }),
     libraryPaths: () => ipcRenderer.invoke(IPC.LIBRARY_PATHS),
     revealFolder: (folderPath: string): Promise<void> =>
       ipcRenderer.invoke(IPC.REVEAL_FOLDER, folderPath),
@@ -100,6 +131,13 @@ contextBridge.exposeInMainWorld('runway', {
   },
   audio: {
     listDevices: () => ipcRenderer.invoke(IPC.AUDIO_DEVICES_LIST),
+  },
+  // Experimental Spotify account link + playlist reader (read-only).
+  spotify: {
+    connect: (clientId: string) => ipcRenderer.invoke(IPC.SPOTIFY_CONNECT, clientId),
+    status: () => ipcRenderer.invoke(IPC.SPOTIFY_STATUS),
+    disconnect: () => ipcRenderer.invoke(IPC.SPOTIFY_DISCONNECT),
+    readPlaylist: (link: string) => ipcRenderer.invoke(IPC.SPOTIFY_PLAYLIST_READ, link),
   },
   planningCenter: {
     request: (req: unknown) => ipcRenderer.invoke(IPC.PCO_REQUEST, req),
@@ -149,5 +187,7 @@ contextBridge.exposeInMainWorld('runway', {
     appendTimingLog: (line: string) => ipcRenderer.send(IPC.TIMING_LOG_APPEND, line),
     // Open timing.log in the OS file browser for after-service review.
     revealTimingLog: () => ipcRenderer.invoke(IPC.TIMING_LOG_REVEAL),
+    // Experimental Spotify landing-precision test (macOS only).
+    spotifyTimingTest: (track?: string) => ipcRenderer.invoke(IPC.SPOTIFY_TIMING_TEST, track),
   },
 });
