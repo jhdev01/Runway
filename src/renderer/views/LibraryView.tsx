@@ -611,7 +611,7 @@ export function LibraryView() {
           <strong>Library</strong>
           <span className="library-count">
             {tracks.length} track{tracks.length === 1 ? '' : 's'}
-            {orphanCount > 0 && <> · {orphanCount} orphan{orphanCount === 1 ? '' : 's'}</>}
+            {orphanCount > 0 && <> · {orphanCount} unused</>}
           </span>
         </div>
         <button
@@ -640,9 +640,9 @@ export function LibraryView() {
             }}
             title={
               refreshing
-                ? 'Cancel the in-flight refresh'
+                ? 'Cancel the refresh'
                 : selectedIds.size > 0
-                  ? `Re-read metadata + iTunes for ${selectedIds.size} selected track${selectedIds.size === 1 ? '' : 's'}`
+                  ? `Re-read file tags and iTunes info for ${selectedIds.size} selected track${selectedIds.size === 1 ? '' : 's'}`
                   : 'Check the tracks you want to refresh first'
             }
           >
@@ -661,7 +661,7 @@ export function LibraryView() {
         <button
           className={`library-refresh ${keyTesterOpen ? 'active' : ''}`}
           onClick={() => setKeyTesterOpen(o => !o)}
-          title={keyTesterOpen ? 'Close the pad player' : 'Open the pad player — fire any mapped pad to audition against tracks in the library.'}
+          title={keyTesterOpen ? 'Close the pad player' : 'Open the pad player to audition pads against library tracks.'}
         >
           {keyTesterOpen ? 'Close pad player' : 'Pad player'}
         </button>
@@ -670,7 +670,7 @@ export function LibraryView() {
           onClick={() => setShowLocations(s => !s)}
           title={showLocations
             ? 'Hide file paths'
-            : 'Show each track\'s on-disk location + whether it\'s in the internal library or referenced externally'}
+            : 'Show where each file lives, and whether it\'s in Runway\'s library folder or linked from elsewhere'}
         >
           {showLocations ? 'Hide locations' : 'Show locations'}
         </button>
@@ -692,10 +692,10 @@ export function LibraryView() {
               }}
               disabled={disabled}
               title={consolidating
-                ? 'Cancel the in-flight copy'
+                ? 'Cancel the copy'
                 : externalCount > 0
-                  ? `Copy ${externalCount} external file${externalCount === 1 ? '' : 's'} into the internal library so the library is self-contained`
-                  : 'Every track already lives inside the internal library'}
+                  ? `Copy ${externalCount} linked file${externalCount === 1 ? '' : 's'} into Runway\'s library folder`
+                  : 'All tracks are already in Runway\'s library folder'}
             >
               {consolidating
                 ? `Cancel · ${consolidateProgress.done}/${consolidateProgress.total}`
@@ -718,7 +718,7 @@ export function LibraryView() {
             checked={orphansOnly}
             onChange={e => setOrphansOnly(e.target.checked)}
           />
-          Orphans only
+          Unused only
         </label>
         <select
           className="library-key-filter"
@@ -727,7 +727,7 @@ export function LibraryView() {
           title="Filter library by song key"
         >
           <option value="all">All keys</option>
-          <option value="_none">— untagged —</option>
+          <option value="_none">No key</option>
           {availableKeys.map(k => (
             <option key={k} value={k}>{k}</option>
           ))}
@@ -736,11 +736,11 @@ export function LibraryView() {
           <button
             className={`library-purge ${confirmAllOrphans ? 'confirm' : ''}`}
             onClick={onDeleteAllOrphans}
-            title="Delete every track not referenced by any playlist"
+            title="Delete every track that isn't in a playlist"
           >
             {confirmAllOrphans
               ? `Click again to delete ${orphanCount}`
-              : `Delete all ${orphanCount} orphans`}
+              : `Delete all ${orphanCount} unused`}
           </button>
         )}
       </header>
@@ -750,8 +750,8 @@ export function LibraryView() {
           <span className="library-bulkbar-count">
             {selectedIds.size} selected
           </span>
-          <button className="library-bulkbar-link" onClick={selectAllOrphansVisible} title="Add all visible orphans to selection">
-            + orphans
+          <button className="library-bulkbar-link" onClick={selectAllOrphansVisible} title="Select all visible unused tracks">
+            + unused
           </button>
           <button className="library-bulkbar-link" onClick={clearSelection}>
             Clear
@@ -918,7 +918,7 @@ export function LibraryView() {
                 </div>
                 <div className="library-cell-tags">
                   {refs.length === 0 ? (
-                    <span className="library-orphan-label">orphan</span>
+                    <span className="library-orphan-label">unused</span>
                   ) : (
                     refs.map(p => (
                       <button
@@ -1071,7 +1071,7 @@ export function LibraryView() {
  */
 function FolderIndicator({ filePath, internalRoot }: { filePath: string; internalRoot: string }) {
   const isInternal = !!internalRoot && filePath.startsWith(internalRoot);
-  const tipText = `${isInternal ? 'Internal library' : 'External reference'} · ${filePath}`;
+  const tipText = `${isInternal ? 'In Runway library' : 'Linked file'} · ${filePath}`;
   return (
     <Tooltip text={tipText}>
       <span
@@ -1537,7 +1537,7 @@ function ArtworkPicker({ track, onPick, onClear, onClose }: {
           </button>
         )}
         {loading && (
-          <div className="library-art-picker-loading">Loading candidates…</div>
+          <div className="library-art-picker-loading">Loading artwork…</div>
         )}
         {!loading && candidates.length === 0 && !track.albumArtUrl && (
           <div className="library-art-picker-empty">No matches found.</div>

@@ -105,7 +105,7 @@ export function TopBar() {
     }
   };
 
-  const midiLabel = confirmDisable ? 'Click Again to Disable' : 'MIDI';
+  const midiLabel = confirmDisable ? 'Click again to disable' : 'MIDI';
 
   return (
     <div className="topbar">
@@ -165,7 +165,7 @@ export function TopBar() {
               : ppStatus === 'disabled' ? 'disabled'
               : 'off'
           }`} />
-          <span>{confirmDisablePp ? 'Click Again to Disconnect' : 'Pro7'}</span>
+          <span>{confirmDisablePp ? 'Click again to disconnect' : 'Pro7'}</span>
         </button>
         <button
           className="midi-status midi-status-button"
@@ -177,7 +177,7 @@ export function TopBar() {
           }
         >
           <div className={`midi-dot ${audioMuted ? 'disabled' : ''}`} />
-          <span>{confirmMuteAudio ? 'Click Again to Mute' : 'Audio'}</span>
+          <span>{confirmMuteAudio ? 'Click again to mute' : 'Audio'}</span>
         </button>
       </div>
     </div>

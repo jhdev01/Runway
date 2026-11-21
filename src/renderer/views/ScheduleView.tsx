@@ -123,7 +123,7 @@ export function ScheduleView() {
     const added = generateServicesFromPattern(days, opts);
     setGenerateMsg(
       added === 0
-        ? `No new services — ${windowLabel} already covered.`
+        ? `No new services. ${windowLabel} is already scheduled.`
         : `Created ${added} service${added === 1 ? '' : 's'}.`,
     );
     window.setTimeout(() => setGenerateMsg(null), 4000);
@@ -155,7 +155,7 @@ export function ScheduleView() {
                 <button
                   className={`btn-secondary ${confirmClearAll ? 'btn-confirm-danger' : ''}`}
                   onClick={onClearAll}
-                  title="Delete every upcoming service. Tombstones are written so the pattern doesn't recreate them."
+                  title="Delete every upcoming service. The weekly pattern won't add them back."
                 >
                   {confirmClearAll
                     ? `Click again to clear (${upcomingCount})`
@@ -168,8 +168,8 @@ export function ScheduleView() {
 
           {Object.keys(upcoming).length === 0 ? (
             <div className="empty-state">
-              No services scheduled. Click "Add service" to create one,
-              or define a weekly pattern below to auto-populate Sundays.
+              No services scheduled. Click "Add service", or set up a weekly
+              pattern below to add services automatically.
             </div>
           ) : (
             Object.entries(upcoming).map(([date, list]) => {
@@ -199,11 +199,11 @@ export function ScheduleView() {
             <div>
               <div className="sched-section-title">Weekly pattern</div>
               <div className="sched-section-sub">
-                Recurring service times. Enabled rows auto-materialize into
-                real services on app start (and again hourly while running).
+                Service times that repeat every week. Checked rows become
+                services when Runway opens and every hour after.
                 {weeklyPatternMode === 'auto_rotate'
-                  ? ' Recurring mode: today’s and tomorrow’s services appear automatically, so the next service is ready the day before.'
-                  : ' Manual mode: nothing auto-generates. Use the buttons to load this week or the next 4 weeks when you want services to appear.'}
+                  ? ' Recurring: today’s and tomorrow’s services appear on their own.'
+                  : ' Manual: services appear only when you click a Load button.'}
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
@@ -283,7 +283,7 @@ export function ScheduleView() {
                     >
                       <label
                         className="pattern-cell-check"
-                        title={p.enabled ? 'Enabled — auto-generates services' : 'Disabled — pattern entry exists but won\'t generate services'}
+                        title={p.enabled ? 'On: adds services automatically' : 'Off: kept, but adds no services'}
                       >
                         <input
                           type="checkbox"
@@ -371,7 +371,7 @@ export function ScheduleView() {
                               className={`pattern-playlist-select pattern-cell-${kind}-action`}
                               value={currentValue}
                               onChange={e => onPick(e.target.value)}
-                              title={`${kind === 'pre' ? 'Pre' : 'Post'}-service action sequence for services materialized from this pattern row.`}
+                              title={`${kind === 'pre' ? 'Pre' : 'Post'}-service action sequence for services created from this row.`}
                               disabled={!playlistId && !inheritedSeqId}
                             >
                               <option value={INHERIT_PAT}>
@@ -392,7 +392,7 @@ export function ScheduleView() {
                       })()}
                       <div
                         className="pattern-cell-lead"
-                        title={`Pre-service music starts this many minutes before service start. Blank = use global default (${defaultLeadMin} min).`}
+                        title={`Pre-service music starts this many minutes before service start. Leave blank to use the default (${defaultLeadMin} min).`}
                       >
                         <input
                           type="number"
@@ -421,17 +421,17 @@ export function ScheduleView() {
                             fontFamily: 'inherit',
                           }}
                         />
-                        <span>Min Lead</span>
+                        <span>Min before</span>
                       </div>
                       <div className="pattern-cell-pp">
                         <button
                           className={`pattern-pp-btn ${p.proPresenterOverride ? 'active' : ''}`}
                           onClick={() => setPpPatternModalId(p.id)}
                           title={p.proPresenterOverride
-                            ? 'PP setup is overridden for this pattern row'
-                            : 'Customize PP sync for services from this pattern row'}
+                            ? 'This row has its own ProPresenter setup'
+                            : 'ProPresenter setup for services from this row'}
                         >
-                          ProPresenter Setup{p.proPresenterOverride ? ' ●' : ''}
+                          ProPresenter setup{p.proPresenterOverride ? ' ●' : ''}
                         </button>
                         <label
                           className="pattern-pad-toggle"
@@ -758,7 +758,7 @@ function ServiceCard({ service, onEditKey, onUpdate, onDelete }: {
           <button
             className={`btn-secondary service-card-gear ${settingsOpen ? 'btn-active' : ''}`}
             onClick={() => setSettingsOpen(o => !o)}
-            title={settingsOpen ? 'Hide service settings' : 'Show service settings (playlists, action sequences, ProPresenter, pad bridge, lead time)'}
+            title={settingsOpen ? 'Hide service settings' : 'Service settings: playlists, actions, ProPresenter, pad bridge, lead time'}
             aria-label="Toggle service settings"
           >
             <span className="service-card-gear-icon" aria-hidden>⚙</span>
@@ -891,12 +891,12 @@ function ServiceCard({ service, onEditKey, onUpdate, onDelete }: {
               onUpdate({ lastSongTrackId: val });
             }}
             title={!effectiveKey
-              ? 'Set the first song key to enable pinning a last song'
+              ? 'Set the first-song key first'
               : 'Pin the pre-service playlist to end on a specific track'}
           >
             {pinInheritFrom
               ? <option value="">Match first service</option>
-              : <option value="">Auto (let arrange pick)</option>}
+              : <option value="">Auto</option>}
             {tracksInKey.map(t => {
               const sameTitle = tracksInKey.filter(o => o.title === t.title);
               let label = t.title;
@@ -926,7 +926,7 @@ function ServiceCard({ service, onEditKey, onUpdate, onDelete }: {
           )}
           {stalePinTrack && (
             <span style={{ fontSize: 11, color: 'var(--red-bright)' }}>
-              Pinned track no longer in playlist — pick again or Auto.
+              This track is no longer in the playlist. Pick another, or choose Auto.
             </span>
           )}
           {effectiveKey && tracksInKey.length === 0 && !stalePinTrack && (
@@ -991,7 +991,7 @@ function ServiceCard({ service, onEditKey, onUpdate, onDelete }: {
                 fontFamily: 'inherit',
                 fontSize: 14,
               }}
-              title="Minutes before this service to pull the first-song key from Planning Center. Blank = use the global default."
+              title="How many minutes before this service to get the first-song key from Planning Center. Leave blank to use the Settings default."
             />
             <span style={{ color: 'var(--text-dim)', fontSize: 11, letterSpacing: '0.04em' }}>MIN BEFORE</span>
           </div>
@@ -1022,8 +1022,8 @@ function ServiceCard({ service, onEditKey, onUpdate, onDelete }: {
             className={`btn-secondary ${service.proPresenterOverride ? 'btn-active' : ''}`}
             onClick={() => setPpModalOpen(true)}
             title={service.proPresenterOverride
-              ? 'PP setup is overridden for this service'
-              : 'Customize PP sync for this service'}
+              ? 'This service has its own ProPresenter setup'
+              : 'ProPresenter setup for this service'}
             style={{ justifySelf: 'start' }}
           >
             ProPresenter setup{service.proPresenterOverride ? ' ●' : ''}

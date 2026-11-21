@@ -147,7 +147,7 @@ export function ActionsView() {
                 onChange={e => updateActionSequence(selected.id, { name: e.target.value })}
               />
               <div className="actions-main-actions">
-                <label className="actions-anchor-picker" title="Default anchor for new actions added to this sequence. Each action can override its own anchor on its row.">
+                <label className="actions-anchor-picker" title="Starting point for new actions in this sequence. Each action can set its own on its row.">
                   <span>Default anchor</span>
                   <select
                     value={selected.anchor}
@@ -221,52 +221,52 @@ function ActionExamplesModal({ onClose }: { onClose: () => void }) {
     {
       title: 'Lighting + presentation cues at service start',
       cues: [
-        { when: 'service_start − 60s', what: 'midi_send → lighting console: house lights to 30%' },
+        { when: 'Service start − 60s', what: 'MIDI send → lighting console: house lights to 30%' },
         { when: 'service_start − 30s', what: 'pp_trigger_playlist_item → "Welcome" slide' },
-        { when: 'service_start + 0', what: 'midi_send → lighting scene "Worship low"' },
+        { when: 'Service start', what: 'MIDI send → lighting scene "Worship low"' },
       ],
     },
     {
-      title: 'Anchor-track ramp (last song)',
+      title: 'Last-song ramp',
       cues: [
-        { when: 'last_song offset 0', what: 'pad_action → arm_key in the song\'s key' },
-        { when: 'last_song + 30s', what: 'audio_fade music → 60% (singer-focused mix)' },
-        { when: 'last_song − 5s', what: 'midi_send → lighting "Worship intense"' },
+        { when: 'Last song starts', what: 'Pad → arm key in the song\'s key' },
+        { when: 'Last song + 30s', what: 'Audio fade: music → 60% (singer-focused mix)' },
+        { when: 'Last song − 5s', what: 'MIDI send → lighting "Worship intense"' },
       ],
     },
     {
       title: 'ProPresenter timer sync',
       cues: [
-        { when: 'music_start + 0', what: 'pp_set_timer → count down to service start' },
-        { when: 'music_start + 0', what: 'pp_timer_control → start the timer' },
+        { when: 'Music start', what: 'PP set timer → count down to service start' },
+        { when: 'Music start', what: 'PP timer control → start the timer' },
       ],
     },
     {
       title: 'Post-service playlist flow',
       cues: [
-        { when: 'after song 3 of "Reflection"', what: 'change_setlist → "Standard Post-Service" (transition out of the prayer feel)' },
-        { when: '~30 min before next service', what: 'arm_playlist with "Music to fill" ON → forces next service to arm now, music fills the gap' },
+        { when: 'after song 3 of "Reflection"', what: 'Change setlist → "Standard Post-Service" (out of the prayer feel)' },
+        { when: '~30 min before next service', what: 'Arm playlist with "Music to fill" on → next service arms now and music fills the gap' },
       ],
     },
     {
       title: 'End cleanly between services',
       cues: [
-        { when: 'last_song of post-service', what: 'change_setlist with NO playlist set → fade out and clear the runway' },
+        { when: 'Last song of post-service', what: 'Change setlist with no playlist set → fade out and clear the runway' },
       ],
-      note: 'When a target playlist is missing, the action just stops the runway at its fire point. No follow-on audio.',
+      note: 'With no playlist set, the action stops the runway when it fires. Nothing plays after it.',
     },
     {
-      title: 'Quick-test compression for rehearsal',
+      title: 'Shorter rehearsal runs',
       cues: [
-        { when: 'music_start + 30s', what: 'music_action → skip_to_next (jump straight into the second song)' },
+        { when: 'Music start + 30s', what: 'Music transport → skip to next track (jump into the second song)' },
       ],
       note: 'Useful for rehearsing transitions without sitting through every opener.',
     },
     {
-      title: 'Bus duck for an announcement',
+      title: 'Music dip for an announcement',
       cues: [
-        { when: 'manual / song-anchored', what: 'audio_fade music → 40% (operator triggers when host speaks)' },
-        { when: '+ a few seconds later', what: 'audio_fade music → 100% (back to full)' },
+        { when: 'manual / song-anchored', what: 'Audio fade: music → 40% (trigger it when the host speaks)' },
+        { when: '+ a few seconds later', what: 'Audio fade: music → 100% (back to full)' },
       ],
     },
   ];
@@ -276,13 +276,12 @@ function ActionExamplesModal({ onClose }: { onClose: () => void }) {
       <div className="actions-examples-modal" onClick={e => e.stopPropagation()}>
         <header className="actions-examples-header">
           <div>
-            <h2>Action sequences — what they're for</h2>
+            <h2>Action sequence examples</h2>
             <p>
-              An action sequence runs alongside a playlist's runway and fires cues
-              at specific moments — anchored either to a wall-clock offset
-              (service_start / music_start) or to a song position (first_song /
-              last_song). Use them to coordinate audio, MIDI, ProPresenter, and
-              playlist swaps that all need to happen at the same musical moment.
+              A sequence runs alongside a playlist's runway and fires cues at set
+              moments: a time before or after service start or music start, or a
+              song position (first or last song). Use it to line up audio, MIDI,
+              ProPresenter, and playlist changes on the same musical moment.
             </p>
           </div>
           <button type="button" className="actions-examples-close" onClick={onClose} aria-label="Close">
@@ -306,9 +305,8 @@ function ActionExamplesModal({ onClose }: { onClose: () => void }) {
             </section>
           ))}
           <div className="actions-examples-footnote">
-            The most common shape: anchor on <code>last_song</code> or <code>service_start</code>,
-            then chain 2–3 actions a few seconds apart so audio, lighting, and slides
-            all hit the same beat.
+            Most sequences anchor on the last song or service start, then chain 2–3
+            actions a few seconds apart so audio, lighting, and slides hit the same beat.
           </div>
         </div>
       </div>
@@ -399,10 +397,10 @@ function ActionRow({
           onChange={e => setPayload(defaultPayloadFor(e.target.value as ActionPayload['type']))}
         >
           <option value="midi_send">MIDI send</option>
-          <option value="pp_trigger_slide">ProPresenter — trigger slide</option>
-          <option value="pp_trigger_playlist_item">ProPresenter — trigger playlist item</option>
-          <option value="pp_set_timer">ProPresenter — set timer</option>
-          <option value="pp_timer_control">ProPresenter — timer control</option>
+          <option value="pp_trigger_slide">ProPresenter: trigger slide</option>
+          <option value="pp_trigger_playlist_item">ProPresenter: trigger playlist item</option>
+          <option value="pp_set_timer">ProPresenter: set timer</option>
+          <option value="pp_timer_control">ProPresenter: timer control</option>
           <option value="audio_fade">Audio bus fade</option>
           <option value="pad_action">Pad player</option>
           <option value="music_action">Music transport</option>
@@ -606,7 +604,7 @@ function PayloadEditor({
             max={9999}
             onChange={n => onChange({ ...payload, slideIndex: n })}
           />
-          <span className="payload-hint">(zero-based)</span>
+          <span className="payload-hint">(first slide = 0)</span>
         </div>
       );
     case 'pp_trigger_playlist_item':
@@ -818,7 +816,7 @@ function ArmPlaylistEditor({
           const pl = playlists.find(p => p.id === e.target.value);
           onChange({ ...payload, playlistId: e.target.value, playlistName: pl?.name });
         }}
-        title="Playlist to arm as the upcoming service's pre-service music. Overrides anything currently playing — post-service fades out, queued pre-service is cleared, this playlist arms in."
+        title="Arms this playlist as the next service's pre-service music. Replaces whatever is playing: post-service fades out and queued pre-service music is cleared."
       >
         <option value="">— playlist —</option>
         {playlists.map(p => (
@@ -840,7 +838,7 @@ function ArmPlaylistEditor({
       />
       <label
         className="action-toggle-field"
-        title="When ON, the runway loops tracks to fill the entire lead-time window. When OFF, plays once through and ends — useful when the playlist is already long enough."
+        title="On: tracks loop to fill the whole lead time. Off: the playlist plays once and ends, for when it's already long enough."
       >
         <input
           type="checkbox"
@@ -971,16 +969,16 @@ function PpPlaylistItemEditor({
         disabled={!payload.playlistUuid || busy}
         title="Item within the chosen playlist"
         placeholder={!payload.playlistUuid
-          ? '— pick a playlist first —'
+          ? 'Pick a playlist first'
           : busy
-            ? '— loading items… —'
+            ? 'Loading items…'
             : items.length === 0
-              ? '— playlist has no items —'
-              : '— select an item —'}
+              ? 'No items in this playlist'
+              : 'Select an item'}
         savedIndex={payload.itemIndex}
         savedName={payload.itemName}
       />
-      <label className="action-num-field" title="Drill into a specific slide of the item — leave off to fire the item from its first slide.">
+      <label className="action-num-field" title="Fire a specific slide of this item. Leave off to start from the first slide.">
         <span>Slide</span>
         <Toggle
           checked={slideEnabled}
@@ -988,7 +986,7 @@ function PpPlaylistItemEditor({
             ...payload,
             slideIndex: b ? (payload.slideIndex ?? 0) : undefined,
           })}
-          ariaLabel="Drill to specific slide"
+          ariaLabel="Specific slide"
         />
       </label>
       {slideEnabled && (

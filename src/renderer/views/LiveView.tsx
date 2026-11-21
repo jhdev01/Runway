@@ -658,7 +658,7 @@ export function LiveView() {
                 className="arm-toggle arm-toggle-compact"
                 onClick={onArmToggle}
                 data-armed={autoArmEnabled ? 'true' : 'false'}
-                title="Master auto-arm switch — when on, services auto-arm as they become active"
+                title="When on, each service arms itself as it comes up"
               >
                 <span className="arm-toggle-dot" aria-hidden />
                 Auto-arm: {autoArmEnabled ? 'ON' : 'OFF'}
@@ -842,7 +842,7 @@ export function LiveView() {
             <span className="auto-arm-pending-dot" aria-hidden />
             <span className="auto-arm-pending-text">
               Auto-arm scheduled for <strong>{new Date(displayMusicFireMs).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</strong>
-              {' '}— post-service will fade out and {activeService.name || 'next service'} will arm.
+              {' '}Post-service will fade out and {activeService.name || 'the next service'} will arm.
             </span>
           </div>
         )}
@@ -1006,7 +1006,7 @@ export function LiveView() {
               {playlistInUse && !activeService.disablePadBridge && !currentRunway?.skipPadBridge && (
                 <div
                   className="hero-meta-item"
-                  title="How long the pad continues holding after service start (= padBridgeSec). The pre-service pad lead — when the pad fires before service start — is set in Music transitions on the right."
+                  title="How long the pad holds after service start. When the pad starts before service start is set under Music transitions, on the right."
                 >
                   <span className="hero-meta-label">Pad hold</span>
                   <span className="hero-meta-value">{playlistInUse.padBridgeSec.toFixed(1)}s</span>
@@ -1114,8 +1114,8 @@ export function LiveView() {
                   {isArmed && currentRunway
                     ? `Fires at ${new Date(currentRunway.musicStartMs).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
                     : activeService
-                      ? `Auto-start will fire ~${Math.round(activeService.autoStartTargetSec / 60)} min before service`
-                      : 'Configure a service to enable auto-start'}
+                      ? `Music starts about ${Math.round(activeService.autoStartTargetSec / 60)} min before service`
+                      : 'Add a service in Schedule to turn on auto-start'}
                 </div>
               </>
             )}
@@ -1224,7 +1224,7 @@ export function LiveView() {
                 <div className="runway-list">
                   <div className="timeline-empty">
                     {activeService
-                      ? 'Click Arm Service to load the runway'
+                      ? 'Click Arm to load the runway'
                       : 'Add a service in the Schedule tab'}
                   </div>
                 </div>
@@ -1336,7 +1336,7 @@ export function LiveView() {
                       return (
                         <div key={`missing-${i}`} className="timeline-segment" style={{ flex: '1 0 140px', opacity: 0.4 }}>
                           <div className="tl-seg-top">
-                            <div className="tl-seg-name">— missing track —</div>
+                            <div className="tl-seg-name">Missing track</div>
                           </div>
                           <div className="tl-seg-scrub" />
                         </div>
@@ -1494,7 +1494,7 @@ export function LiveView() {
             <div className="np-title">
               {(() => {
                 const t = tracks.find(t => t.id === musicPlayback.trackId);
-                return t ? t.title : (musicPlayback.isPlaying ? 'Untitled' : '— nothing playing —');
+                return t ? t.title : (musicPlayback.isPlaying ? 'Untitled' : 'Nothing playing');
               })()}
             </div>
             <div className="np-progress">
@@ -1578,15 +1578,15 @@ export function LiveView() {
               && (preServicePlaying || !chosenPostId || !hasAnyPostPlaylist);
             const fadeSec = (useAppStore.getState().config.defaults.postServiceFadeInSec ?? 4).toFixed(1);
             const label = isPostServiceRolling
-              ? confirmStopPost ? 'Click Again to Stop' : 'Stop Post-Service'
+              ? confirmStopPost ? 'Click again to stop' : 'Stop Post-Service'
               : 'Start Post-Service';
             const chosenName = postPlaylists.find(p => p.id === chosenPostId)?.name;
             const subText = isPostServiceRolling
               ? confirmStopPost ? `Will fade out · ${fadeSec}s` : `Fades out · ${fadeSec}s`
               : preServicePlaying
-                ? 'Locked — pre-service is rolling'
+                ? 'Locked while pre-service plays'
                 : preServiceQueued
-                  ? 'Will disarm next service · auto-arm off'
+                  ? 'Disarms next service, turns auto-arm off'
                   : !hasAnyPostPlaylist
                     ? 'No post-service playlists available'
                     : chosenName
@@ -1662,7 +1662,7 @@ export function LiveView() {
                 disabled={padDisabled}
                 title={fadeActive
                   ? 'Bring music back and fade the pad out'
-                  : 'Fade music to silence and hold on a key-matched pad. Music keeps playing in the background — click again to bring it back.'}
+                  : 'Fade music to silence and hold on a pad in the same key. Music keeps playing silently; click again to bring it back.'}
               >
                 <div className="action-btn-icon">
                   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -1961,15 +1961,15 @@ function NotArmedBanner({
       <div className="not-armed-icon" aria-hidden>⚠</div>
       <div className="not-armed-text">
         <div className="not-armed-title">
-          {past ? 'Service start has passed — arm now' : 'Service is not armed'}
+          {past ? 'Service start has passed. Arm now.' : 'Service is not armed'}
         </div>
         <div className="not-armed-sub">
           {past
             ? 'Music will not play until you arm the service.'
             : `Arm before ${countdown} or the pre-service music won't fire.`}
           {postServiceRolling
-            ? ' Post-service is rolling — arming will fade it out.'
-            : ' Need music playing now? Hit Start Post-Service below.'}
+            ? ' Arming will fade out the post-service music.'
+            : ' For music right now, use Start Post-Service below.'}
         </div>
       </div>
       <button className="not-armed-arm" onClick={onArm} type="button">
@@ -2007,7 +2007,7 @@ function TimelineActionMarkers({
         const meta = ACTION_META[action.payload.type];
         const arrow = clamped === 'before' ? '‹ ' : clamped === 'after' ? ' ›' : '';
         const tipText = clamped
-          ? `${describeAction(action)} — fires ${clamped === 'before' ? 'before' : 'after'} the visible window`
+          ? `${describeAction(action)} (fires ${clamped === 'before' ? 'before' : 'after'} the visible timeline)`
           : describeAction(action);
         // The vertical line sits at the exact fire-time pct. The icon
         // normally centers on the line, but at the runway edges we shift

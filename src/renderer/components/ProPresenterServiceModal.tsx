@@ -303,15 +303,15 @@ export function ProPresenterServiceModal({ title, subtitle, override, onClose, o
         <div className="pp-modal-body">
           <div className="pp-modal-help">
             {override
-              ? 'These settings override the global ProPresenter defaults for this entry. Click "Use global instead" below to clear the override.'
-              : 'Saving any change here overrides the global ProPresenter defaults for this entry. Use "Use global instead" later to revert.'}
+              ? 'This entry uses its own ProPresenter setup. Click "Use global instead" to go back to the Settings defaults.'
+              : 'Saving here gives this entry its own ProPresenter setup instead of the Settings defaults.'}
           </div>
           <div className="pp-modal-poll-status">
             {polling
-              ? '⟳ Polling ProPresenter for timers and playlists…'
+              ? '⟳ Loading timers and playlists from ProPresenter…'
               : pollError
                 ? `Couldn't refresh from ProPresenter: ${pollError}`
-                : `Refreshed — ${cachedPlaylists.length} playlist${cachedPlaylists.length === 1 ? '' : 's'}, ${cachedTimers.length} timer${cachedTimers.length === 1 ? '' : 's'}`}
+                : `Refreshed: ${cachedPlaylists.length} playlist${cachedPlaylists.length === 1 ? '' : 's'}, ${cachedTimers.length} timer${cachedTimers.length === 1 ? '' : 's'}`}
           </div>
 
           <div className="pp-modal-section-title">Timer</div>
@@ -333,8 +333,8 @@ export function ProPresenterServiceModal({ title, subtitle, override, onClose, o
             )}
           </select>
 
-          <div className="pp-modal-section-title" style={{ marginTop: 18 }}>Hooks</div>
-          {renderHook('musicStart', 'When music starts', 'Fires when the pre-service music actually begins playing.', '♪', 'music')}
+          <div className="pp-modal-section-title" style={{ marginTop: 18 }}>Triggers</div>
+          {renderHook('musicStart', 'When music starts', 'When pre-service music begins playing.', '♪', 'music')}
           {renderHook('serviceStart', 'When service starts', 'Fires when the PP timer reaches 00:00.', '▶', 'service')}
           {renderHook('postServiceStart', 'When post-service starts', 'Fires when Start Post-Service is pressed (no timer).', '✦', 'post')}
           {renderHook('disarm', 'When disarmed', "Fires when this service is panicked or manually disarmed. 'Do nothing' leaves the PP timer running.", '◯', 'disarm')}
@@ -346,7 +346,7 @@ export function ProPresenterServiceModal({ title, subtitle, override, onClose, o
               className="btn-secondary"
               onClick={onClearOverride}
               style={{ marginRight: 'auto' }}
-              title="Remove this entry's override and inherit global PP settings"
+              title="Go back to the ProPresenter defaults in Settings"
             >
               Use global instead
             </button>

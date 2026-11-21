@@ -121,7 +121,7 @@ export function RehearsePanel() {
     setActiveRehearsalIds(prev => [...prev, id]);
     const result = await armService(id, (filePath) => audio.loadBuffer(filePath).then(() => undefined));
     if (!result.ok) {
-      setScheduledError(result.reason ?? 'Failed to arm rehearsal');
+      setScheduledError(result.reason ?? 'Couldn\'t arm the rehearsal');
       deleteService(id);
       setActiveRehearsalIds(prev => prev.filter(rid => rid !== id));
     } else if (result.warning) {
@@ -165,7 +165,7 @@ export function RehearsePanel() {
               alignItems: 'center',
               justifyContent: 'space-between',
             }}
-            title="Plays a playlist immediately. No service, no pad bridge. Use to quickly check song-to-song transitions."
+            title="Plays a playlist now, with no service and no pad bridge. Use it to check song-to-song transitions."
           >
             <span>Quick Test{isQuickPlaying ? ' · playing' : ''}</span>
             <span>{showQuick || isQuickPlaying ? '−' : '+'}</span>
@@ -238,7 +238,7 @@ export function RehearsePanel() {
               alignItems: 'center',
               justifyContent: 'space-between',
             }}
-            title="Simulates the full firing chain — auto-start, runway, pad bridge, service start. Use this to verify timing end-to-end."
+            title="Runs a full practice service: auto-start, runway, pad bridge, service start. Use it to check timing."
           >
             <span>Scheduled</span>
             <span>{showScheduled ? '−' : '+'}</span>

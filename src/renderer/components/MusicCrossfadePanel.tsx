@@ -56,13 +56,13 @@ export function MusicCrossfadePanel() {
       </div>
       <div className="music-xfade-hint">
         Pad lead-in: pad fades up while music still plays.
-        Music fade: starts after the lead-in, ending at music end (= service start).
+        Music fade: starts after the lead-in and ends at service start.
       </div>
       <div
         className="music-xfade-hint"
         style={{ marginTop: 4, color: 'var(--accent-bright)', fontWeight: 600 }}
       >
-        Pad fires {(padLeadInSec + musicFadeToPadSec).toFixed(1)}s before service start.
+        Pad starts {(padLeadInSec + musicFadeToPadSec).toFixed(1)}s before service start.
       </div>
     </div>
   );
