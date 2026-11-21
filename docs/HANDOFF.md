@@ -198,6 +198,55 @@ re-deliver). The key clears on any failed ping so a briefly-unreachable PP
 gets the countdown again. Safe because the timer counts to an absolute
 wall-clock time — re-arming mid-song shows the correct remaining time.
 Only the timer re-arms; slide/playlist hooks do not re-fire.
+## In flight
+
+### MultiTracks.com key tagging (branch `claude/song-key-tagging-multitracks-cy6gyf`)
+
+Library → **♪ Keys from MultiTracks** looks up the published *original master key*
+for worship songs and proposes them for the library. Nothing is written until the
+operator hits Apply in the review sheet.
+
+- **Where the data comes from.** MultiTracks has no public API, but their own
+  search box posts JSON to `https://api.multitracks.com/search/songs` and renders
+  it client-side. `src/main/multitracksLookup.ts` makes the same unauthenticated
+  request. No account, no scraping of rendered pages, no credentials to configure.
+  `order` must be a number — the endpoint answers `{ result: 0 }` with no items
+  when it's null.
+- **What comes back.** `originalKey` per catalog entry (`"B"`, `"Gb"`, `"Ab"`).
+  BPM is *not* in the search payload — it's fetched separately by the song page,
+  so this path fills key only. GetSongBPM remains the BPM source.
+- **Roots only.** MultiTracks does not mark major vs minor, so a lookup returns
+  the major spelling. The review sheet has a dedicated "Relative major/minor"
+  group: if the operator has `Em` and MultiTracks says `G`, that's the same
+  Camelot position and is never auto-applied.
+- **Matching.** Title + artist + duration scoring in `scoreCandidate()`. Duration
+  is the strongest disambiguator between an album cut and a radio edit, which are
+  frequently in different keys — `runMultitracksScan` passes `track.durationSec`
+  for that reason. Below a 0.55 floor we report "no match" rather than guess.
+  Search queries are progressively widened (cleaned title + artist → cleaned
+  title → raw title); long `feat.` credit lists otherwise return zero rows.
+- **Politeness.** Results cached for the process lifetime, requests serialized
+  with a 350ms floor between them, 9s timeout, every failure returned as a
+  `reason` string rather than thrown. The endpoint is undocumented and can change
+  without notice — when it does, the feature degrades to "no match" and manual
+  entry, it doesn't break the app.
+- **Attribution.** "Key data from multitracks.com" sits in the review sheet footer.
+- **Auto-tag on import.** Settings → Library → *Tag keys on import* (default ON,
+  `defaults.autoKeyTagOnImport`). Runs after `addTracks`, so new rows appear
+  immediately and lookups happen behind them. Only tracks that arrive with NO key
+  are looked up, and only proposals `makeProposal` pre-checks are written — a
+  confident match that leads the nearest key-disagreeing alternate by
+  `DECISIVE_MARGIN` (0.1). Everything else is parked and the toolbar hint offers
+  a Review that opens the sheet with the leftovers. Tune `DECISIVE_MARGIN` in
+  `MultitracksKeyModal.tsx` if the operator wants it looser or stricter.
+- **Duration is what makes auto-tag work.** Imported files always carry a
+  `durationSec`, which pushes the matching release to a clean 1.00 and drops the
+  rival cuts below the margin. Without it (e.g. a hand-typed lookup) most
+  multi-key songs correctly fall to "needs a look" instead.
+
+Verified against real lookups (Elevation, Bethel, Hillsong, Phil Wickham, Chris
+Tomlin, Maverick City, Cody Carnes) — 14/14 keys matched the published pages.
+**No timing code touched.**
 
 ---
 

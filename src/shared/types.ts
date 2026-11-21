@@ -644,6 +644,38 @@ export interface PcoSyncConfig {
   lastError?: string | null;            // populated when the last fetch failed
 }
 
+/**
+ * One MultiTracks.com catalog hit, scored against a local track.
+ * `key` is already normalized to a canonical KeyName.
+ */
+export interface MultitracksCandidate {
+  key: KeyName;
+  /** Song title as MultiTracks spells it. */
+  title: string;
+  /** Primary artist as MultiTracks spells it. */
+  artist: string;
+  album: string;
+  /** Absolute multitracks.com URL, so the operator can verify a match. */
+  url: string;
+  /** Track length in seconds, per MultiTracks. Used for disambiguation. */
+  durationSec?: number;
+  /** 0..1 match confidence. See scoreCandidate() in main/multitracksLookup.ts. */
+  score: number;
+}
+
+export interface MultitracksResult {
+  /** Best candidate, or undefined when nothing cleared the match floor. */
+  best?: MultitracksCandidate;
+  /**
+   * Other plausible matches whose key DISAGREES with `best`, best-first.
+   * Live/radio/acoustic cuts often sit in different keys, so the UI
+   * offers a choice instead of guessing.
+   */
+  alternates: MultitracksCandidate[];
+  /** Set when there's no usable match. Human-readable, safe to display. */
+  reason?: string;
+}
+
 export interface AppConfig {
   version: 1;
   playlists: Playlist[];
@@ -742,6 +774,12 @@ export interface AppConfig {
     // time, loop tracks to fill the time. When false, music starts late and
     // still ends exactly at the right time.
     repeatToFill: boolean;
+    // On import, look up each new track's key on MultiTracks.com and
+    // apply it when the match is confident and unambiguous. Tracks that
+    // arrive with a key already in their tags are left alone, and
+    // anything the catalog is unsure about is held for review rather
+    // than guessed. Off = the Library button is the only way in.
+    autoKeyTagOnImport: boolean;
     // 3-band EQ — gains in dB. 0 = flat.
     eqLowDb: number;
     eqMidDb: number;
@@ -854,6 +892,7 @@ export const DEFAULT_CONFIG: AppConfig = {
     musicFadeToPadSec: 5,
     padLeadInSec: 5,
     repeatToFill: true,
+    autoKeyTagOnImport: true,
     eqLowDb: 0,
     eqMidDb: 0,
     eqHighDb: 0,
@@ -973,6 +1012,7 @@ export const IPC = {
   SPOTIFY_STATUS: 'spotify:status',
   SPOTIFY_DISCONNECT: 'spotify:disconnect',
   SPOTIFY_PLAYLIST_READ: 'spotify:playlistRead',
+  MULTITRACKS_LOOKUP: 'track:multitracks',
 } as const;
 
 // ── Spotify (experimental) ────────────────────────────────────────────
