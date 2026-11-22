@@ -89,26 +89,26 @@
       "background": "build/dmg-background.png",
       "window": {
         "width": 640,
-        "height": 600
+        "height": 660
       },
       "contents": [
         {
           "x": 160,
-          "y": 200,
+          "y": 190,
           "type": "file"
         },
         {
           "x": 480,
-          "y": 200,
+          "y": 190,
           "type": "link",
           "path": "/Applications"
         },
         {
           "x": 320,
-          "y": 460,
+          "y": 450,
           "type": "file",
-          "path": "build/HOW TO INSTALL.txt",
-          "name": "HOW TO INSTALL.txt"
+          "path": "build/Install Help.html",
+          "name": "Install Help.html"
         }
       ]
     }

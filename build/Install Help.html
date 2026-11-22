@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Install Runway</title>
+<style>
+  :root {
+    --bg: #070b0e; --panel: #0d1418; --line: #1c262c;
+    --fg: #e6eef0; --muted: #93a4ab; --accent: #2dd4bf; --accent-ink: #04201c;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--fg);
+    font: 16px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+  main { max-width: 640px; margin: 0 auto; padding: 48px 20px 64px; }
+  h1 { font-size: 28px; margin: 0 0 6px; }
+  .sub { color: var(--muted); margin: 0 0 32px; }
+  ol { margin: 0; padding: 0; list-style: none; display: grid; gap: 20px; counter-reset: step; }
+  li { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px 20px; counter-increment: step; }
+  li::before {
+    content: "Step " counter(step); display: block; margin-bottom: 4px;
+    font-size: 12px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--accent);
+  }
+  .cmd { display: flex; gap: 10px; align-items: stretch; margin-top: 12px; flex-wrap: wrap; }
+  code {
+    flex: 1 1 280px; min-width: 0; display: block; padding: 12px 14px; border-radius: 8px;
+    background: #020405; border: 1px solid var(--line); color: #99f2eb;
+    font: 15px/1.4 ui-monospace, Menlo, monospace; user-select: all; overflow-x: auto; white-space: nowrap;
+  }
+  button {
+    font: 600 15px -apple-system, BlinkMacSystemFont, sans-serif; padding: 0 22px; min-height: 46px;
+    border: 0; border-radius: 8px; background: var(--accent); color: var(--accent-ink); cursor: pointer;
+  }
+  button:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+  .ok { background: #8ff0c4; }
+  kbd { font: 13px ui-monospace, Menlo, monospace; padding: 1px 6px; border: 1px solid var(--line); border-radius: 4px; background: #020405; }
+  .why { margin-top: 36px; color: var(--muted); font-size: 14px; }
+  .why h2 { color: var(--fg); font-size: 15px; margin: 0 0 6px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Install Runway</h1>
+  <p class="sub">About a minute. You only do this once per new version.</p>
+
+  <ol>
+    <li>Drag <strong>Runway</strong> onto the <strong>Applications</strong> folder in the install window.</li>
+    <li>
+      Copy this command:
+      <div class="cmd">
+        <code id="cmd">xattr -cr /Applications/Runway.app</code>
+        <button id="copy" type="button">Copy</button>
+      </div>
+    </li>
+    <li>Open Terminal: press <kbd>⌘</kbd> <kbd>Space</kbd>, type <strong>Terminal</strong>, press <kbd>Return</kbd>. Paste with <kbd>⌘</kbd> <kbd>V</kbd> and press <kbd>Return</kbd>. Nothing prints when it works.</li>
+    <li>Open Runway from Applications, the Dock, or Launchpad.</li>
+  </ol>
+
+  <div class="why">
+    <h2>Why the Terminal step?</h2>
+    <p>Runway isn't signed with an Apple Developer ID, so macOS marks the downloaded app as quarantined and refuses to open it, sometimes with the message "Runway is damaged and can't be opened". The app isn't damaged. The command removes the quarantine mark. Each new version you download needs it again.</p>
+  </div>
+</main>
+<script>
+  const btn = document.getElementById('copy');
+  const code = document.getElementById('cmd');
+  function selectCommand() {
+    const range = document.createRange();
+    range.selectNodeContents(code);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
+  function done(ok) {
+    btn.textContent = ok ? 'Copied' : 'Press ⌘C';
+    btn.classList.toggle('ok', ok);
+    setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('ok'); }, 2500);
+  }
+  btn.addEventListener('click', async () => {
+    const text = code.textContent;
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(text);
+        return done(true);
+      }
+    } catch (e) { /* fall through to the selection-based copy */ }
+    selectCommand();
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+    done(ok);
+  });
+</script>
+</body>
+</html>
