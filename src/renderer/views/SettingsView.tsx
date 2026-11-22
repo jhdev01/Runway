@@ -2078,7 +2078,7 @@ function SpotifyTimingTestSection() {
           <div><strong>{result.track}</strong></div>
           {result.runs.map((r, i) => (
             <div key={i}>
-              Run {i + 1}: started {fmt(r.rawErrorMs)} → after correction {fmt(r.correctedErrorMs)}
+              Run {i + 1}: loaded in {(r.loadMs / 1000).toFixed(2)}s · first jump {fmt(r.rawErrorMs)} → after correction {fmt(r.correctedErrorMs)}
               {' '}(wobble ±{(r.jitterMs / 2000).toFixed(2)}s, command {r.commandMs} ms)
             </div>
           ))}

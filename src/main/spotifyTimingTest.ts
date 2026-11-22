@@ -5,10 +5,11 @@
 // it does not touch Runway's audio engine, scheduling, or any service.
 //
 // Each run rehearses what a Spotify-driven "last song" would do:
-//   1. Start the song partway in, silent, timed so it should end exactly
+//   1. Start the song silent and wait until Spotify reports it playing
+//      (the load time). Then jump to the spot where it should end exactly
 //      `TAIL_SEC` later, and fade Spotify's volume up.
 //   2. Read Spotify's position to see how far off the landing would be
-//      (the "raw" error — buffering / start latency).
+//      after that first jump (the "raw" error).
 //   3. Nudge the position once to correct it, under the fade-in.
 //   4. Keep reading to see how close the corrected landing is and how
 //      steady Spotify's clock is.
@@ -29,6 +30,8 @@ export interface SpotifyTimingRun {
   jitterMs: number;
   // Average time one command to Spotify took (round trip).
   commandMs: number;
+  // How long Spotify took from "play" until it reported the song playing.
+  loadMs: number;
   samples: number;
 }
 
@@ -44,6 +47,9 @@ const FADE_SEC = 3;         // volume fade up / down
 const CORRECT_AT_SEC = 4;   // when the corrective nudge is applied
 const STEP_MS = 250;        // sampling / fade step
 const RUNS = 3;
+const LOAD_POLL_MS = 100;
+const LOAD_TIMEOUT_MS = 5000;
+const RESTART_MAX_SEC = 5;
 
 let running = false;
 
@@ -137,13 +143,35 @@ export async function runSpotifyTimingTest(trackInput?: string): Promise<Spotify
       await osa(tell('set sound volume to 0'));
       await sleep(700);
 
+      // Start the song (silent) and wait until Spotify reports it playing.
+      // A seek sent in the same breath as "play track" is ignored while
+      // the song loads, so the jump has to come after this.
+      const loadStart = Date.now();
+      await osa(tell(`play track "${uri}"`));
+      let loaded = false;
+      while (Date.now() - loadStart < LOAD_TIMEOUT_MS) {
+        const st = await osa(tell(
+          'return (id of current track) & "|" & (player state as text) & "|" & (player position as text)',
+        ));
+        const [id, state, posStr] = st.split('|');
+        // Near the top of the song = the restart has actually happened
+        // (replaying the current song can still report its old position).
+        if (id === uri && state === 'playing' && num(posStr) < RESTART_MAX_SEC) { loaded = true; break; }
+        await sleep(LOAD_POLL_MS);
+      }
+      const loadMs = Date.now() - loadStart;
+      if (!loaded) {
+        await osa(tell('pause'));
+        return { ok: false, reason: 'Spotify didn’t start the song within 5 seconds. Check your connection and try again.' };
+      }
+
       const plannedEnd = Date.now() + TAIL_SEC * 1000;
       // Where the song should be at wall-clock time t to end on plannedEnd.
       const targetPos = (t: number) => durationSec - (plannedEnd - t) / 1000;
 
       const cmdTimes: number[] = [];
       const t0 = Date.now();
-      await osa(tell(`play track "${uri}"`, `set player position to ${lit(targetPos(t0))}`));
+      await osa(tell(`set player position to ${lit(targetPos(t0))}`));
       cmdTimes.push(Date.now() - t0);
 
       const raw: number[] = [];
@@ -202,6 +230,7 @@ export async function runSpotifyTimingTest(trackInput?: string): Promise<Spotify
         jitterMs: Math.round(Math.max(...corrected) - Math.min(...corrected)),
         commandMs: Math.round(cmdTimes.reduce((s, x) => s + x, 0) / cmdTimes.length),
         samples: corrected.length,
+        loadMs,
       });
     }
     return { ok: true, track, runs };

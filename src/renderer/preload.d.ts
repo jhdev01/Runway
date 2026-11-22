@@ -95,7 +95,7 @@ declare global {
         revealTimingLog: () => Promise<{ ok: boolean; path?: string; reason?: string }>;
         spotifyTimingTest: (track?: string) => Promise<{
           ok: boolean; reason?: string; track?: string;
-          runs?: Array<{ rawErrorMs: number; correctedErrorMs: number; jitterMs: number; commandMs: number; samples: number }>;
+          runs?: Array<{ rawErrorMs: number; correctedErrorMs: number; jitterMs: number; commandMs: number; samples: number; loadMs: number }>;
         }>;
       };
     };
