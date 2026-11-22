@@ -1,4 +1,4 @@
-import type { LibraryBundlePreview, LibraryImportMode, LibraryImportReport, AppConfig, Track, KeyName, PpRequest, PpResponse, PcoRequest, PcoResponse, RelinkReport, RemoteNetworkInterface, SpotifyStatus, SpotifyPlaylistResult, MultitracksResult } from '@shared/types';
+import type { LibraryBundlePreview, LibraryImportMode, LibraryImportReport, AppConfig, Track, KeyName, PpRequest, PpResponse, PcoRequest, PcoResponse, RelinkReport, RemoteNetworkInterface, SpotifyStatus, SpotifyPlaylistResult, SpotifyPlayerCommand, SpotifyPlayerReply, MultitracksResult } from '@shared/types';
 
 export {};
 
@@ -89,6 +89,7 @@ declare global {
         status: () => Promise<SpotifyStatus>;
         disconnect: () => Promise<SpotifyStatus>;
         readPlaylist: (link: string) => Promise<SpotifyPlaylistResult>;
+        player: (cmd: SpotifyPlayerCommand) => Promise<SpotifyPlayerReply>;
       };
       diagnostics: {
         appendTimingLog: (line: string) => void;

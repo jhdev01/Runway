@@ -11,6 +11,7 @@ import { PpItemPicker } from '../components/PpItemPicker';
 import { runPcoKeySync, type PcoServiceType } from '../lib/planningCenterClient';
 import { RotaryKnob } from '../components/RotaryKnob';
 import { Toggle } from '../components/Toggle';
+import { SpotifyTestRunPanel } from '../components/SpotifyTestRunPanel';
 import runwayIconUrl from '../assets/runway-icon.png';
 
 type SettingsTab = 'audio' | 'midi' | 'propresenter' | 'planningcenter' | 'pads' | 'remote' | 'engine' | 'display' | 'about';
@@ -1953,7 +1954,7 @@ function SpotifyAccountSection() {
       <div className="settings-section-title">Spotify playlists (experimental)</div>
       <div className="settings-section-sub">
         Sign in so Runway can read the songs in your Spotify playlists. Spotify only lets Runway read
-        playlists you created or collaborate on. This only reads the song list — it doesn’t play anything yet.
+        playlists you created or collaborate on. After reading one, you can try a test run below.
       </div>
       {!status.connected && (
         <div className="settings-section-sub">
@@ -2021,6 +2022,9 @@ function SpotifyAccountSection() {
             ))}
           </div>
         </div>
+      )}
+      {playlist?.ok && playlist.tracks && playlist.tracks.length > 0 && (
+        <SpotifyTestRunPanel playlist={playlist} />
       )}
     </section>
   );

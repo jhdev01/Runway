@@ -1012,6 +1012,8 @@ export const IPC = {
   SPOTIFY_STATUS: 'spotify:status',
   SPOTIFY_DISCONNECT: 'spotify:disconnect',
   SPOTIFY_PLAYLIST_READ: 'spotify:playlistRead',
+  // Experimental: one remote-control command to the Spotify desktop app.
+  SPOTIFY_PLAYER: 'spotify:player',
   MULTITRACKS_LOOKUP: 'track:multitracks',
 } as const;
 
@@ -1028,6 +1030,28 @@ export interface SpotifyPlaylistTrack {
   durationMs: number;
   albumArtUrl?: string;
 }
+/** One command to the Spotify desktop app (macOS, experimental). */
+export type SpotifyPlayerCommand =
+  | { op: 'check' }
+  | { op: 'play'; uri: string }
+  | { op: 'seek'; positionSec: number }
+  | { op: 'volume'; volume: number }
+  | { op: 'pause' }
+  | { op: 'state' }
+  | { op: 'volumeAndState'; volume: number };
+
+export interface SpotifyPlayerReply {
+  ok: boolean;
+  reason?: string;
+  /** Date.now() when the command was sent / when Spotify answered. */
+  sentAt?: number;
+  answeredAt?: number;
+  trackUri?: string;
+  playerState?: 'playing' | 'paused' | 'stopped';
+  positionSec?: number;
+  volume?: number;
+}
+
 export interface SpotifyPlaylistResult {
   ok: boolean;
   reason?: string;
