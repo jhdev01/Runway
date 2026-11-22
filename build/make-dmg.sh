@@ -52,7 +52,15 @@ echo "[make-dmg] staging contents in $STAGE"
 mkdir -p "$STAGE/.background"
 cp -R "$APP_SRC" "$STAGE/Runway.app"
 cp "$ROOT/build/Install Help.html" "$STAGE/Install Help.html"
-cp "$ROOT/build/dmg-background.png" "$STAGE/.background/dmg-background.png"
+# Combine the 1x and 2x artwork into one Retina-aware TIFF so the text is
+# sharp on Retina screens. Fall back to the 1x PNG if tiffutil balks.
+BG_NAME="dmg-background.tiff"
+if ! tiffutil -cathidpicheck "$ROOT/build/dmg-background.png" "$ROOT/build/dmg-background@2x.png" \
+     -out "$STAGE/.background/$BG_NAME" >/dev/null 2>&1; then
+  echo "[make-dmg] tiffutil failed; using the 1x PNG background"
+  BG_NAME="dmg-background.png"
+  cp "$ROOT/build/dmg-background.png" "$STAGE/.background/$BG_NAME"
+fi
 ln -s /Applications "$STAGE/Applications"
 
 echo "[make-dmg] creating read-write DMG"
@@ -105,9 +113,9 @@ with timeout of 120 seconds
       set viewOpts to the icon view options of container window
       set arrangement of viewOpts to not arranged
       set icon size of viewOpts to 96
-      set background picture of viewOpts to file ".background:dmg-background.png"
+      set background picture of viewOpts to file ".background:$BG_NAME"
       delay 1
-      -- Must match the artwork in make-dmg-background.sh.
+      -- Must match the artwork drawn by make-dmg-background.py.
       set position of item "Runway.app" of container window to {160, 190}
       set position of item "Applications" of container window to {480, 190}
       set position of item "Install Help.html" of container window to {320, 450}
