@@ -117,7 +117,11 @@ export async function runSpotifyTimingTest(trackInput?: string): Promise<Spotify
       await osa(tell('set sound volume to 0', `play track "${uri}"`));
       await sleep(1500);
     } else {
-      uri = await osa(tell('return id of current track'));
+      try {
+        uri = await osa(tell('return id of current track'));
+      } catch {
+        return { ok: false, reason: 'Play a song in Spotify first, or paste a Spotify song link.' };
+      }
       if (!/^spotify:track:/.test(uri)) {
         return { ok: false, reason: 'Play a song in Spotify first, or paste a Spotify song link.' };
       }
@@ -150,9 +154,16 @@ export async function runSpotifyTimingTest(trackInput?: string): Promise<Spotify
       await osa(tell(`play track "${uri}"`));
       let loaded = false;
       while (Date.now() - loadStart < LOAD_TIMEOUT_MS) {
-        const st = await osa(tell(
-          'return (id of current track) & "|" & (player state as text) & "|" & (player position as text)',
-        ));
+        // While a song loads Spotify briefly has no current track and
+        // answers with error -1728; that just means "not yet", so ask again.
+        let st = '';
+        try {
+          st = await osa(tell(
+            'return (id of current track) & "|" & (player state as text) & "|" & (player position as text)',
+          ));
+        } catch (e) {
+          if (!/-1728/.test(e instanceof Error ? e.message : String(e))) throw e;
+        }
         const [id, state, posStr] = st.split('|');
         // Near the top of the song = the restart has actually happened
         // (replaying the current song can still report its old position).
