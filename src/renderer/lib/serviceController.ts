@@ -739,7 +739,6 @@ export class ServiceController {
     if (spotifyTestRun.isActive()) await spotifyTestRun.stop();
     if (spotifyFreePlay.isActive()) await spotifyFreePlay.stop(1);
 
-    const epoch = Date.now();
     const firstFadeInSec = state.config.defaults.postServiceFadeInSec ?? 4;
     const spotify = { playlistId: spotifyPlaylistId, playlistName: name, segments, lastFadeSec, firstFadeInSec };
     this.store.getState().setCurrentRunway({
@@ -761,10 +760,12 @@ export class ServiceController {
       currentTrackIndex: 0,
       isPostService: true,
       originServiceId,
-      armEpoch: epoch,
       spotify,
       spotifyPost: { playlistId: spotifyPlaylistId, playlistName: name },
     });
+    // setCurrentRunway stamps its own armEpoch: use that one, or the
+    // "runway was replaced" watcher in tick() stops the music at once.
+    const epoch = this.store.getState().currentRunway?.armEpoch ?? 0;
     this.spotifyEpoch = epoch;
     this.spotifyEndAt = endAt;
     console.log('[spotify] post-service starting', { playlist: name, songs: segments.length, totalSec: Math.round(totalSec) });
