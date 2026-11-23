@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { waveformScanner, useWaveformScan, allImportedSpotifySongs } from '../lib/spotifyWaveformScan';
+import { relearnKeys } from '../lib/keyLearning';
 import { useAppStore, generateId } from '../state/store';
 import { useEngines } from '../state/engines';
 import { ALL_KEYS, MAJOR_KEYS, MINOR_KEYS, keyColor, displayKey } from '@shared/music';
@@ -1956,6 +1957,37 @@ function SpotifyWindowPermission() {
   );
 }
 
+// Key learning status: Runway re-learns its key detector's settings from
+// the operator's own tags in the background (lib/keyLearning.ts).
+function KeyLearningStatus() {
+  const kl = useAppStore(s => s.config.keyLearning);
+  const updateConfig = useAppStore(s => s.updateConfig);
+  const [busy, setBusy] = useState(false);
+  const text = !kl
+    ? 'Runway hasn’t learned from your songs yet.'
+    : kl.examples < 20
+      ? `Learning from your tagged songs: ${kl.examples} so far. It starts once there are 20 that Runway has also listened to (Spotify songs it has heard, or Library songs run through Detect keys).`
+      : kl.adopted
+        ? `Using settings learned from ${kl.examples} of your songs. On songs it didn’t learn from, it now gets ${kl.after} right (standard settings: ${kl.before}).`
+        : `Checked against ${kl.examples} of your songs: the standard settings do as well (${kl.before}), so they’re still in use.`;
+  return (
+    <div style={{ marginTop: 14 }}>
+      <div className="settings-field-sub" style={{ fontWeight: 600 }}>Key learning</div>
+      <div className="settings-section-sub" style={{ marginTop: 2 }}>
+        {text} Keys you set or fix yourself teach it; it re-checks on its own and only switches when it clearly gets more right.
+      </div>
+      <div className="pp-actions">
+        <button className="btn-secondary" disabled={busy} onClick={async () => { setBusy(true); try { await relearnKeys(); } finally { setBusy(false); } }}>
+          {busy ? 'Learning…' : 'Learn now'}
+        </button>
+        {kl?.adopted && (
+          <button className="btn-secondary" onClick={() => updateConfig({ keyLearning: { ...kl, adopted: false } })}>Use standard settings</button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // Draw waveforms of Spotify songs (Mac): Runway listens to the Spotify app's
 // loudness as songs play (never the sound itself) and draws it in the song
 // editor. macOS asks for Screen & System Audio Recording permission first.
@@ -2193,6 +2225,7 @@ function SpotifyAccountSection() {
       )}
       {!(status.quietStart && status.canControl) && <SpotifyWindowPermission />}
       {status.connected && <SpotifyWaveformSetting />}
+      <KeyLearningStatus />
       {status.connected && (
         <div className="pp-actions" style={{ marginTop: 10 }}>
           <span className="settings-field-sub">Import playlists, set keys and download artwork in</span>

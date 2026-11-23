@@ -189,9 +189,13 @@ function windowSizeFor(sampleRate: number, windowSec: number): number {
  * @returns the detected key, or null when there isn't enough tonal audio
  *          to say anything (silence, pure percussion, a 2-second clip).
  */
-export function detectKey(samples: Float32Array, sampleRate: number): KeyDetectResult | null {
+export function detectKey(
+  samples: Float32Array,
+  sampleRate: number,
+  params: KeyScoreParams = DEFAULT_KEY_SCORE_PARAMS,
+): KeyDetectResult | null {
   const features = extractKeyFeatures(samples, sampleRate);
-  return features ? scoreKeyFeatures(features) : null;
+  return features ? scoreKeyFeatures(features, params) : null;
 }
 
 /** Pitch-class summaries of a song — everything scoring needs. */

@@ -17,6 +17,7 @@ import * as path from 'path';
 import { osa, num } from './spotifyTimingTest';
 import type { KeyName, SpotifyKeyGuess, SpotifyWaveform, SpotifyWaveformStatus } from '../shared/types';
 import { detectKey } from '../shared/keyDetect';
+import { profileOf } from '../shared/keyLearn';
 
 const BIN_SEC = 0.1;            // one waveform column per 0.1 s of song
 const POLL_MS = 400;            // how often Spotify's playhead is read
@@ -191,8 +192,9 @@ function finishKey(): void {
     const prev = w.key;
     // A shorter listen doesn't replace a better-informed guess.
     if (prev && prev.heardSec > full.length + 5) return;
-    const all = guessOf(detectKey(joinSlots(full, kb.slots, kb.rate), kb.rate));
-    if (!all) return;
+    const allRes = detectKey(joinSlots(full, kb.slots, kb.rate), kb.rate);
+    const all = guessOf(allRes);
+    if (!all || !allRes) return;
     const tailSecs = full.filter(s => s >= kb.durSec - END_KEY_SEC);
     const end = tailSecs.length >= 12 ? guessOf(detectKey(joinSlots(tailSecs, kb.slots, kb.rate), kb.rate)) : null;
     w.key = {
@@ -201,6 +203,7 @@ function finishKey(): void {
       endKey: end && end.key !== all.key ? end.key : undefined,
       endConfidence: end && end.key !== all.key ? end.confidence : undefined,
       at: Date.now(),
+      profile: profileOf(allRes),
     };
     dirty.add(kb.uri);
     saveSoon();

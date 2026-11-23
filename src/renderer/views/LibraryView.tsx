@@ -15,6 +15,7 @@ import { keyColor } from '@shared/music';
 import { keyRelation } from '@shared/keyDetect';
 import { analyzeTrackKey } from '../lib/keyAnalysis';
 import { buildKeyTestReport, summariseKeyTest, type KeyTestRow } from '@shared/keyTestReport';
+import { profileOf } from '@shared/keyLearn';
 import { todayISO } from '../lib/format';
 import { formatDuration } from '../lib/format';
 
@@ -522,10 +523,12 @@ function LocalLibraryView() {
                 detectedKey: result.key,
                 keyConfidence: result.confidence,
                 detectedKeyAlts: result.candidates.slice(1, 3).map(c => c.key),
+                keyProfile: profileOf(result),
               };
               if (!current.key) {
                 if (result.confidence >= KEY_AUTOFILL_CONFIDENCE) {
                   patch.key = result.key;
+                  patch.keySource = 'detected';   // filled in, not tagged: don't learn from it
                   filled += 1;
                 } else {
                   unsure += 1;

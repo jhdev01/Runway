@@ -782,6 +782,9 @@ export const useAppStore = create<AppStoreState>((set, get) => ({
   },
 
   updateTrack: (id, patch) => {
+    // A key set any other way than the detector's auto-fill is the
+    // operator's own: key learning may learn from it.
+    if ('key' in patch && !('keySource' in patch)) patch = { ...patch, keySource: undefined };
     try {
       const keys = ['trimStartSec', 'trimEndSec', 'editFadeInSec', 'editFadeOutSec', 'editServiceLandSec', 'key'] as const;
       const t = get().config.tracks.find(x => x.id === id);

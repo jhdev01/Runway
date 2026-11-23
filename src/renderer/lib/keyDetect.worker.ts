@@ -1,11 +1,13 @@
 // Runs key detection off the UI thread so analysing a long song never
 // stalls the renderer (the controller tick and meters live there).
-import { detectKey, type KeyDetectResult } from '@shared/keyDetect';
+import { detectKey, type KeyDetectResult, type KeyScoreParams } from '@shared/keyDetect';
 
 export interface KeyWorkerRequest {
   id: number;
   samples: Float32Array;
   sampleRate: number;
+  /** Learned scoring settings (Settings › key learning); standard when absent. */
+  params?: KeyScoreParams;
 }
 export interface KeyWorkerResponse {
   id: number;
@@ -14,10 +16,10 @@ export interface KeyWorkerResponse {
 }
 
 self.onmessage = (e: MessageEvent<KeyWorkerRequest>) => {
-  const { id, samples, sampleRate } = e.data;
+  const { id, samples, sampleRate, params } = e.data;
   let response: KeyWorkerResponse;
   try {
-    response = { id, result: detectKey(samples, sampleRate) };
+    response = { id, result: detectKey(samples, sampleRate, params) };
   } catch (err) {
     response = { id, result: null, error: err instanceof Error ? err.message : String(err) };
   }

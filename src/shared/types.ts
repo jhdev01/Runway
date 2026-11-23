@@ -40,6 +40,12 @@ export interface Track {
   // top two far more often than it is the top pick, so the Key cell offers
   // these as one-click alternatives.
   detectedKeyAlts?: KeyName[];
+  // The detector's note profile for this file, so the key can be re-scored
+  // when the detector learns from the operator's tags. And where `key` came
+  // from: 'detected' = filled in automatically by the detector (so it isn't
+  // learned from); unset = set by the operator / their review.
+  keyProfile?: KeyProfile;
+  keySource?: 'detected';
   // Non-destructive edits — applied at playback time. The source file is
   // never modified.
   trimStartSec?: number;    // play starts at this offset in the buffer
@@ -761,6 +767,17 @@ export interface AppConfig {
     waveformScan?: 'edges' | 'whole';
     waveformScanSec?: number;   // default 30
   };
+  // Key detector settings learned from the operator's own tagged songs
+  // (see shared/keyLearn.ts). Only used when `adopted`; absent = standard.
+  keyLearning?: {
+    params: { subFifth: number; subThird: number; wBass: number; wEdge: number; introShare: number; majorLean: number };
+    adopted: boolean;
+    examples: number;
+    before: number;      // held-out songs right with standard settings
+    after: number;       // ... with learned settings
+    at: number;
+    signature: string;   // what it learned from, to know when to learn again
+  };
   // GetSongBPM API key — free tier (5k/day, attribution required)
   // returns tempo + key for searched songs. The realistic working
   // alternative now that Spotify locked down audio-features.
@@ -1088,6 +1105,9 @@ export interface SpotifyStatus {
   /** Quiet start is switched on (songs start without showing Spotify). */
   quietStart?: boolean;
 }
+/** A song's note profile from the key detector (12 values each, C first); enough to re-score it. */
+export interface KeyProfile { harm: number[]; bass: number[]; intro: number[]; outro: number[]; tuning: number }
+
 /** A key Runway worked out by listening to a Spotify song (its own detector). */
 export interface SpotifyKeyGuess {
   key: KeyName;
@@ -1097,6 +1117,8 @@ export interface SpotifyKeyGuess {
   endKey?: KeyName;        // the last 30 s, when that's a different key
   endConfidence?: number;
   at: number;
+  /** For re-scoring with learned settings (Settings › key learning). */
+  profile?: KeyProfile;
 }
 export interface SpotifyWaveform {
   key?: SpotifyKeyGuess;
@@ -1130,6 +1152,8 @@ export interface SpotifyTrackEdit {
   landSec?: number;
   /** Song key, set by the operator or looked up. Spotify no longer gives keys to apps. */
   key?: KeyName;
+  /** True when Find keys set `key` on its own (not learned from; any hand edit clears it). */
+  keyAuto?: boolean;
 }
 
 /** One command to the Spotify desktop app (macOS, experimental). */

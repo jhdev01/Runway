@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useAppStore } from '../state/store';
 import type { KeyName, MultitracksCandidate, SpotifyKeyGuess, SpotifyPlaylistTrack, SpotifyTrackEdit } from '@shared/types';
 import { keyRelation } from '@shared/keyDetect';
+import { effectiveGuess } from '../lib/keyLearning';
 import { formatDuration } from '../lib/format';
 import { songBounds } from '../lib/spotifyTestRun';
 import { KeyPickerModal } from './KeyPickerModal';
@@ -158,6 +159,9 @@ export function SpotifySongList({ tracks }: { tracks: SpotifyPlaylistTrack[] }) 
       const title = tracks.find(t => t.uri === uri)?.title;
       logSpotifyOperator('spotify song edited', { title, from: before, to: e });
     }
+    // A key changed by hand is the operator's own (key learning may use it).
+    const prevKey = useAppStore.getState().config.spotify?.trackEdits?.[uri]?.key;
+    if (e.key !== prevKey) e = { ...e, keyAuto: undefined };
     const clean = Object.fromEntries(Object.entries(e).filter(([, v]) => v !== undefined)) as SpotifyTrackEdit;
     const next = { ...(useAppStore.getState().config.spotify?.trackEdits ?? {}) };
     if (Object.keys(clean).length) next[uri] = clean; else delete next[uri];
@@ -177,10 +181,15 @@ export function SpotifySongList({ tracks }: { tracks: SpotifyPlaylistTrack[] }) 
     let set = 0, unsure = 0, missing = 0, unheard = 0, done = 0;
     const nextSuggest: typeof suggest = {};
     // What Runway heard (its own key detector, from scans / plays).
-    const heard = await window.runway.spotify.waveformKeys(targets.map(t => t.uri)).catch(() => ({} as Record<string, SpotifyKeyGuess>));
+    const heardRaw = await window.runway.spotify.waveformKeys(targets.map(t => t.uri)).catch(() => ({} as Record<string, SpotifyKeyGuess>));
+    // Re-scored with the learned settings when Runway has learned from your tags.
+    const heard: Record<string, SpotifyKeyGuess> = {};
+    for (const [u, g] of Object.entries(heardRaw)) heard[u] = effectiveGuess(g)!;
     const apply = (uri: string, key: KeyName) => {
       const cur = useAppStore.getState().config.spotify?.trackEdits ?? {};
-      saveAll({ ...cur, [uri]: { ...(cur[uri] ?? {}), key } });
+      // keyAuto: set by Find keys on its own, so key learning doesn't learn
+      // from its own guesses. Any hand edit of the key clears it.
+      saveAll({ ...cur, [uri]: { ...(cur[uri] ?? {}), key, keyAuto: true } });
       set++;
     };
     for (const t of targets) {
@@ -247,7 +256,12 @@ export function SpotifySongList({ tracks }: { tracks: SpotifyPlaylistTrack[] }) 
       try {
         const c = await window.runway.spotify.waveformCoverage(tracks.map(t => t.uri), scanEdgesSec());
         const k = await window.runway.spotify.waveformKeys(tracks.map(t => t.uri));
-        if (alive) { setCov(c); setHeardKeys(k); }
+        if (alive) {
+          setCov(c);
+          const eff: Record<string, SpotifyKeyGuess> = {};
+          for (const [u, g] of Object.entries(k)) eff[u] = effectiveGuess(g)!;
+          setHeardKeys(eff);
+        }
       } catch { /* ignore */ }
     };
     void read();

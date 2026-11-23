@@ -7,6 +7,7 @@
 
 import { detectKey, type KeyDetectResult } from '@shared/keyDetect';
 import { filePathToUrl } from './audioEngine';
+import { learnedKeyParams } from './keyLearning';
 import type { KeyWorkerRequest, KeyWorkerResponse } from './keyDetect.worker';
 // Vite's `?worker` import picks the right worker flavour for dev (module)
 // and for the packaged app (classic script, which loads fine from file://).
@@ -86,7 +87,7 @@ export async function analyzeTrackKey(filePath: string): Promise<KeyDetectResult
       return await new Promise<KeyDetectResult | null>((resolve, reject) => {
         const id = nextId++;
         pending.set(id, { resolve, reject });
-        const msg: KeyWorkerRequest = { id, samples, sampleRate: ANALYSIS_RATE };
+        const msg: KeyWorkerRequest = { id, samples, sampleRate: ANALYSIS_RATE, params: learnedKeyParams() };
         // Copy rather than transfer so the in-thread fallback below still
         // has the samples if the worker dies mid-job.
         w.postMessage(msg);
@@ -96,5 +97,5 @@ export async function analyzeTrackKey(filePath: string): Promise<KeyDetectResult
       // fall through to in-thread
     }
   }
-  return detectKey(samples, ANALYSIS_RATE);
+  return detectKey(samples, ANALYSIS_RATE, learnedKeyParams());
 }

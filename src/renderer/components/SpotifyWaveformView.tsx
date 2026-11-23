@@ -4,6 +4,7 @@ import { useAppStore } from '../state/store';
 import { formatDuration } from '../lib/format';
 import { waveformScanner, useWaveformScan, scanEdgesSec, logSpotifyOperator } from '../lib/spotifyWaveformScan';
 import { DragHandle, ServiceLandHandle, formatPreciseTime } from '../views/EditorView';
+import { effectiveGuess } from '../lib/keyLearning';
 
 const HEIGHT = 150;
 const ZOOM_MAX_X = 64;
@@ -292,6 +293,7 @@ export function SpotifyWaveformView({ track, edit, onChange }: {
   }, [wave, d, zoomX, zoomY, scrollX, sizeTick]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const coverage = wave?.coverage ?? 0;
+  const heardKey = effectiveGuess(wave?.key);
   // What a scan aims for: the first and last 30 s (quick) or the whole song.
   const scanTarget = (() => {
     const e = scanEdgesSec();
@@ -438,7 +440,7 @@ export function SpotifyWaveformView({ track, edit, onChange }: {
           Trim length · {formatDuration(trimLen)}{trimLen < dur - 0.05 ? ` / original ${formatDuration(dur)}` : ''}
           {scanningThis ? ' · scanning…' : coverage > 0 && coverage < 0.95 ? ` · waveform ${Math.round(coverage * 100)}% heard` : ''}
           {previewing ? ' · preview plays your fades' : ''}
-          {wave?.key ? ` · Runway heard ${wave.key.key}${wave.key.endKey ? `, ends in ${wave.key.endKey}` : ''} (${Math.round(wave.key.confidence * 100)}% sure)` : ''}
+          {heardKey ? ` · Runway heard ${heardKey.key}${heardKey.endKey ? `, ends in ${heardKey.endKey}` : ''} (${Math.round(heardKey.confidence * 100)}% sure)` : ''}
         </span>
       </div>
       {note && <div className="pp-status err">{note}</div>}
