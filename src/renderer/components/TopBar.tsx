@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useAppStore, type ViewName } from '../state/store';
 import { useEngines } from '../state/engines';
+import { SpotifyStatusPill } from './SpotifyStatusPill';
 
 const NAV_ITEMS: { id: ViewName; label: string }[] = [
   { id: 'live', label: 'Live' },
@@ -167,6 +168,7 @@ export function TopBar() {
           }`} />
           <span>{confirmDisablePp ? 'Click again to disconnect' : 'Pro7'}</span>
         </button>
+        <SpotifyStatusPill />
         <button
           className="midi-status midi-status-button"
           onClick={onAudioToggle}

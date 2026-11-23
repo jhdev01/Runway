@@ -107,6 +107,24 @@ function SongEditor({ track, edit, onChange }: {
   );
 }
 
+// Spotify titles carry release extras MultiTracks doesn't use ("Praise -
+// Live", "Way Maker (Live at …)", "(feat. …)", "- Radio Version"), and
+// Spotify lists every credited artist. Search on the plain title and the
+// first artist; the lookup still uses the song length to pick the right cut.
+function spotifyLookupTitle(title: string): string {
+  const plain = title
+    .replace(/\s+-\s+.*$/, '')
+    .replace(/\s*[([](?:feat|ft|with|live|radio|single|acoustic|remaster|edit|version|studio|deluxe)\b[^)\]]*[)\]]/gi, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+  return plain || title;
+}
+function spotifyLookupArtist(artist: string): string {
+  return (artist ?? '').split(/,\s*/)[0]?.trim() ?? '';
+}
+/** How far ahead (0..1 match score) the best match must be to apply it without asking. */
+const CLEAR_WIN = 0.1;
+
 /**
  * The songs of a Spotify playlist with album art, a key per song, and
  * optional trims, fades and a landing marker. Keys and edits are saved per
@@ -135,30 +153,44 @@ export function SpotifySongList({ tracks }: { tracks: SpotifyPlaylistTrack[] }) 
     saveAll(next);
   };
 
-  // Fills in keys for songs that don't have one, from the same MultiTracks
-  // catalog the Library uses. Only a single clear match is applied; songs
-  // the catalog lists in more than one key are left for the operator.
+  // Fills in keys for songs that don't have one, from the MultiTracks.com
+  // catalog (the same source as Library › Keys from MultiTracks). A clear
+  // winner is applied; when the catalog lists the song in more than one key
+  // (often a live cut vs the studio cut), the choices are shown on the row
+  // to click.
+  const [suggest, setSuggest] = useState<Record<string, Array<{ key: KeyName; label: string }>>>({});
   const lookUpKeys = async () => {
     const targets = tracks.filter(t => !edits[t.uri]?.key);
     setLookup({ busy: true, done: 0, total: targets.length, note: null });
     let set = 0, unsure = 0, missing = 0, done = 0;
+    const nextSuggest: typeof suggest = {};
     for (const t of targets) {
       try {
-        const res = await window.runway.files.multitracksLookup(t.artist, t.title, t.durationMs / 1000);
-        const best = res?.best?.key as KeyName | undefined;
-        if (best && (res?.alternates?.length ?? 0) === 0) {
+        const res = await window.runway.files.multitracksLookup(
+          spotifyLookupArtist(t.artist), spotifyLookupTitle(t.title), t.durationMs / 1000,
+        );
+        const best = res?.best;
+        const alts = res?.alternates ?? [];
+        const runnerUp = alts[0]?.score ?? 0;
+        if (best && (alts.length === 0 || best.score - runnerUp >= CLEAR_WIN)) {
           const cur = useAppStore.getState().config.spotify?.trackEdits ?? {};
-          saveAll({ ...cur, [t.uri]: { ...(cur[t.uri] ?? {}), key: best } });
+          saveAll({ ...cur, [t.uri]: { ...(cur[t.uri] ?? {}), key: best.key } });
           set++;
-        } else if (best) unsure++;
-        else missing++;
+        } else if (best) {
+          unsure++;
+          nextSuggest[t.uri] = [best, ...alts].map(c => ({
+            key: c.key,
+            label: `${c.title}${c.artist ? ` — ${c.artist}` : ''}${c.album ? ` (${c.album})` : ''}`,
+          }));
+        } else missing++;
       } catch { missing++; }
       done++;
       setLookup(l => ({ ...l, done }));
+      setSuggest({ ...nextSuggest });
     }
     const parts = [`Set ${set} key${set === 1 ? '' : 's'}`];
-    if (unsure) parts.push(`${unsure} listed in more than one key (set those yourself)`);
-    if (missing) parts.push(`${missing} not found`);
+    if (unsure) parts.push(`${unsure} could be more than one key (pick on the row)`);
+    if (missing) parts.push(`${missing} not on MultiTracks (set those yourself)`);
     setLookup({ busy: false, done, total: targets.length, note: targets.length ? parts.join(', ') + '.' : 'Every song already has a key.' });
   };
 
@@ -225,6 +257,29 @@ export function SpotifySongList({ tracks }: { tracks: SpotifyPlaylistTrack[] }) 
                 >
                   {key ? displayKey(key, keyMode) : 'Key'}
                 </button>
+                {!key && suggest[t.uri] && (
+                  <span style={{ display: 'flex', gap: 4, alignItems: 'center' }} title="MultiTracks lists this song in more than one key. Click the one you play.">
+                    <span className="settings-field-sub">or</span>
+                    {suggest[t.uri].map(c => {
+                      const sc = keyColor(c.key);
+                      return (
+                        <button
+                          key={c.key}
+                          type="button"
+                          onClick={() => { save(t.uri, { ...(edits[t.uri] ?? {}), key: c.key }); setSuggest(m => { const n = { ...m }; delete n[t.uri]; return n; }); }}
+                          title={`${displayKey(c.key, keyMode)}: ${c.label}`}
+                          style={{
+                            minWidth: 36, padding: '2px 6px', borderRadius: 4, cursor: 'pointer',
+                            fontFamily: 'IBM Plex Mono, monospace', fontWeight: 600, fontSize: 11,
+                            background: sc.bg, color: sc.fg, border: '1px dashed var(--border-bright)', opacity: 0.85,
+                          }}
+                        >
+                          {displayKey(c.key, keyMode)}?
+                        </button>
+                      );
+                    })}
+                  </span>
+                )}
                 {edited && <span className="pp-status ok" title="This song has trims or fades">edited</span>}
                 <span style={{ width: 40, textAlign: 'right' }}>{formatDuration(b.end - b.start)}</span>
                 <button className="btn-secondary" onClick={() => setOpen(open === rowKey ? null : rowKey)}>
