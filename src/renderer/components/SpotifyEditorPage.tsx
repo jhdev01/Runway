@@ -4,6 +4,7 @@ import type { SpotifyKeyGuess, SpotifyPlaylistTrack, SpotifyTrackEdit } from '@s
 import { SpotifyWaveformView } from './SpotifyWaveformView';
 import { SpotifySongFields, spotifyLookupArtist, spotifyLookupTitle } from './SpotifySongList';
 import { KeyAnalysisPanel } from './KeyAnalysis';
+import { KeyTesterPiano } from './KeyTesterPiano';
 import { saveSpotifyEdit } from '../lib/spotifyEdits';
 import { effectiveGuess } from '../lib/keyLearning';
 
@@ -40,6 +41,7 @@ export function SpotifyEditorPage({ uri, onPick, onExit }: {
 
   // What Runway heard (key analysis panel), refreshed while it plays.
   const [heard, setHeard] = useState<SpotifyKeyGuess | undefined>();
+  const [padOpen, setPadOpen] = useState(false);
   useEffect(() => {
     let alive = true;
     const read = async () => {
@@ -84,6 +86,13 @@ export function SpotifyEditorPage({ uri, onPick, onExit }: {
         </select>
         {art && <img src={art} alt="" style={{ width: 34, height: 34, borderRadius: 4, objectFit: 'cover' }} />}
         <span style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+          <button
+            className={padOpen ? 'btn-primary' : 'btn-secondary'}
+            onClick={() => setPadOpen(o => !o)}
+            title="Play pads to check the song's key by ear. The slider balances pad and Spotify."
+          >
+            Pad player
+          </button>
           {returnView && returnView !== 'editor' && (
             <button className="btn-secondary" onClick={() => setView(returnView)}>← Back to {VIEW_LABEL[returnView] ?? 'previous'}</button>
           )}
@@ -109,6 +118,7 @@ export function SpotifyEditorPage({ uri, onPick, onExit }: {
           )}
         />
       </div>
+      {padOpen && <KeyTesterPiano controlSpotify onClose={() => setPadOpen(false)} />}
     </div>
   );
 }

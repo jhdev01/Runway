@@ -6,6 +6,7 @@ import { filePathToUrl } from '../lib/audioEngine';
 import type { Track } from '@shared/types';
 import { SpotifyEditorPage } from '../components/SpotifyEditorPage';
 import { KeyAnalysisPanel, NoteMapStrip, ZeroCountdown } from '../components/KeyAnalysis';
+import { KeyTesterPiano } from '../components/KeyTesterPiano';
 import { analyzeTrackNotes } from '../lib/keyAnalysis';
 import { profileOf } from '@shared/keyLearn';
 import type { KeyDetectResult } from '@shared/keyDetect';
@@ -57,6 +58,7 @@ export function EditorView() {
 
   // A Spotify song opened from Library / Playlists (or picked below).
   const [spotifyUri, setSpotifyUri] = useState<string | null>(null);
+  const [padOpen, setPadOpen] = useState(false);
   const [localBeforeSpotify, setLocalBeforeSpotify] = useState<string>('');
   const pendingSpotify = useAppStore(s => s.pendingEditorSpotifyUri);
   const consumePendingSpotify = useAppStore(s => s.consumePendingEditorSpotifyUri);
@@ -599,6 +601,13 @@ export function EditorView() {
           </>
         )}
 
+        <button
+          className={padOpen ? 'btn-primary' : 'btn-secondary'}
+          onClick={() => setPadOpen(o => !o)}
+          title="Play pads to check the song's key by ear"
+        >
+          Pad player
+        </button>
         <div className="editor-zoom-group">
           <span className="editor-zoom-label">Time</span>
           <button className="editor-zoom-btn" onClick={zoomXOut} title="Zoom out (-)">−</button>
@@ -800,6 +809,7 @@ export function EditorView() {
           )}
         </div>
       )}
+      {padOpen && <KeyTesterPiano onClose={() => setPadOpen(false)} />}
     </div>
   );
 }
