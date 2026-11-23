@@ -87,6 +87,22 @@ export function SpotifyWaveformView({ track, edit, onChange }: {
   const [now, setNow] = useState(Date.now());
   const preview = useRef<{ origVol: number; lastVol: number } | null>(null);
   const [previewing, setPreviewing] = useState(false);
+  // Why a preview might be silent: the Mac muted (e.g. left muted after a
+  // waveform scan) or Spotify's own volume at 0. Checked every few seconds.
+  const [silent, setSilent] = useState<{ macMuted: boolean; macVol: number; spVol: number | null }>({ macMuted: false, macVol: 100, spVol: null });
+  useEffect(() => {
+    let alive = true;
+    const check = async () => {
+      try {
+        const m = await window.runway.spotify.player({ op: 'macOutput' });
+        const s = await window.runway.spotify.player({ op: 'state' });
+        if (alive) setSilent({ macMuted: !!m.macMuted, macVol: m.macVolume ?? 100, spVol: s.ok ? (s.volume ?? null) : null });
+      } catch { /* ignore */ }
+    };
+    void check();
+    const t = window.setInterval(() => void check(), 3000);
+    return () => { alive = false; window.clearInterval(t); };
+  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -151,7 +167,7 @@ export function SpotifyWaveformView({ track, edit, onChange }: {
     setNote(null);
     let st = await window.runway.spotify.player({ op: 'state' });
     if (!preview.current) {
-      const v = st.ok && st.volume !== undefined && st.volume > 0 ? st.volume : 70;
+      const v = st.ok && st.volume !== undefined && st.volume >= 10 ? st.volume : 70;
       preview.current = { origVol: v, lastVol: v };
     }
     setPreviewing(true);
@@ -319,6 +335,18 @@ export function SpotifyWaveformView({ track, edit, onChange }: {
             </button>)}
       </div>
 
+      {(silent.macMuted || silent.macVol === 0) && (
+        <div className="pp-actions" style={{ marginBottom: 6 }}>
+          <span className="pp-status err">Your Mac’s sound is {silent.macMuted ? 'muted' : 'turned all the way down'}, so you won’t hear the preview.</span>
+          <button className="btn-secondary" onClick={() => void window.runway.spotify.player({ op: 'macUnmute' }).then(() => setSilent(x => ({ ...x, macMuted: false })))}>Unmute Mac</button>
+        </div>
+      )}
+      {!previewing && silent.spVol === 0 && (
+        <div className="pp-actions" style={{ marginBottom: 6 }}>
+          <span className="pp-status err">Spotify’s own volume is at 0.</span>
+          <button className="btn-secondary" onClick={() => void window.runway.spotify.player({ op: 'volume', volume: 70 }).then(() => setSilent(x => ({ ...x, spVol: 70 })))}>Turn Spotify up</button>
+        </div>
+      )}
       <div
         ref={containerRef}
         className="editor-canvas-frame"

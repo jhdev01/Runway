@@ -93,6 +93,16 @@ export async function spotifyPlayer(cmd: SpotifyPlayerCommand): Promise<SpotifyP
       case 'quietStart':
         spotifySetQuietStart(!!cmd.on);
         return { ok: true, sentAt, answeredAt: Date.now() };
+      case 'macOutput': {
+        // The Mac's own speaker volume / mute, so the editor can say why a
+        // preview is silent (e.g. still muted from a waveform scan).
+        const o = await osa(['set v to get volume settings', 'return ((output volume of v) as text) & "|" & ((output muted of v) as text)']);
+        const [vol, muted] = o.split('|');
+        return { ok: true, sentAt, answeredAt: Date.now(), macVolume: Number(vol), macMuted: muted === 'true' };
+      }
+      case 'macUnmute':
+        await osa(['set volume without output muted']);
+        return { ok: true, sentAt, answeredAt: Date.now() };
       case 'tuck':
         return { ok: true, sentAt, answeredAt: Date.now(), accessibilityAllowed: await tuckSpotifyWindows() };
       case 'accessibility':

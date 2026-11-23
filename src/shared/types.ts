@@ -1129,11 +1129,16 @@ export type SpotifyPlayerCommand =
   | { op: 'accessibility'; prompt?: boolean }
   | { op: 'state' }
   | { op: 'volumeAndState'; volume: number }
-  | { op: 'quietStart'; on: boolean };
+  | { op: 'quietStart'; on: boolean }
+  | { op: 'macOutput' }
+  | { op: 'macUnmute' };
 
 export interface SpotifyPlayerReply {
   ok: boolean;
   reason?: string;
+  /** macOutput: the Mac's own output volume (0–100) and mute. */
+  macVolume?: number;
+  macMuted?: boolean;
   /** play: started through Spotify Connect (Spotify stayed in the background). */
   quiet?: boolean;
   /** Date.now() when the command was sent / when Spotify answered. */
