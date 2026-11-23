@@ -1100,6 +1100,8 @@ export type SpotifyPlayerCommand =
   | { op: 'volume'; volume: number }
   | { op: 'pause' }
   | { op: 'resume' }
+  | { op: 'tuck' }
+  | { op: 'accessibility'; prompt?: boolean }
   | { op: 'state' }
   | { op: 'volumeAndState'; volume: number };
 
@@ -1115,6 +1117,8 @@ export interface SpotifyPlayerReply {
   volume?: number;
   /** 'play' only: Spotify was already the front app before the song started. */
   wasFrontmost?: boolean;
+  /** 'tuck' / 'accessibility': whether Runway may close Spotify's window (macOS Accessibility). */
+  accessibilityAllowed?: boolean;
   /** 'nowPlaying' only: details of the current song. */
   title?: string;
   artist?: string;

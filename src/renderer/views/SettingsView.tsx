@@ -1921,6 +1921,40 @@ function EngineSettings() {
   );
 }
 
+// Lets Runway close Spotify's window before each song so it never flashes
+// on screen. macOS requires Runway to be allowed under Accessibility.
+function SpotifyWindowPermission() {
+  const [allowed, setAllowed] = useState<boolean | null>(null);
+  const check = (prompt: boolean) =>
+    window.runway?.spotify?.player({ op: 'accessibility', prompt })
+      .then(r => setAllowed(!!r.accessibilityAllowed))
+      .catch(() => setAllowed(false));
+  useEffect(() => { void check(false); }, []);
+  // After the prompt, the operator flips the switch in System Settings;
+  // re-check when they come back to Runway.
+  useEffect(() => {
+    const onFocus = () => { void check(false); };
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, []);
+  if (allowed === null) return null;
+  return (
+    <div className="pp-actions" style={{ marginTop: 10 }}>
+      {allowed ? (
+        <span className="pp-status ok">Runway closes Spotify’s window before each song, so it doesn’t flash on screen.</span>
+      ) : (
+        <>
+          <span className="settings-field-sub">
+            To stop Spotify flashing on screen when songs change, let Runway close Spotify’s window
+            (System Settings › Privacy &amp; Security › Accessibility).
+          </span>
+          <button className="btn-secondary" onClick={() => void check(true)}>Allow…</button>
+        </>
+      )}
+    </div>
+  );
+}
+
 // Experimental: sign in to Spotify and read a playlist's song list.
 // Read-only — nothing here plays audio or touches services.
 function SpotifyAccountSection() {
@@ -2016,6 +2050,7 @@ function SpotifyAccountSection() {
       </div>
       {!status.connected && status.reason && <div className="pp-status err">{status.reason}</div>}
 
+      <SpotifyWindowPermission />
       {status.connected && (
         <div className="pp-actions" style={{ marginTop: 10 }}>
           <span className="settings-field-sub">Import playlists, set keys and download artwork in</span>

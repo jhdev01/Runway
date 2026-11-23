@@ -6,6 +6,7 @@
 // renderer can line readings up against its own clock. Nothing here
 // touches Runway's audio engine or any service.
 
+import { systemPreferences } from 'electron';
 import { osa, tell, num, lit, friendly } from './spotifyTimingTest';
 import type { SpotifyPlayerCommand, SpotifyPlayerReply } from '../shared/types';
 
@@ -22,6 +23,41 @@ function parseState(out: string): Pick<SpotifyPlayerReply, 'trackUri' | 'playerS
     positionSec: Number.isFinite(num(pos ?? '')) ? num(pos) : undefined,
     volume: Number.isFinite(num(vol ?? '')) ? Math.round(num(vol)) : undefined,
   };
+}
+
+/**
+ * Closes Spotify's window (minimizes it if closing isn't possible) so that
+ * when a new song pulls Spotify forward there's no window to flash on
+ * screen. Spotify keeps running and playing without its window; clicking
+ * its Dock icon brings the window back. Needs Runway allowed under
+ * System Settings › Privacy & Security › Accessibility; without that it
+ * does nothing and returns false.
+ */
+function accessibilityAllowed(prompt = false): boolean {
+  try { return systemPreferences.isTrustedAccessibilityClient(prompt); } catch { return false; }
+}
+async function tuckSpotifyWindows(): Promise<boolean> {
+  if (!accessibilityAllowed(false)) return false;
+  try {
+    await osa([
+      'tell application "System Events"',
+      'if exists application process "Spotify" then',
+      'tell application process "Spotify"',
+      'repeat with w in (every window)',
+      'try',
+      'click (first button of w whose subrole is "AXCloseButton")',
+      'on error',
+      'try',
+      'set value of attribute "AXMinimized" of w to true',
+      'end try',
+      'end try',
+      'end repeat',
+      'end tell',
+      'end if',
+      'end tell',
+    ]);
+  } catch { /* Spotify gone or UI changed: leave it */ }
+  return true;
 }
 
 async function keepSpotifyBehind(): Promise<void> {
@@ -53,8 +89,17 @@ export async function spotifyPlayer(cmd: SpotifyPlayerCommand): Promise<SpotifyP
         out = await osa(tell('return "|" & (player state as text) & "||" & (sound volume as text)'));
         break;
       }
+      case 'tuck':
+        return { ok: true, sentAt, answeredAt: Date.now(), accessibilityAllowed: await tuckSpotifyWindows() };
+      case 'accessibility':
+        // prompt: true shows macOS's own "allow in Accessibility" prompt.
+        return { ok: true, sentAt, answeredAt: Date.now(), accessibilityAllowed: accessibilityAllowed(!!cmd.prompt) };
       case 'play': {
         if (!URI_RE.test(cmd.uri)) return { ok: false, reason: 'Not a Spotify song or playlist.' };
+        // No window, nothing to flash when the new song pulls Spotify forward.
+        // Runs alongside the play command (it finishes before the song has
+        // loaded and Spotify comes forward), so song timing isn't delayed.
+        void tuckSpotifyWindows();
         // Note whether Spotify was already in front, so 'background' only
         // hides it again when starting a song is what pulled it forward.
         out = await osa([
