@@ -11,7 +11,7 @@ import { IPC, type PpRequest, type PpResponse, type PcoRequest, type PcoResponse
 import { runSpotifyTimingTest } from './spotifyTimingTest';
 import { spotifyPlayer } from './spotifyPlayer';
 import type { SpotifyPlayerCommand } from '../shared/types';
-import { spotifyConnect, spotifyStatus, spotifyDisconnect, spotifyReadPlaylist, spotifyListPlaylists } from './spotifyAccount';
+import { spotifyConnect, spotifyStatus, spotifyDisconnect, spotifyReadPlaylist, spotifyListPlaylists, spotifyFetchArt } from './spotifyAccount';
 import { RemoteServer, listLanUrls, listNetworkInterfaces, type RemoteSnapshot } from './remoteServer';
 import { multitracksLookup } from './multitracksLookup';
 
@@ -932,6 +932,7 @@ function registerIpcHandlers() {
   // Experimental Spotify landing-precision test. Standalone diagnostic —
   // drives the Spotify desktop app only; never touches Runway's audio.
   ipcMain.handle(IPC.SPOTIFY_PLAYLISTS_LIST, async () => spotifyListPlaylists());
+  ipcMain.handle(IPC.SPOTIFY_FETCH_ART, async (_e, url: string) => (typeof url === 'string' ? spotifyFetchArt(url) : { ok: false, reason: 'Bad URL.' }));
   ipcMain.handle(IPC.SPOTIFY_PLAYER, async (_e, cmd: SpotifyPlayerCommand) => {
     if (!cmd || typeof cmd !== 'object' || typeof (cmd as { op?: unknown }).op !== 'string') {
       return { ok: false, reason: 'Bad Spotify command.' };

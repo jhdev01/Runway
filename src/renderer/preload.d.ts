@@ -91,6 +91,7 @@ declare global {
         readPlaylist: (link: string) => Promise<SpotifyPlaylistResult>;
         player: (cmd: SpotifyPlayerCommand) => Promise<SpotifyPlayerReply>;
         listPlaylists: () => Promise<SpotifyPlaylistList>;
+        fetchArt: (url: string) => Promise<{ ok: boolean; dataUrl?: string; reason?: string }>;
       };
       diagnostics: {
         appendTimingLog: (line: string) => void;

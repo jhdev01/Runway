@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { SpotifyLibrary } from '../components/SpotifyLibrary';
 import { useAppStore, generateId } from '../state/store';
 import { useEngines } from '../state/engines';
 import { KeyTesterPiano } from '../components/KeyTesterPiano';
@@ -55,7 +56,7 @@ function formatDateAdded(iso: string): string {
  *   - Delete (here in the library only): removes the track from the
  *     library AND cascades through every playlist that references it.
  */
-export function LibraryView() {
+function LocalLibraryView() {
   const tracks = useAppStore(s => s.config.tracks);
   const playlists = useAppStore(s => s.config.playlists);
   const deleteTrack = useAppStore(s => s.deleteTrack);
@@ -2129,6 +2130,31 @@ function KeyTestModal({ rows, onClose }: { rows: KeyTestRow[]; onClose: () => vo
             {copied ? 'Copied ✓' : 'Copy results'}
           </button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Library with two sources: your imported audio files, and Spotify
+ * playlists (Library › Spotify).
+ */
+let lastLibraryTab: 'local' | 'spotify' = 'local';
+export function LibraryView() {
+  const [tab, setTab] = useState<'local' | 'spotify'>(lastLibraryTab);
+  const pick = (t: 'local' | 'spotify') => { lastLibraryTab = t; setTab(t); };
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, width: '100%' }}>
+      <div className="pp-actions" style={{ padding: '8px 16px 0', gap: 6 }}>
+        <button className="btn-secondary" onClick={() => pick('local')}
+          style={tab === 'local' ? { borderColor: 'var(--accent)', color: 'var(--text)' } : undefined}>Your songs</button>
+        <button className="btn-secondary" onClick={() => pick('spotify')}
+          style={tab === 'spotify' ? { borderColor: '#1ed760', color: 'var(--text)' } : undefined}>
+          <span style={{ color: '#1ed760' }}>●</span> Spotify
+        </button>
+      </div>
+      <div style={{ flex: 1, minHeight: 0 }}>
+        {tab === 'local' ? <LocalLibraryView /> : <SpotifyLibrary />}
       </div>
     </div>
   );

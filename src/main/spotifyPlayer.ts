@@ -99,6 +99,9 @@ export async function spotifyPlayer(cmd: SpotifyPlayerCommand): Promise<SpotifyP
       case 'pause':
         await osa(tell('pause'));
         break;
+      case 'resume':
+        await osa(tell('play'));
+        break;
       case 'state':
         out = await osa(tell(READ_STATE));
         break;

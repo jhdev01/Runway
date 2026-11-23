@@ -117,6 +117,7 @@ export function SpotifySongList({ tracks }: { tracks: SpotifyPlaylistTrack[] }) 
   const updateConfig = useAppStore(s => s.updateConfig);
   const keyMode = config.defaults.keyDisplayMode ?? 'sharp';
   const edits = config.spotify?.trackEdits ?? {};
+  const artCache = config.spotify?.artCache ?? {};
   const [open, setOpen] = useState<string | null>(null);
   const [keyFor, setKeyFor] = useState<string | null>(null);
   const [lookup, setLookup] = useState<{ busy: boolean; done: number; total: number; note: string | null }>(
@@ -182,8 +183,8 @@ export function SpotifySongList({ tracks }: { tracks: SpotifyPlaylistTrack[] }) 
             <div key={rowKey}>
               <div style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '3px 0' }}>
                 <span style={{ width: 20, textAlign: 'right', opacity: 0.6 }}>{i + 1}</span>
-                {t.albumArtUrl
-                  ? <img src={t.albumArtUrl} alt="" loading="lazy" style={{ width: 36, height: 36, borderRadius: 4, objectFit: 'cover', flex: 'none' }} />
+                {(artCache[t.uri] ?? t.albumArtUrl)
+                  ? <img src={artCache[t.uri] ?? t.albumArtUrl} alt="" loading="lazy" style={{ width: 36, height: 36, borderRadius: 4, objectFit: 'cover', flex: 'none' }} />
                   : <div aria-hidden style={{ width: 36, height: 36, borderRadius: 4, background: 'var(--bg-elev-2)', display: 'grid', placeItems: 'center', flex: 'none' }}>♪</div>}
                 <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {t.title}{t.artist ? <span style={{ opacity: 0.6 }}> — {t.artist}</span> : null}

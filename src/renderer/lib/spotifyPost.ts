@@ -33,6 +33,7 @@ class SpotifyFreePlayer {
   private volume = 70;          // Spotify's own volume before we started
   private poll: number | null = null;
   private stopping: Promise<void> | null = null;
+  private pausedPolls = 0;
 
   getState() { return this.state; }
   subscribe(fn: (s: SpotifyFreePlayState) => void) {
@@ -96,6 +97,15 @@ class SpotifyFreePlayer {
       if (id !== this.runId) return;
       const r = await this.cmd({ op: 'nowPlaying' });
       if (id !== this.runId || !r.ok) return;
+      // Paused by accident (two readings in a row): press play again. There's
+      // no landing time here, so carrying on from where it paused is right.
+      if (r.playerState !== 'playing') {
+        this.pausedPolls++;
+        if (this.pausedPolls >= 2 && !this.stopping) {
+          this.pausedPolls = 0;
+          void this.cmd({ op: 'resume' });
+        }
+      } else this.pausedPolls = 0;
       this.set({ now: {
         title: r.title, artist: r.artist, positionSec: r.positionSec, durationSec: r.durationSec,
         artworkUrl: r.artworkUrl, playing: r.playerState === 'playing',

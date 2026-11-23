@@ -292,3 +292,26 @@ export async function spotifyListPlaylists(): Promise<SpotifyPlaylistList> {
     return { ok: false, reason: msg === 'NOT_CONNECTED' ? 'Connect Spotify first.' : msg };
   }
 }
+
+
+/**
+ * Downloads a Spotify album image and returns it as a data URL, so the
+ * art can be kept in Runway's config and shown without internet (same
+ * way imported tracks keep their embedded art). Only Spotify's image CDN.
+ */
+export async function spotifyFetchArt(url: string): Promise<{ ok: boolean; dataUrl?: string; reason?: string }> {
+  try {
+    const u = new URL(url);
+    if (u.protocol !== 'https:' || !/(^|\.)scdn\.co$|(^|\.)spotifycdn\.com$/.test(u.hostname)) {
+      return { ok: false, reason: 'Not a Spotify image.' };
+    }
+    const res = await fetch(u.toString());
+    if (!res.ok) return { ok: false, reason: `Image download failed (${res.status}).` };
+    const buf = Buffer.from(await res.arrayBuffer());
+    if (buf.length > 600 * 1024) return { ok: false, reason: 'Image too large.' };
+    const mime = res.headers.get('content-type')?.split(';')[0] || 'image/jpeg';
+    return { ok: true, dataUrl: `data:${mime};base64,${buf.toString('base64')}` };
+  } catch (e) {
+    return { ok: false, reason: e instanceof Error ? e.message : String(e) };
+  }
+}

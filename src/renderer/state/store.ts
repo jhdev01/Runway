@@ -970,7 +970,9 @@ export const useAppStore = create<AppStoreState>((set, get) => ({
           get().updateConfig({ spotify: { ...latest, playlistCache: { ...(latest?.playlistCache ?? {}), [spId]: fresh } } });
         }
       } catch { /* offline: fall back to the saved song list */ }
-      const spTracks = pl?.ok ? (pl.tracks ?? []) : [];
+      const artCache = state.config.spotify?.artCache ?? {};
+      const spTracks = (pl?.ok ? (pl.tracks ?? []) : [])
+        .map(t => artCache[t.uri] ? { ...t, albumArtUrl: artCache[t.uri] } : t);
       if (spTracks.length === 0) {
         return { ok: false, reason: `Couldn’t load the Spotify playlist “${service.spotifyPlaylistName ?? 'Spotify'}”. Check that Spotify is connected in Settings → Engine.` };
       }

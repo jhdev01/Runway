@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { SpotifyRunwayList, useSpotifyNow } from '../components/SpotifyRunwayList';
 import { loadSpotifyPlaylists } from '../components/PreServicePlaylistSelect';
 import { spotifyFreePlay } from '../lib/spotifyPost';
+import { SpotifyBadge } from '../components/SpotifyBadge';
 import { useAppStore } from '../state/store';
 import { useEngines } from '../state/engines';
 import { CountdownClock } from '../components/CountdownClock';
@@ -1186,6 +1187,7 @@ export function LiveView() {
                 {currentRunway
                   ? `${currentRunway.isPostService ? 'Post-Service' : 'Runway'} · ${currentRunway.spotify ? `Spotify · ${currentRunway.spotify.playlistName} · ${currentRunway.spotify.segments.length} songs` : currentRunway.spotifyPost ? `Spotify · ${currentRunway.spotifyPost.playlistName}` : `${queueTracks.length} tracks`} · ${formatDuration(runwayTruncation?.effectiveTotalSec ?? currentRunway.totalSec)}`
                   : 'Runway · empty'}
+                {(currentRunway?.spotify || currentRunway?.spotifyPost) && <> <SpotifyBadge /></>}
               </div>
               {runwayTruncation && (
                 <div className={`runway-swap-footer ${runwayTruncation.missing ? 'missing' : ''}`}>

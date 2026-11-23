@@ -39,6 +39,12 @@ const TRANSITION_FADE_OUT_SEC = 2.5;
 const SETTLE_AFTER_SEEK_MS = 600; // ignore readings right after a jump
 const MIN_FIRST_SEGMENT_SEC = 8;  // drop a first song that would only play a few seconds
 const LANDING_WINDOW_MS = 8000;   // landing error = readings in the last 8 s
+// Spotify paused or switched songs by accident: after this long, Runway
+// restarts the right song (silent), jumps it back to where the plan says
+// it should be, and fades it back in.
+const RECOVER_AFTER_MS = 1500;
+const RECOVER_FADE_MS = 1500;
+const MAX_RECOVERIES_PER_SONG = 5;
 // Silence Spotify this long before the last song's end, so it can't roll
 // into whatever it would play next before the pause arrives. The song's
 // own ending covers it.
@@ -411,6 +417,8 @@ export class SpotifyTestRunner {
       const songErrs: number[] = [];
       let sentVolume = -1;
       let notPlayingSince: number | null = null;
+      let recoveries = 0;
+      let resumedAt: number | null = null;
       while (Date.now() < stopAt) {
         if (!live()) return;
         const loopStart = Date.now();
@@ -420,7 +428,9 @@ export class SpotifyTestRunner {
           this.set({ padPlaying: true });
         }
 
-        const vol = this.envelope(seg, isFirst, i === last, loopStart, fadeFrom);
+        let vol = this.envelope(seg, isFirst, i === last, loopStart, fadeFrom);
+        // Just put back after an accidental pause: fade in rather than snap.
+        if (resumedAt !== null) vol = Math.round(vol * Math.min(1, (loopStart - resumedAt) / RECOVER_FADE_MS));
         this.lastSentVolume = this.manualGain > 0 ? Math.round(vol / this.manualGain) : this.lastSentVolume;
         if (vol !== sentVolume) {
           const r = await this.cmd({ op: 'volume', volume: vol });
@@ -430,8 +440,39 @@ export class SpotifyTestRunner {
           const e = await readErr();
           if (e === null) {
             notPlayingSince ??= loopStart;
-            if (loopStart - notPlayingSince > 2000) {
-              this.set({ message: 'Spotify stopped or switched songs (an ad, or someone touched it). The landing may be off.' });
+            const timeLeft = (i === last ? seg.stopAt : seg.endAt) - loopStart;
+            if (loopStart - notPlayingSince > RECOVER_AFTER_MS && timeLeft > 3000
+              && recoveries < MAX_RECOVERIES_PER_SONG) {
+              // Spotify got paused, or someone picked another song in it.
+              // Put the planned song back exactly where it should be by now.
+              recoveries++;
+              this.set({ message: `Spotify was paused or changed. Putting “${seg.title}” back in place…` });
+              await this.cmd({ op: 'volume', volume: 0 });
+              sentVolume = 0;
+              const rp = await this.cmd({ op: 'play', uri: seg.uri, contextUri: this.contextUri });
+              const t0 = Date.now();
+              let back = false;
+              while (rp.ok && Date.now() - t0 < LOAD_TIMEOUT_MS) {
+                const st = await this.cmd({ op: 'state' });
+                if (st.ok && st.trackUri === seg.uri && st.playerState === 'playing') { back = true; break; }
+                await sleep(80);
+                if (!live()) return;
+              }
+              if (rp.ok && !rp.wasFrontmost) void this.cmd({ op: 'background' });
+              if (back) {
+                lastSeekAt = await jump();
+                resumedAt = Date.now();
+                sentVolume = -1;
+                this.set({
+                  message: `Spotify was paused or changed. Runway put “${seg.title}” back at the right spot.`,
+                  corrections: this.state.corrections + 1,
+                });
+              } else {
+                this.set({ message: 'Spotify was paused or changed and didn’t come back. Press play in Spotify; Runway will line it up again.' });
+              }
+              notPlayingSince = null;
+            } else if (loopStart - notPlayingSince > 2000 && recoveries >= MAX_RECOVERIES_PER_SONG) {
+              this.set({ message: 'Spotify keeps stopping (an ad, or someone touching it). The landing may be off.' });
             }
           } else {
             notPlayingSince = null;

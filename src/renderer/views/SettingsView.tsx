@@ -1979,10 +1979,10 @@ function SpotifyAccountSection() {
 
   return (
     <section className="settings-section">
-      <div className="settings-section-title">Spotify playlists (experimental)</div>
+      <div className="settings-section-title">Spotify (experimental)</div>
       <div className="settings-section-sub">
         Sign in so Runway can read the songs in your Spotify playlists. Spotify only lets Runway read
-        playlists you created or collaborate on. After reading one, you can try a test run below.
+        playlists you created or collaborate on.
       </div>
       {!status.connected && (
         <div className="settings-section-sub">
@@ -2017,59 +2017,10 @@ function SpotifyAccountSection() {
       {!status.connected && status.reason && <div className="pp-status err">{status.reason}</div>}
 
       {status.connected && (
-        <>
-          <div className="pp-actions" style={{ marginTop: 10 }}>
-            <label className="settings-field-sub" htmlFor="sp-my-playlists">Playlist</label>
-            <select
-              id="sp-my-playlists"
-              value={playlist?.ok && playlist.playlistId ? playlist.playlistId : ''}
-              onChange={e => pick(e.target.value)}
-              disabled={busy !== null || !mine?.ok}
-              style={{ flex: 1, minWidth: 260 }}
-            >
-              <option value="">{mine === null ? 'Loading your playlists…' : mine.ok ? 'Choose a playlist' : 'Couldn’t load playlists'}</option>
-              {mine?.playlists?.map(p => (
-                <option key={p.id} value={p.id}>
-                  {p.name}{p.songCount !== undefined ? ` (${p.songCount} songs)` : ''}
-                </option>
-              ))}
-            </select>
-            <button className="btn-secondary" onClick={() => void loadMine()} disabled={busy !== null}>Refresh list</button>
-            {playlist?.ok && (
-              <button className="btn-secondary" onClick={read} disabled={busy !== null || !link.trim()}>
-                {busy === 'read' ? 'Reading…' : 'Reload songs'}
-              </button>
-            )}
-          </div>
-          {mine && !mine.ok && <div className="pp-status err">{mine.reason}</div>}
-          <div className="pp-actions" style={{ marginTop: 6 }}>
-            <input
-              type="text"
-              value={link.startsWith('spotify:playlist:') ? '' : link}
-              onChange={e => setLink(e.target.value)}
-              placeholder="Or paste a playlist link"
-              style={{ flex: 1, minWidth: 260 }}
-              disabled={busy !== null}
-            />
-            <button className="btn-secondary" onClick={read} disabled={busy !== null || !link.trim() || link.startsWith('spotify:playlist:')}>
-              {busy === 'read' ? 'Reading…' : 'Read link'}
-            </button>
-          </div>
-          <div className="settings-field-sub">Shows playlists you made or collaborate on; Spotify doesn’t let Runway read ones you only follow.</div>
-        </>
-      )}
-      {playlist && !playlist.ok && <div className="pp-status err">{playlist.reason}</div>}
-      {playlist?.ok && playlist.tracks && (
-        <div className="settings-section-sub" style={{ marginTop: 12 }}>
-          <div>
-            <strong>{playlist.name}</strong> — {playlist.tracks.length} songs, {formatDuration(totalSec)} total
-            {playlist.skipped ? ` (${playlist.skipped} skipped: podcasts or local files)` : ''}
-          </div>
-          <SpotifySongList tracks={playlist.tracks} />
+        <div className="pp-actions" style={{ marginTop: 10 }}>
+          <span className="settings-field-sub">Import playlists, set keys and download artwork in</span>
+          <button className="btn-secondary" onClick={() => useAppStore.getState().setView('library')}>Library › Spotify</button>
         </div>
-      )}
-      {playlist?.ok && playlist.tracks && playlist.tracks.length > 0 && (
-        <SpotifyTestRunPanel playlist={playlist} />
       )}
     </section>
   );

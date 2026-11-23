@@ -746,6 +746,9 @@ export interface AppConfig {
     // Every playlist read, by playlist id: lets a service arm from the
     // saved song list if Spotify's web API is unreachable at arm time.
     playlistCache?: Record<string, SpotifyPlaylistResult>;
+    // Downloaded album art (data URLs) by spotify:track: URI, so art shows
+    // without internet. Filled by Library › Spotify › Download artwork.
+    artCache?: Record<string, string>;
   };
   // GetSongBPM API key — free tier (5k/day, attribution required)
   // returns tempo + key for searched songs. The realistic working
@@ -1054,6 +1057,8 @@ export const IPC = {
   SPOTIFY_PLAYER: 'spotify:player',
   // Experimental: list the signed-in user's own/collaborative playlists.
   SPOTIFY_PLAYLISTS_LIST: 'spotify:playlistsList',
+  // Experimental: download a Spotify album image as a data URL.
+  SPOTIFY_FETCH_ART: 'spotify:fetchArt',
   MULTITRACKS_LOOKUP: 'track:multitracks',
 } as const;
 
@@ -1094,6 +1099,7 @@ export type SpotifyPlayerCommand =
   | { op: 'seek'; positionSec: number }
   | { op: 'volume'; volume: number }
   | { op: 'pause' }
+  | { op: 'resume' }
   | { op: 'state' }
   | { op: 'volumeAndState'; volume: number };
 
