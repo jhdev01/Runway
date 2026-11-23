@@ -129,7 +129,17 @@ end timeout
 APPLESCRIPT
 
 sync
-hdiutil detach "$DEVICE" >/dev/null
+# Finder / Spotlight sometimes still hold the volume for a moment
+# ("Resource busy"); retry, then force.
+detached=0
+for attempt in 1 2 3 4 5; do
+  if hdiutil detach "$DEVICE" >/dev/null 2>&1; then detached=1; break; fi
+  echo "[make-dmg] volume busy, retrying detach ($attempt)"
+  sleep 2
+done
+if [[ $detached -eq 0 ]]; then
+  hdiutil detach -force "$DEVICE" >/dev/null
+fi
 
 echo "[make-dmg] converting to UDZO and replacing $OUT"
 mkdir -p "$ROOT/release"
