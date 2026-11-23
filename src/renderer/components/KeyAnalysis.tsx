@@ -133,7 +133,8 @@ export function NoteMapStrip({ noteMap, durSec, zoomX, scrollX, height = 140, hi
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
     g.clearRect(0, 0, w, height);
     const LABEL = 22;
-    const plotW = w - LABEL;
+    const TOTAL_W = 54;           // per-note totals at the right edge
+    const plotW = w - LABEL - TOTAL_W - 6;
     const LANE = 20;              // "key over time" band on top
     const top = LANE + 2;
     const rowH = (height - top) / 12;
@@ -148,7 +149,7 @@ export function NoteMapStrip({ noteMap, durSec, zoomX, scrollX, height = 140, hi
     g.font = '700 10px IBM Plex Mono, monospace';
     g.textBaseline = 'middle';
     for (const span of keyTimeline(noteMap)) {
-      const x0 = Math.max(LABEL, x(span.startSec)), x1 = Math.min(w, x(span.endSec));
+      const x0 = Math.max(LABEL, x(span.startSec)), x1 = Math.min(LABEL + plotW, x(span.endSec));
       if (x1 <= x0) continue;
       const c = keyColor(span.key);
       g.fillStyle = c.bg;
@@ -165,20 +166,63 @@ export function NoteMapStrip({ noteMap, durSec, zoomX, scrollX, height = 140, hi
     g.fillStyle = 'rgba(255,255,255,0.5)';
     g.font = '600 8px IBM Plex Mono, monospace';
     g.fillText('KEY', 1, LANE / 2);
+    const plotEnd = LABEL + plotW;
     if (noteMap) {
-      for (let s = 0; s < noteMap.length; s++) {
-        const col = noteMap[s];
-        if (!col) continue;
-        const x0 = x(s), x1 = x(s + 1);
-        if (x1 < LABEL || x0 > w) continue;
-        for (let pc = 0; pc < 12; pc++) {
-          const v = col[pc] / 99;
-          if (v <= 0.02) continue;
-          // dark blue → teal → bright green, like a heat map
-          const r = Math.round(20 + 60 * v), gg = Math.round(60 + 180 * v), b = Math.round(160 - 40 * v);
-          g.fillStyle = `rgba(${r},${gg},${b},${0.25 + 0.75 * v})`;
-          g.fillRect(Math.max(LABEL, x0), height - (pc + 1) * rowH + 0.5, Math.max(1, x1 - Math.max(LABEL, x0)), Math.max(1, rowH - 1));
+      // Easier to read than the raw per-second map: each second becomes
+      // its notes' share (so a busy second doesn't light every note), then
+      // a few seconds are averaged (a passing note doesn't flash), and the
+      // whole song shares one brightness scale.
+      const shares: Array<number[] | null> = noteMap.map(col => {
+        if (!col) return null;
+        const sum = col.reduce((a, b) => a + b, 0);
+        return sum > 0 ? col.map(v => v / sum) : null;
+      });
+      const SMOOTH = 2; // seconds each side
+      const smooth: Array<number[] | null> = shares.map((_, s) => {
+        const acc = new Array(12).fill(0);
+        let n = 0;
+        for (let k = Math.max(0, s - SMOOTH); k <= Math.min(shares.length - 1, s + SMOOTH); k++) {
+          const c = shares[k];
+          if (!c) continue;
+          n++;
+          for (let pc = 0; pc < 12; pc++) acc[pc] += c[pc];
         }
+        return shares[s] && n ? acc.map(v => v / n) : null;
+      });
+      let maxShare = 0;
+      for (const c of smooth) if (c) for (const v of c) if (v > maxShare) maxShare = v;
+      const totals = new Array(12).fill(0);
+      for (const c of shares) if (c) for (let pc = 0; pc < 12; pc++) totals[pc] += c[pc];
+      for (let s = 0; s < smooth.length; s++) {
+        const col = smooth[s];
+        if (!col) continue;
+        const x0 = Math.max(LABEL, x(s)), x1 = Math.min(plotEnd, x(s + 1));
+        if (x1 <= x0) continue;
+        for (let pc = 0; pc < 12; pc++) {
+          let v = maxShare > 0 ? Math.min(1, col[pc] / maxShare) : 0;
+          v = v * v;                       // more contrast: strong notes stand out
+          if (v <= 0.03) continue;
+          // Notes outside the key are drawn fainter, so the key's 7 rows read as stripes.
+          const dim = scale.length && !scale.includes(pc) ? 0.4 : 1;
+          const r = Math.round(20 + 60 * v), gg = Math.round(60 + 180 * v), b = Math.round(160 - 40 * v);
+          g.fillStyle = `rgba(${r},${gg},${b},${(0.25 + 0.75 * v) * dim})`;
+          g.fillRect(x0, height - (pc + 1) * rowH + 0.5, Math.max(1, x1 - x0), Math.max(1, rowH - 1));
+        }
+      }
+      // Totals: how much each note is used over the whole song. The key's
+      // 7 notes come out long, the 5 it leaves out short.
+      const maxT = Math.max(...totals);
+      if (maxT > 0) {
+        const tx = plotEnd + 6;
+        for (let pc = 0; pc < 12; pc++) {
+          const len = (totals[pc] / maxT) * TOTAL_W;
+          g.fillStyle = scale[0] === pc ? '#f5a524' : scale.includes(pc) ? 'rgba(45,212,191,0.9)' : 'rgba(255,255,255,0.22)';
+          g.fillRect(tx, height - (pc + 1) * rowH + 1.5, Math.max(1, len), Math.max(1, rowH - 3));
+        }
+        g.fillStyle = 'rgba(255,255,255,0.5)';
+        g.font = '600 8px IBM Plex Mono, monospace';
+        g.textBaseline = 'middle';
+        g.fillText('TOTAL', tx, LANE / 2);
       }
     }
     // Note labels.
@@ -199,8 +243,9 @@ export function NoteMapStrip({ noteMap, durSec, zoomX, scrollX, height = 140, hi
       )}
       {noteMap && noteMap.some(c => c) && (
         <div className="settings-field-sub" style={{ marginTop: 3 }}>
-          Top band: the key each part of the song sounds like (keys with the same notes, like G and Em, share a colour).
-          Below: each note brightens as it sounds; the key’s notes are shaded, its home note in orange.
+          How to read it: a key uses 7 of the 12 notes. Rows that stay dark are notes the song leaves out; the bright
+          rows that are left are the key. Right edge: each note’s total over the song (the key’s notes long, home note in
+          orange). Top band: the key each part of the song sounds like (same-note keys like D and Bm share a band).
         </div>
       )}
     </div>
