@@ -1920,6 +1920,57 @@ export class ServiceController {
   }
 
   /**
+   * change_setlist to an imported Spotify playlist: fade out whatever is
+   * playing over `fadeOutSec` while the Spotify playlist fades in from the
+   * top (the same free-running Spotify post-service a service's Spotify
+   * post-service playlist uses). No landing: it just plays on.
+   */
+  private async swapToSpotifyPlaylist(spotifyPlaylistId: string, fadeOutSec: number): Promise<void> {
+    const state = this.store.getState();
+    const cur = state.currentRunway;
+    const cached = state.config.spotify?.playlistCache?.[spotifyPlaylistId];
+    console.log('[change_setlist] swap to Spotify requested', {
+      toPlaylistId: spotifyPlaylistId, toPlaylistName: cached?.name, fadeOutSec,
+      currentPhase: cur?.phase, isPostService: cur?.isPostService,
+    });
+    if (!cached) {
+      const msg = 'change_setlist: that Spotify playlist isn’t imported any more (Playlists › Spotify).';
+      console.warn('[actions]', msg);
+      this.notifyActionError?.(msg);
+      return;
+    }
+    if (cur?.spotifyPost?.playlistId === spotifyPlaylistId) {
+      this.notifyActionError?.(`change_setlist: already on "${cached.name}" — no swap performed.`);
+      return;
+    }
+    const fade = Math.max(0.3, fadeOutSec);
+    const origin = cur?.isPostService ? cur.originServiceId : (cur?.serviceId ?? undefined);
+    // Fade out what's playing now, then clear it so the Spotify
+    // post-service can take over (it refuses while a pre-service runway is
+    // still marked as playing).
+    this.swapInProgress = true;
+    try {
+      if (cur?.isPostService) {
+        this.stopPostService(fade);
+      } else if (cur) {
+        if (cur.spotify) this.stopSpotify();
+        else this.audio.fadeOutMusic(fade);
+        state.setCurrentRunway(null);
+      }
+      const res = await this.startSpotifyPostService(spotifyPlaylistId, origin ?? undefined);
+      if (!res.ok) {
+        const msg = `change_setlist: ${res.reason ?? 'Spotify didn’t start.'}`;
+        console.warn('[actions]', msg);
+        this.notifyActionError?.(msg);
+      } else {
+        console.log('[change_setlist] now playing Spotify', { playlist: cached.name });
+      }
+    } finally {
+      window.setTimeout(() => { this.swapInProgress = false; }, Math.max(300, fade * 1000));
+    }
+  }
+
+  /**
    * Tear down the current music, then start the chosen playlist as a
    * fresh post-service runway. Used by the change_setlist action so a
    * sequence can transition (e.g.) "prayer set → standard post-service"
@@ -1927,6 +1978,7 @@ export class ServiceController {
    * the operator can chain sequences if desired.
    */
   private async swapToPlaylist(playlistId: string, fadeOutSec: number): Promise<void> {
+    if (playlistId?.startsWith('spotify:')) return this.swapToSpotifyPlaylist(playlistId.slice('spotify:'.length), fadeOutSec);
     const state = this.store.getState();
     const fromId = state.currentRunway?.sourcePlaylistId ?? null;
     const targetPlaylist = state.config.playlists.find(p => p.id === playlistId);

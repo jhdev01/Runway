@@ -777,10 +777,13 @@ function PayloadEditor({
           <select
             value={payload.playlistId}
             onChange={e => {
-              const pl = appPlaylists.find(p => p.id === e.target.value);
-              onChange({ ...payload, playlistId: e.target.value, playlistName: pl?.name });
+              const v = e.target.value;
+              const name = v.startsWith('spotify:')
+                ? importedSpotifyPlaylists().find(p => `spotify:${p.id}` === v)?.name
+                : appPlaylists.find(p => p.id === v)?.name;
+              onChange({ ...payload, playlistId: v, playlistName: name });
             }}
-            title="Playlist to swap to. Current music fades out, then this playlist starts as a post-service runway."
+            title="Playlist to swap to. Current music fades out, then this playlist starts as a post-service runway (a Spotify playlist plays from the top in the Spotify app)."
           >
             <option value="">— playlist —</option>
             {appPlaylists.map(p => (
@@ -788,7 +791,13 @@ function PayloadEditor({
                 {p.name} ({p.kind === 'pre' ? 'Pre' : p.kind === 'post' ? 'Post' : 'Special'})
               </option>
             ))}
-            {payload.playlistId && !appPlaylists.some(p => p.id === payload.playlistId) && (
+            {importedSpotifyPlaylists().length > 0 && (
+              <optgroup label="Spotify (Mac)">
+                {importedSpotifyPlaylists().map(p => <option key={p.id} value={`spotify:${p.id}`}>{p.name} · Spotify</option>)}
+              </optgroup>
+            )}
+            {payload.playlistId && !appPlaylists.some(p => p.id === payload.playlistId)
+              && !importedSpotifyPlaylists().some(p => `spotify:${p.id}` === payload.playlistId) && (
               <option value={payload.playlistId}>(missing) {payload.playlistName ?? payload.playlistId}</option>
             )}
           </select>
