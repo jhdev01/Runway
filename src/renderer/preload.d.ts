@@ -95,7 +95,8 @@ declare global {
         waveformEnable: (on: boolean) => Promise<SpotifyWaveformStatus>;
         waveformStatus: () => Promise<SpotifyWaveformStatus>;
         waveform: (uri: string) => Promise<SpotifyWaveform | null>;
-        waveformCoverage: (uris: string[]) => Promise<Record<string, number>>;
+        /** With `edgesSec`: coverage of just the first and last `edgesSec` seconds. */
+        waveformCoverage: (uris: string[], edgesSec?: number) => Promise<Record<string, number>>;
       };
       diagnostics: {
         appendTimingLog: (line: string) => void;

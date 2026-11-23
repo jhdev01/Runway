@@ -755,6 +755,11 @@ export interface AppConfig {
     // Draw waveforms of Spotify songs as they play (Mac). Off until the
     // operator turns it on, since macOS asks for a permission first.
     waveforms?: boolean;
+    // Scans hear just the first and last `waveformScanSec` seconds of each
+    // song ('edges', the default: the parts trims and landings use) or the
+    // whole song.
+    waveformScan?: 'edges' | 'whole';
+    waveformScanSec?: number;   // default 30
   };
   // GetSongBPM API key — free tier (5k/day, attribution required)
   // returns tempo + key for searched songs. The realistic working

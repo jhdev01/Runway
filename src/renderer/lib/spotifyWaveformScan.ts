@@ -28,6 +28,15 @@ export interface WaveformScanState {
 }
 
 const DONE_AT = 0.95;              // a song counts as scanned at this coverage
+/** Quick scans hear this much of each song's start and end, unless set in Settings. */
+export const DEFAULT_EDGE_SEC = 30;
+/** Seconds of each end to scan, or undefined for whole songs (Settings › Spotify). */
+export const scanEdgesSec = (): number | undefined => {
+  const sp = useAppStore.getState().config.spotify;
+  if ((sp?.waveformScan ?? 'edges') !== 'edges') return undefined;
+  const n = sp?.waveformScanSec;
+  return typeof n === 'number' && Number.isFinite(n) && n >= 5 ? Math.min(n, 600) : DEFAULT_EDGE_SEC;
+};
 const STOP_BEFORE_SERVICE_MS = 5 * 60_000;
 const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
 
@@ -82,7 +91,8 @@ class WaveformScanner {
     const blocked = waveformScanBlocked();
     if (blocked) { this.set({ note: `${blocked} Scan when it’s done.` }); return; }
     const uris = [...new Set(tracks.map(t => t.uri))];
-    const cov = await window.runway.spotify.waveformCoverage(uris);
+    const edges = scanEdgesSec();
+    const cov = await window.runway.spotify.waveformCoverage(uris, edges);
     const todo = uris
       .filter(u => opts?.force || (cov[u] ?? 0) < DONE_AT)
       .map(u => tracks.find(t => t.uri === u)!)
@@ -110,6 +120,11 @@ class WaveformScanner {
         const r = await window.runway.spotify.player({ op: 'play', uri: t.uri });
         if (!r.ok) { why = r.reason ?? 'Couldn’t play in Spotify.'; break; }
         if (!r.wasFrontmost) window.setTimeout(() => { void window.runway.spotify.player({ op: 'background' }); }, 800);
+        const durSec = t.durationMs / 1000;
+        // Quick scan: hear the start, jump to the last EDGE_SEC, hear the end.
+        // Songs too short to be worth jumping in are played through.
+        const quick = !!edges && durSec > edges * 2 + 10;
+        let jumped = !quick;
         const limit = Date.now() + t.durationMs + 20_000;
         let started = false;
         while (Date.now() < limit) {
@@ -123,8 +138,14 @@ class WaveformScanner {
             // Someone paused Spotify: carry on rather than wait forever.
             if (st.playerState === 'paused') await window.runway.spotify.player({ op: 'resume' });
           } else if (started) break;  // song ended / moved on
-          if (!opts?.force) {
-            const c = await window.runway.spotify.waveformCoverage([t.uri]);
+          if (!jumped && st.ok && st.trackUri === t.uri && (st.positionSec ?? 0) >= edges! + 1) {
+            // Start heard; skip the middle. (A second early so the edges overlap.)
+            await window.runway.spotify.player({ op: 'seek', positionSec: Math.max(edges! + 1, durSec - edges! - 1.5) });
+            jumped = true;
+            continue;
+          }
+          if (!opts?.force && jumped) {
+            const c = await window.runway.spotify.waveformCoverage([t.uri], edges);
             if ((c[t.uri] ?? 0) >= 0.98) break;
           }
         }
@@ -138,7 +159,7 @@ class WaveformScanner {
         await window.runway.spotify.player({ op: 'pause' });
         if (raised) await window.runway.spotify.player({ op: 'volume', volume: origVol });
       }
-      const after = await window.runway.spotify.waveformCoverage(todo.map(t => t.uri)).catch(() => ({} as Record<string, number>));
+      const after = await window.runway.spotify.waveformCoverage(todo.map(t => t.uri), edges).catch(() => ({} as Record<string, number>));
       const ok = todo.filter(t => (after[t.uri] ?? 0) >= DONE_AT).length;
       this.set({
         running: false, idx: 0, title: '', uri: '', posSec: 0,

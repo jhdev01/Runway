@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import type { SpotifyPlaylistTrack, SpotifyTrackEdit, SpotifyWaveform } from '@shared/types';
 import { useAppStore } from '../state/store';
 import { formatDuration } from '../lib/format';
-import { waveformScanner, useWaveformScan } from '../lib/spotifyWaveformScan';
+import { waveformScanner, useWaveformScan, scanEdgesSec } from '../lib/spotifyWaveformScan';
 import { DragHandle, ServiceLandHandle, formatPreciseTime } from '../views/EditorView';
 
 const HEIGHT = 150;
@@ -291,6 +291,15 @@ export function SpotifyWaveformView({ track, edit, onChange }: {
   }, [wave, d, zoomX, zoomY, scrollX, sizeTick]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const coverage = wave?.coverage ?? 0;
+  // What a scan aims for: the first and last 30 s (quick) or the whole song.
+  const scanTarget = (() => {
+    const e = scanEdgesSec();
+    if (!wave || !e) return coverage;
+    const n = wave.peaks.length, k = Math.ceil(e / wave.binSec);
+    let heard = 0, total = 0;
+    for (let i = 0; i < n; i++) { if (i >= k && i < n - k) continue; total++; if (wave.peaks[i] >= 0) heard++; }
+    return total ? heard / total : 0;
+  })();
   const trimLen = Math.max(0, d.end - d.start);
   return (
     <div style={{ marginBottom: 12 }}>
@@ -331,7 +340,7 @@ export function SpotifyWaveformView({ track, edit, onChange }: {
               onClick={() => void waveformScanner.start([track], { force: true })}
               title={scan.running ? 'Another scan is running' : 'Plays this song start to finish to draw its waveform. You can mute your Mac.'}
             >
-              {coverage >= 0.95 ? 'Re-scan this song' : 'Scan this song'}
+              {scanTarget >= 0.95 ? 'Re-scan this song' : 'Scan this song'}
             </button>)}
       </div>
 

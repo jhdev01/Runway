@@ -937,7 +937,7 @@ function registerIpcHandlers() {
   ipcMain.handle(IPC.SPOTIFY_WAVEFORM_ENABLE, async (_e, on: unknown) => spotifyWaveformEnable(on === true));
   ipcMain.handle(IPC.SPOTIFY_WAVEFORM_STATUS, async () => spotifyWaveformStatus());
   ipcMain.handle(IPC.SPOTIFY_WAVEFORM_GET, async (_e, uri: unknown) => (typeof uri === 'string' ? spotifyWaveformGet(uri) : null));
-  ipcMain.handle(IPC.SPOTIFY_WAVEFORM_COVERAGE, async (_e, uris: unknown) => (Array.isArray(uris) ? spotifyWaveformCoverage(uris as string[]) : {}));
+  ipcMain.handle(IPC.SPOTIFY_WAVEFORM_COVERAGE, async (_e, uris: unknown, edgesSec: unknown) => (Array.isArray(uris) ? spotifyWaveformCoverage(uris as string[], typeof edgesSec === 'number' ? edgesSec : undefined) : {}));
   app.on('will-quit', () => spotifyWaveformShutdown());
   ipcMain.handle(IPC.SPOTIFY_PLAYER, async (_e, cmd: SpotifyPlayerCommand) => {
     if (!cmd || typeof cmd !== 'object' || typeof (cmd as { op?: unknown }).op !== 'string') {

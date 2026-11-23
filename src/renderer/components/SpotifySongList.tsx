@@ -5,7 +5,7 @@ import { formatDuration } from '../lib/format';
 import { songBounds } from '../lib/spotifyTestRun';
 import { KeyPickerModal } from './KeyPickerModal';
 import { SpotifyWaveformView } from './SpotifyWaveformView';
-import { waveformScanner, useWaveformScan } from '../lib/spotifyWaveformScan';
+import { waveformScanner, useWaveformScan, scanEdgesSec } from '../lib/spotifyWaveformScan';
 import { keyColor, displayKey } from '@shared/music';
 
 type Field = 'trimStartSec' | 'trimEndSec' | 'landSec' | 'fadeInSec' | 'fadeOutSec';
@@ -208,7 +208,7 @@ export function SpotifySongList({ tracks }: { tracks: SpotifyPlaylistTrack[] }) 
     let alive = true;
     const read = async () => {
       try {
-        const c = await window.runway.spotify.waveformCoverage(tracks.map(t => t.uri));
+        const c = await window.runway.spotify.waveformCoverage(tracks.map(t => t.uri), scanEdgesSec());
         if (alive) setCov(c);
       } catch { /* ignore */ }
     };
@@ -289,7 +289,7 @@ export function SpotifySongList({ tracks }: { tracks: SpotifyPlaylistTrack[] }) 
                   const done = c >= 0.95;
                   return (
                     <span
-                      title={done ? 'Waveform ready' : c > 0 ? `Waveform ${Math.round(c * 100)}% heard` : 'No waveform yet'}
+                      title={(scanEdgesSec() ? `Start and end (${scanEdgesSec()} s each): ` : '') + (done ? 'waveform ready' : c > 0 ? `${Math.round(c * 100)}% heard` : 'no waveform yet')}
                       style={{ display: 'flex', alignItems: 'center', gap: 6, width: 86, flex: 'none' }}
                     >
                       <span style={{ flex: 1, height: 5, borderRadius: 3, background: 'var(--border)', overflow: 'hidden' }}>

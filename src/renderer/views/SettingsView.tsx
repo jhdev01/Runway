@@ -1964,6 +1964,10 @@ function SpotifyWaveformSetting() {
   const updateConfig = useAppStore(s => s.updateConfig);
   const [st, setSt] = useState<SpotifyWaveformStatus | null>(null);
   const scan = useWaveformScan();
+  const scanMode = useAppStore(s => s.config.spotify?.waveformScan ?? 'edges');
+  const scanSec = useAppStore(s => s.config.spotify?.waveformScanSec ?? 30);
+  const [custom, setCustom] = useState(false);
+  const scanChoice = scanMode === 'whole' ? 'whole' : (custom || ![10, 20, 30].includes(scanSec)) ? 'custom' : String(scanSec);
   useEffect(() => {
     let alive = true;
     const read = () => window.runway?.spotify?.waveformStatus?.().then(x => { if (alive) setSt(x); }).catch(() => undefined);
@@ -2006,6 +2010,39 @@ function SpotifyWaveformSetting() {
             </>
           ) : (
             <>
+              <select
+                value={scanChoice}
+                onChange={e => {
+                  const v = e.target.value;
+                  const latest = useAppStore.getState().config.spotify;
+                  if (v === 'whole') updateConfig({ spotify: { ...latest, waveformScan: 'whole' } });
+                  else if (v === 'custom') { setCustom(true); updateConfig({ spotify: { ...latest, waveformScan: 'edges' } }); }
+                  else { setCustom(false); updateConfig({ spotify: { ...latest, waveformScan: 'edges', waveformScanSec: Number(v) } }); }
+                }}
+                title="What the scan buttons play"
+              >
+                <option value="10">Scan first &amp; last 10 seconds</option>
+                <option value="20">Scan first &amp; last 20 seconds</option>
+                <option value="30">Scan first &amp; last 30 seconds</option>
+                <option value="custom">Scan first &amp; last … seconds</option>
+                <option value="whole">Scan whole songs</option>
+              </select>
+              {scanChoice === 'custom' && (
+                <input
+                  type="number"
+                  min={5}
+                  max={600}
+                  value={scanSec}
+                  onChange={e => {
+                    const n = Math.round(Number(e.target.value));
+                    if (!Number.isFinite(n) || n < 1) return;
+                    const latest = useAppStore.getState().config.spotify;
+                    updateConfig({ spotify: { ...latest, waveformScan: 'edges', waveformScanSec: Math.min(600, Math.max(5, n)) } });
+                  }}
+                  style={{ width: 70 }}
+                  title="Seconds of each song's start and end to scan"
+                />
+              )}
               <button
                 className="btn-secondary"
                 onClick={() => void waveformScanner.start(allImportedSpotifySongs())}
@@ -2015,8 +2052,11 @@ function SpotifyWaveformSetting() {
                 Scan all songs
               </button>
               <span className="settings-field-sub">
-                Plays every imported Spotify song without a waveform, start to finish. Mute your Mac and walk away;
-                it keeps going on other screens and stops by itself before a service starts.
+                {scanMode === 'edges'
+                  ? `Plays the first and last ${scanSec} seconds of every imported Spotify song (about ${scanSec * 2 + 5} seconds each). `
+                  : 'Plays every imported Spotify song start to finish. '}
+                Mute your Mac and walk away; it keeps going on other screens and stops by itself before a service
+                starts. Unmute when it’s done.
               </span>
             </>
           )}

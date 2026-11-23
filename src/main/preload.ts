@@ -151,7 +151,7 @@ contextBridge.exposeInMainWorld('runway', {
     waveformEnable: (on: boolean) => ipcRenderer.invoke(IPC.SPOTIFY_WAVEFORM_ENABLE, on),
     waveformStatus: () => ipcRenderer.invoke(IPC.SPOTIFY_WAVEFORM_STATUS),
     waveform: (uri: string) => ipcRenderer.invoke(IPC.SPOTIFY_WAVEFORM_GET, uri),
-    waveformCoverage: (uris: string[]) => ipcRenderer.invoke(IPC.SPOTIFY_WAVEFORM_COVERAGE, uris),
+    waveformCoverage: (uris: string[], edgesSec?: number) => ipcRenderer.invoke(IPC.SPOTIFY_WAVEFORM_COVERAGE, uris, edgesSec),
   },
   planningCenter: {
     request: (req: unknown) => ipcRenderer.invoke(IPC.PCO_REQUEST, req),

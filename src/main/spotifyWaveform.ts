@@ -89,11 +89,18 @@ function saveSoon(): void {
   }, SAVE_DEBOUNCE_MS);
 }
 
-function coverage(w: Wave | null): number {
+/** Share of the song heard; with `edgesSec`, of just its first and last `edgesSec` seconds. */
+function coverage(w: Wave | null, edgesSec?: number): number {
   if (!w || w.peaks.length === 0) return 0;
-  let heard = 0;
-  for (const v of w.peaks) if (v >= 0) heard++;
-  return heard / w.peaks.length;
+  const n = w.peaks.length;
+  const e = edgesSec ? Math.ceil(edgesSec / BIN_SEC) : 0;
+  let heard = 0, total = 0;
+  for (let i = 0; i < n; i++) {
+    if (e && i >= e && i < n - e) continue;
+    total++;
+    if (w.peaks[i] >= 0) heard++;
+  }
+  return total ? heard / total : 0;
 }
 
 /** Places one audio buffer's peak on the song's timeline. */
@@ -251,9 +258,10 @@ export function spotifyWaveformGet(uri: string): SpotifyWaveform | null {
 }
 
 /** How much of each song has a waveform (0…1). */
-export function spotifyWaveformCoverage(uris: string[]): Record<string, number> {
+export function spotifyWaveformCoverage(uris: string[], edgesSec?: number): Record<string, number> {
   const res: Record<string, number> = {};
-  for (const u of uris.slice(0, 2000)) if (typeof u === 'string') res[u] = coverage(loadWave(u));
+  const e = typeof edgesSec === 'number' && edgesSec > 0 ? edgesSec : undefined;
+  for (const u of uris.slice(0, 2000)) if (typeof u === 'string') res[u] = coverage(loadWave(u), e);
   return res;
 }
 
