@@ -1,24 +1,23 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { useAppStore } from '../state/store';
 import type { SpotifyPlaylistSummary } from '@shared/types';
 
-// Shared across every open menu so the Spotify list is fetched once per session.
-let spotifyListCache: SpotifyPlaylistSummary[] | null = null;
-let spotifyListPromise: Promise<SpotifyPlaylistSummary[]> | null = null;
+/**
+ * The Spotify playlists to offer in service, post-service and Action menus:
+ * only the ones imported in Playlists › Spotify (or Library › Spotify), not
+ * the whole account. Read fresh each time, so a playlist imported or
+ * removed shows up straight away.
+ */
+export function importedSpotifyPlaylists(): SpotifyPlaylistSummary[] {
+  const cache = useAppStore.getState().config.spotify?.playlistCache ?? {};
+  return Object.entries(cache)
+    .filter(([, pl]) => pl?.ok)
+    .map(([id, pl]) => ({ id, name: pl.name ?? 'Spotify playlist' }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+/** Kept for callers that load asynchronously. Imported playlists only. */
 export function loadSpotifyPlaylists(): Promise<SpotifyPlaylistSummary[]> {
-  if (spotifyListCache) return Promise.resolve(spotifyListCache);
-  if (!spotifyListPromise) {
-    spotifyListPromise = (async () => {
-      try {
-        const st = await window.runway?.spotify?.status();
-        if (!st?.connected) return [];
-        const r = await window.runway.spotify.listPlaylists();
-        spotifyListCache = r.ok ? (r.playlists ?? []) : [];
-        return spotifyListCache;
-      } catch { return []; } finally { spotifyListPromise = null; }
-    })();
-  }
-  return spotifyListPromise;
+  return Promise.resolve(importedSpotifyPlaylists());
 }
 
 export interface PreServiceMusicValue {
@@ -37,16 +36,10 @@ export function PreServicePlaylistSelect({ value, onChange }: {
   onChange: (patch: PreServiceMusicValue) => void;
 }) {
   const playlists = useAppStore(s => s.config.playlists);
-  const cached = useAppStore(s => s.config.spotify?.playlistCache);
-  const [spotify, setSpotify] = useState<SpotifyPlaylistSummary[]>(spotifyListCache ?? []);
-  useEffect(() => { void loadSpotifyPlaylists().then(setSpotify); }, []);
-
-  // Offer saved (previously read) Spotify playlists too, so the menu still
-  // shows the current choice when Spotify isn't reachable.
-  const spotifyOptions = [...spotify];
-  for (const [id, pl] of Object.entries(cached ?? {})) {
-    if (!spotifyOptions.some(p => p.id === id)) spotifyOptions.push({ id, name: pl.name ?? 'Spotify playlist' });
-  }
+  // Re-render when playlists are imported / removed.
+  useAppStore(s => s.config.spotify?.playlistCache);
+  // Imported Spotify playlists only (plus the current choice, if it was removed).
+  const spotifyOptions = importedSpotifyPlaylists();
   if (value.spotifyPlaylistId && !spotifyOptions.some(p => p.id === value.spotifyPlaylistId)) {
     spotifyOptions.push({ id: value.spotifyPlaylistId, name: value.spotifyPlaylistName ?? 'Spotify playlist' });
   }
@@ -92,13 +85,8 @@ export function PostServicePlaylistSelect({ value, onChange }: {
   onChange: (postServicePlaylistId: string | undefined) => void;
 }) {
   const playlists = useAppStore(s => s.config.playlists);
-  const cached = useAppStore(s => s.config.spotify?.playlistCache);
-  const [spotify, setSpotify] = useState<SpotifyPlaylistSummary[]>([]);
-  useEffect(() => { void loadSpotifyPlaylists().then(setSpotify); }, []);
-  const spotifyOptions = [...spotify];
-  for (const [id, pl] of Object.entries(cached ?? {})) {
-    if (!spotifyOptions.some(p => p.id === id)) spotifyOptions.push({ id, name: pl.name ?? 'Spotify playlist' });
-  }
+  useAppStore(s => s.config.spotify?.playlistCache);
+  const spotifyOptions = importedSpotifyPlaylists();
   const cur = value ?? '';
   if (cur.startsWith('spotify:') && !spotifyOptions.some(p => `spotify:${p.id}` === cur)) {
     spotifyOptions.push({ id: cur.slice(8), name: 'Spotify playlist' });
