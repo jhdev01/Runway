@@ -60,7 +60,7 @@ export function SpotifyWaveformView({ track, edit, onChange }: {
         const onThis = st.ok && st.trackUri === track.uri && st.positionSec !== undefined;
         setPlayhead(onThis ? st.positionSec! : null);
         const now = Date.now();
-        if (now - lastWave > (onThis && st.playerState === 'playing' ? 2000 : 10_000)) {
+        if (now - lastWave > (onThis && st.playerState === 'playing' ? 1000 : 10_000)) {
           lastWave = now;
           const w = await window.runway.spotify.waveform(track.uri);
           if (alive) setWave(w);

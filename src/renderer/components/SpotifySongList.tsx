@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAppStore } from '../state/store';
 import type { KeyName, SpotifyPlaylistTrack, SpotifyTrackEdit } from '@shared/types';
 import { formatDuration } from '../lib/format';
@@ -200,6 +200,22 @@ export function SpotifySongList({ tracks }: { tracks: SpotifyPlaylistTrack[] }) 
   // Scan waveforms for this playlist (runs in the background; see spotifyWaveformScan).
   const waveformsOn = !!config.spotify?.waveforms;
   const scan = useWaveformScan();
+  // How much of each song has a waveform; refreshed live while anything plays.
+  const [cov, setCov] = useState<Record<string, number>>({});
+  const uriKey = tracks.map(t => t.uri).join('|');
+  useEffect(() => {
+    if (!waveformsOn) return;
+    let alive = true;
+    const read = async () => {
+      try {
+        const c = await window.runway.spotify.waveformCoverage(tracks.map(t => t.uri));
+        if (alive) setCov(c);
+      } catch { /* ignore */ }
+    };
+    void read();
+    const t = window.setInterval(() => void read(), 1500);
+    return () => { alive = false; window.clearInterval(t); };
+  }, [waveformsOn, uriKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Audition a song in Spotify (no fades, no timing — just play / pause).
   const [playingUri, setPlayingUri] = useState<string | null>(null);
@@ -224,7 +240,18 @@ export function SpotifySongList({ tracks }: { tracks: SpotifyPlaylistTrack[] }) 
           {lookup.busy ? `Looking up keys… ${lookup.done}/${lookup.total}` : 'Look up keys'}
         </button>
         {waveformsOn && (scan.running
-          ? <button className="btn-secondary" onClick={() => waveformScanner.stop()}>Stop scan ({scan.idx}/{scan.total}: {scan.title})</button>
+          ? (
+            <span style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <button className="btn-secondary" onClick={() => waveformScanner.stop()}>Stop scan</button>
+              <span className="settings-field-sub" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                Scanning {scan.idx} of {scan.total}: {scan.title}
+                <span style={{ width: 120, height: 6, borderRadius: 3, background: 'var(--border)', overflow: 'hidden', display: 'inline-block' }}>
+                  <span style={{ display: 'block', height: '100%', width: `${scan.durSec ? Math.min(100, (scan.posSec / scan.durSec) * 100) : 0}%`, background: 'var(--accent-bright)' }} />
+                </span>
+                {formatDuration(scan.posSec)} / {formatDuration(scan.durSec)}
+              </span>
+            </span>
+          )
           : <button className="btn-secondary" onClick={() => void waveformScanner.start(tracks)} title="Draws waveforms for this playlist: plays its songs that don’t have one yet straight through, in the background. You can mute your Mac and walk away.">Scan this playlist</button>)}
         {lookup.note && <span className="settings-field-sub">{lookup.note}</span>}
         {scan.note && <span className="settings-field-sub">{scan.note}</span>}
@@ -256,6 +283,28 @@ export function SpotifySongList({ tracks }: { tracks: SpotifyPlaylistTrack[] }) 
                 <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {t.title}{t.artist ? <span style={{ opacity: 0.6 }}> — {t.artist}</span> : null}
                 </span>
+                {waveformsOn && (() => {
+                  const c = cov[t.uri] ?? 0;
+                  const live = scan.running && scan.uri === t.uri;
+                  const done = c >= 0.95;
+                  return (
+                    <span
+                      title={done ? 'Waveform ready' : c > 0 ? `Waveform ${Math.round(c * 100)}% heard` : 'No waveform yet'}
+                      style={{ display: 'flex', alignItems: 'center', gap: 6, width: 86, flex: 'none' }}
+                    >
+                      <span style={{ flex: 1, height: 5, borderRadius: 3, background: 'var(--border)', overflow: 'hidden' }}>
+                        <span style={{
+                          display: 'block', height: '100%', width: `${Math.round(c * 100)}%`,
+                          background: done ? 'var(--accent-bright)' : live ? '#f5a524' : 'var(--text-faint)',
+                          transition: 'width 0.8s linear',
+                        }} />
+                      </span>
+                      <span style={{ fontSize: 11, width: 30, textAlign: 'right', opacity: c > 0 ? 0.9 : 0.4 }}>
+                        {done ? '✓' : `${Math.round(c * 100)}%`}
+                      </span>
+                    </span>
+                  );
+                })()}
                 <button
                   type="button"
                   onClick={() => setKeyFor(t.uri)}

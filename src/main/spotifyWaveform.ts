@@ -40,6 +40,8 @@ let jumpedAt = 0;
 let idleSince: number | null = null;
 let retryAfter = 0;
 const waves = new Map<string, Wave>();
+// Songs with no saved waveform yet, so a live progress view doesn't re-read the disk.
+const missing = new Set<string>();
 const dirty = new Set<string>();
 let saveTimer: NodeJS.Timeout | null = null;
 let buf = '';
@@ -56,6 +58,7 @@ function helperPath(): string {
 function loadWave(uri: string): Wave | null {
   const cached = waves.get(uri);
   if (cached) return cached;
+  if (missing.has(uri)) return null;
   const id = idOf(uri);
   if (!id) return null;
   try {
@@ -66,6 +69,7 @@ function loadWave(uri: string): Wave | null {
       return w;
     }
   } catch { /* none yet */ }
+  missing.add(uri);
   return null;
 }
 
@@ -109,6 +113,7 @@ function onLevel(wallMs: number, durMs: number, peak: number): void {
   if (!w || w.peaks.length !== bins) {
     w = { durationSec: a.durSec, peaks: new Array(bins).fill(-1) };
     waves.set(a.uri, w);
+    missing.delete(a.uri);
   }
   const level = Math.min(1, peak / (a.volume / 100));
   const b0 = Math.max(0, Math.floor(startSec / BIN_SEC));

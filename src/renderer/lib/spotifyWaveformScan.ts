@@ -19,6 +19,9 @@ import { spotifyFreePlay } from './spotifyPost';
 export interface WaveformScanState {
   running: boolean;
   idx: number;          // 1-based song being scanned
+  uri: string;          // song being scanned
+  posSec: number;       // where it's up to
+  durSec: number;
   total: number;
   title: string;
   note: string | null;  // last result / why it stopped
@@ -57,7 +60,7 @@ export function allImportedSpotifySongs(): SpotifyPlaylistTrack[] {
 }
 
 class WaveformScanner {
-  private state: WaveformScanState = { running: false, idx: 0, total: 0, title: '', note: null };
+  private state: WaveformScanState = { running: false, idx: 0, uri: '', posSec: 0, durSec: 0, total: 0, title: '', note: null };
   private listeners = new Set<(s: WaveformScanState) => void>();
   private stopRequested = false;
 
@@ -103,17 +106,18 @@ class WaveformScanner {
         if (this.stopRequested) { why = 'Scan stopped.'; break; }
         const blocked2 = waveformScanBlocked();
         if (blocked2) { why = `Scan paused: ${blocked2}`; break; }
-        this.set({ idx: done + 1, title: t.title });
+        this.set({ idx: done + 1, title: t.title, uri: t.uri, posSec: 0, durSec: t.durationMs / 1000 });
         const r = await window.runway.spotify.player({ op: 'play', uri: t.uri });
         if (!r.ok) { why = r.reason ?? 'Couldn’t play in Spotify.'; break; }
         if (!r.wasFrontmost) window.setTimeout(() => { void window.runway.spotify.player({ op: 'background' }); }, 800);
         const limit = Date.now() + t.durationMs + 20_000;
         let started = false;
         while (Date.now() < limit) {
-          await sleep(1500);
+          await sleep(1000);
           if (this.stopRequested) break;
           if (waveformScanBlocked()) break;
           const st = await window.runway.spotify.player({ op: 'state' });
+          if (st.ok && st.trackUri === t.uri && st.positionSec !== undefined) this.set({ posSec: st.positionSec });
           if (st.ok && st.trackUri === t.uri) {
             started = true;
             // Someone paused Spotify: carry on rather than wait forever.
@@ -137,7 +141,7 @@ class WaveformScanner {
       const after = await window.runway.spotify.waveformCoverage(todo.map(t => t.uri)).catch(() => ({} as Record<string, number>));
       const ok = todo.filter(t => (after[t.uri] ?? 0) >= DONE_AT).length;
       this.set({
-        running: false, idx: 0, title: '',
+        running: false, idx: 0, title: '', uri: '', posSec: 0,
         note: `${why ? why + ' ' : ''}${ok} of ${todo.length} song${todo.length === 1 ? '' : 's'} now have a waveform.`,
       });
     }

@@ -2001,7 +2001,7 @@ function SpotifyWaveformSetting() {
         <div className="pp-actions" style={{ marginTop: 8 }}>
           {scan.running ? (
             <>
-              <span className="pp-status ok">Scanning {scan.idx} of {scan.total}: {scan.title}</span>
+              <span className="pp-status ok">Scanning {scan.idx} of {scan.total}: {scan.title} ({Math.floor(scan.posSec / 60)}:{String(Math.floor(scan.posSec % 60)).padStart(2, '0')} of {Math.floor(scan.durSec / 60)}:{String(Math.floor(scan.durSec % 60)).padStart(2, '0')})</span>
               <button className="btn-secondary" onClick={() => waveformScanner.stop()}>Stop</button>
             </>
           ) : (
