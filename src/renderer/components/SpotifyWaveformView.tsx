@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import type { SpotifyPlaylistTrack, SpotifyTrackEdit, SpotifyWaveform } from '@shared/types';
 import { useAppStore } from '../state/store';
 import { formatDuration } from '../lib/format';
-import { waveformScanner, useWaveformScan, scanEdgesSec } from '../lib/spotifyWaveformScan';
+import { waveformScanner, useWaveformScan, scanEdgesSec, logSpotifyOperator } from '../lib/spotifyWaveformScan';
 import { DragHandle, ServiceLandHandle, formatPreciseTime } from '../views/EditorView';
 
 const HEIGHT = 150;
@@ -164,6 +164,7 @@ export function SpotifyWaveformView({ track, edit, onChange }: {
   useEffect(() => () => { void endPreview(false); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const playFrom = async (sec: number) => {
+    logSpotifyOperator('editor preview', { title: track.title, fromSec: Math.round(sec * 10) / 10 });
     setNote(null);
     let st = await window.runway.spotify.player({ op: 'state' });
     if (!preview.current) {

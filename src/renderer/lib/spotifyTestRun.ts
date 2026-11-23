@@ -237,6 +237,8 @@ const median = (xs: number[]) => {
 };
 
 export class SpotifyTestRunner {
+  /** 'runway' (services) or 'test run', for timing.log. */
+  constructor(readonly name: string = 'runway') {}
   private state: SpotifyRunState = IDLE;
   private listeners = new Set<(s: SpotifyRunState) => void>();
   private runId = 0;
@@ -511,6 +513,7 @@ export class SpotifyTestRunner {
               // Spotify got paused, or someone picked another song in it.
               // Put the planned song back exactly where it should be by now.
               recoveries++;
+              console.log('[spotify] paused or changed: putting the song back', { title: seg.title, recovery: recoveries });
               this.set({ message: `Spotify was paused or changed. Putting “${seg.title}” back in place…` });
               await this.cmd({ op: 'volume', volume: 0 });
               sentVolume = 0;
@@ -533,10 +536,12 @@ export class SpotifyTestRunner {
                   corrections: this.state.corrections + 1,
                 });
               } else {
+                console.log('[spotify] song did not come back after a pause', { title: seg.title });
                 this.set({ message: 'Spotify was paused or changed and didn’t come back. Press play in Spotify; Runway will line it up again.' });
               }
               notPlayingSince = null;
             } else if (loopStart - notPlayingSince > 2000 && recoveries >= MAX_RECOVERIES_PER_SONG) {
+              if (!this.state.message?.startsWith('Spotify keeps stopping')) console.log('[spotify] keeps stopping; landing may be off', { title: seg.title });
               this.set({ message: 'Spotify keeps stopping (an ad, or someone touching it). The landing may be off.' });
             }
           } else {
@@ -590,6 +595,12 @@ export class SpotifyTestRunner {
   async stop(fadeSec = 1.5): Promise<void> {
     if (this.stopping) return this.stopping;
     const wasRunning = this.isActive();
+    if (wasRunning) {
+      const seg = this.state.segments[this.state.currentIndex];
+      console.log(`[spotify] ${this.name} stopped before landing`, {
+        song: seg ? seg.title : null, index: this.state.currentIndex, msUntilEnd: this.state.endAt ? this.state.endAt - Date.now() : null,
+      });
+    }
     this.runId++;
     this.stopping = (async () => {
       if (wasRunning) {
@@ -632,9 +643,9 @@ export class SpotifyTestRunner {
   }
 }
 
-export const spotifyTestRun = new SpotifyTestRunner();
+export const spotifyTestRun = new SpotifyTestRunner('test run');
 /** Separate runner for services, so a test run and a service never share state. */
-export const spotifyServiceRun = new SpotifyTestRunner();
+export const spotifyServiceRun = new SpotifyTestRunner('runway');
 
 /** Where a planned Spotify runway is right now, from the wall clock. */
 export function spotifyNowPlaying(segments: SpotifyRunSegment[], now: number):

@@ -29,7 +29,10 @@ export function EnginesProvider({ children }: { children: React.ReactNode }) {
 
   if (!audioRef.current) audioRef.current = new AudioEngine();
   if (!midiRef.current) midiRef.current = new MidiEngine();
-  if (!controllerRef.current) controllerRef.current = new ServiceController(audioRef.current, useAppStore);
+  if (!controllerRef.current) {
+    controllerRef.current = new ServiceController(audioRef.current, useAppStore);
+    logOperatorActions(controllerRef.current);
+  }
   if (!ppRef.current) ppRef.current = new PpClient(useAppStore.getState().config.proPresenterSync);
   if (!pcoRef.current) pcoRef.current = new PcoClient(useAppStore.getState().config.pcoSync ?? { enabled: false, appId: '', secret: '', serviceTypeId: null, serviceTypeName: null });
   // Hand the controller refs to the MIDI + PP engines so Action Sequence
@@ -175,6 +178,7 @@ export function EnginesProvider({ children }: { children: React.ReactNode }) {
     // the desktop UI buttons, so the runway behaves identically whether
     // the trigger came from the local UI, MIDI, or a phone on the LAN.
     const unsubRemote = window.runway?.remote?.onCommand?.((cmd) => {
+      logInput('phone remote', cmd);
       switch (cmd.type) {
         case 'arm_toggle':
           void controller.armToggle({
@@ -459,6 +463,9 @@ export function EnginesProvider({ children }: { children: React.ReactNode }) {
       }
     };
 
+    // The auto-schedule pieces are set up further down; a store change while
+    // the rest of this setup runs must not touch them before they exist.
+    let autoScheduleReady = false;
     const unsubStore = useAppStore.subscribe(() => {
       const state = useAppStore.getState();
       pp.updateConfig(state.config.proPresenterSync);
@@ -495,7 +502,7 @@ export function EnginesProvider({ children }: { children: React.ReactNode }) {
       // the pending one-shot timer and reschedule from scratch so the new
       // setting takes effect now (not at next launch).
       const nextSig = `${state.config.defaults.autoScheduleTime}|${state.config.defaults.autoScheduleDaysAhead}|${state.config.weeklyPatternMode}`;
-      if (nextSig !== lastAutoScheduleSig) {
+      if (autoScheduleReady && nextSig !== lastAutoScheduleSig) {
         scheduleNextMaterialize();
       }
 
@@ -728,6 +735,7 @@ export function EnginesProvider({ children }: { children: React.ReactNode }) {
     // then schedule the first one-shot for the configured time.
     runMaterializer();
     scheduleNextMaterialize();
+    autoScheduleReady = true;
 
     // ---- Remote-control snapshot push ----
     // Build a compact view of the runway + active service + now-playing
@@ -1033,7 +1041,54 @@ export function useEngines(): EnginesContextValue {
   return ctx;
 }
 
+/**
+ * Writes every operator action that reaches the service controller to
+ * timing.log as "[operator] <action>", whatever it came from (a button,
+ * MIDI, the phone remote, an Action). Purely a log: the action itself runs
+ * exactly as before.
+ */
+// Faders (volume moves) can send dozens of messages a second: log each kind
+// at most every 2 s so timing.log stays readable.
+const lastInputLog = new Map<string, number>();
+function logInput(from: string, what: unknown): void {
+  try {
+    const kind = typeof what === 'string' ? what : (what as { type?: string })?.type ?? JSON.stringify(what);
+    const k = `${from}:${kind}`;
+    const now = Date.now();
+    if (now - (lastInputLog.get(k) ?? 0) < 2000) return;
+    lastInputLog.set(k, now);
+    console.log(`[operator] from ${from}`, what);
+  } catch { /* logging only */ }
+}
+
+const OPERATOR_METHODS = [
+  'armToggle', 'panic', 'fadeToPad', 'skipToPad', 'skipToNextTrack', 'prevTrack', 'jumpToTransition',
+  'nudgeMusic', 'clickTimeline', 'quickPlayPlaylist', 'stopQuickPlay', 'startPostServicePlay', 'stopPostService',
+  'triggerPostService', 'shufflePostService', 'smartShuffle', 'shuffleArrangement', 'startMusicEarly',
+  'cancelMusicEarly', 'addSongLive', 'triggerPadPlay', 'triggerPadStop', 'deleteServiceWithFade',
+] as const;
+function logOperatorActions(controller: ServiceController): void {
+  const c = controller as unknown as Record<string, unknown>;
+  for (const name of OPERATOR_METHODS) {
+    const orig = c[name];
+    if (typeof orig !== 'function') continue;
+    c[name] = function (this: unknown, ...args: unknown[]) {
+      try {
+        const r = useAppStore.getState().currentRunway;
+        const shown = args.filter(a => typeof a !== 'function')
+          .map(a => (a && typeof a === 'object' ? Object.fromEntries(Object.entries(a).filter(([, v]) => typeof v !== 'function')) : a));
+        console.log(`[operator] ${name}`, {
+          args: shown.length ? shown : undefined,
+          runway: r ? { serviceId: r.serviceId, phase: r.phase, spotify: !!r.spotify, post: !!r.isPostService } : null,
+        });
+      } catch { /* logging only */ }
+      return (orig as (...a: unknown[]) => unknown).apply(controller, args);
+    };
+  }
+}
+
 function handleMidiAction(action: MidiAction, _audio: AudioEngine, controller: ServiceController) {
+  logInput('MIDI', action);
   const store = useAppStore.getState();
   if (typeof action === 'string') {
     switch (action) {

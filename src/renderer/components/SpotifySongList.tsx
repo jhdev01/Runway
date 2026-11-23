@@ -6,7 +6,7 @@ import { formatDuration } from '../lib/format';
 import { songBounds } from '../lib/spotifyTestRun';
 import { KeyPickerModal } from './KeyPickerModal';
 import { SpotifyWaveformView } from './SpotifyWaveformView';
-import { waveformScanner, useWaveformScan, scanEdgesSec } from '../lib/spotifyWaveformScan';
+import { waveformScanner, useWaveformScan, scanEdgesSec, logSpotifyOperator } from '../lib/spotifyWaveformScan';
 import { keyColor, displayKey } from '@shared/music';
 
 type Field = 'trimStartSec' | 'trimEndSec' | 'landSec' | 'fadeInSec' | 'fadeOutSec';
@@ -93,7 +93,7 @@ function SongEditor({ track, edit, onChange }: {
         ))}
       </div>
       <div className="pp-actions" style={{ marginTop: 8 }}>
-        <button className="btn-secondary" onClick={() => void window.runway.spotify.player({ op: 'play', uri: track.uri })}>
+        <button className="btn-secondary" onClick={() => { logSpotifyOperator('library play', { title: track.title }); void window.runway.spotify.player({ op: 'play', uri: track.uri }); }}>
           Play in Spotify
         </button>
         <button className="btn-secondary" onClick={() => { setDrafts({}); setNote(null); onChange({ key: edit.key }); }}>Clear edits</button>
@@ -153,6 +153,11 @@ export function SpotifySongList({ tracks }: { tracks: SpotifyPlaylistTrack[] }) 
     updateConfig({ spotify: { ...latest, trackEdits: next } });
   };
   const save = (uri: string, e: SpotifyTrackEdit) => {
+    {
+      const before = useAppStore.getState().config.spotify?.trackEdits?.[uri] ?? {};
+      const title = tracks.find(t => t.uri === uri)?.title;
+      logSpotifyOperator('spotify song edited', { title, from: before, to: e });
+    }
     const clean = Object.fromEntries(Object.entries(e).filter(([, v]) => v !== undefined)) as SpotifyTrackEdit;
     const next = { ...(useAppStore.getState().config.spotify?.trackEdits ?? {}) };
     if (Object.keys(clean).length) next[uri] = clean; else delete next[uri];
@@ -166,6 +171,7 @@ export function SpotifySongList({ tracks }: { tracks: SpotifyPlaylistTrack[] }) 
   // to click.
   const [suggest, setSuggest] = useState<Record<string, Array<{ key: KeyName; label: string }>>>({});
   const lookUpKeys = async () => {
+    logSpotifyOperator('find keys', { songs: tracks.length });
     const targets = tracks.filter(t => !edits[t.uri]?.key);
     setLookup({ busy: true, done: 0, total: targets.length, note: null });
     let set = 0, unsure = 0, missing = 0, unheard = 0, done = 0;
@@ -252,6 +258,7 @@ export function SpotifySongList({ tracks }: { tracks: SpotifyPlaylistTrack[] }) 
   // Audition a song in Spotify (no fades, no timing — just play / pause).
   const [playingUri, setPlayingUri] = useState<string | null>(null);
   const togglePlay = async (uri: string) => {
+    logSpotifyOperator(playingUri === uri ? 'library pause' : 'library play', { title: tracks.find(t => t.uri === uri)?.title });
     if (playingUri === uri) {
       await window.runway.spotify.player({ op: 'pause' });
       setPlayingUri(null);

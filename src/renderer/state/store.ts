@@ -484,6 +484,17 @@ export const useAppStore = create<AppStoreState>((set, get) => ({
   },
 
   updateConfig: (patch) => {
+    // Log changed defaults (fades, lead-ins, crossfades: things that shape a
+    // runway) so timing.log shows what was changed and when.
+    try {
+      const before = get().config.defaults as unknown as Record<string, unknown>;
+      const after = patch.defaults as unknown as Record<string, unknown> | undefined;
+      if (after) {
+        const changed: Record<string, unknown> = {};
+        for (const k of Object.keys(after)) if (JSON.stringify(after[k]) !== JSON.stringify(before?.[k])) changed[k] = { from: before?.[k], to: after[k] };
+        if (Object.keys(changed).length) console.log('[operator] settings changed', changed);
+      }
+    } catch { /* logging only */ }
     set(state => ({ config: { ...state.config, ...patch } }));
     // Async persist (don't block)
     void get().saveConfig();
@@ -769,6 +780,13 @@ export const useAppStore = create<AppStoreState>((set, get) => ({
   },
 
   updateTrack: (id, patch) => {
+    try {
+      const keys = ['trimStartSec', 'trimEndSec', 'editFadeInSec', 'editFadeOutSec', 'editServiceLandSec', 'key'] as const;
+      const t = get().config.tracks.find(x => x.id === id);
+      const changed: Record<string, unknown> = {};
+      for (const k of keys) if (k in patch && JSON.stringify(patch[k]) !== JSON.stringify(t?.[k])) changed[k] = { from: t?.[k], to: patch[k] };
+      if (Object.keys(changed).length) console.log('[operator] track edited', { title: t?.title, ...changed });
+    } catch { /* logging only */ }
     set(state => ({
       config: {
         ...state.config,
@@ -793,6 +811,16 @@ export const useAppStore = create<AppStoreState>((set, get) => ({
   },
 
   upsertService: (service) => {
+    try {
+      const prev = get().config.services.find(s => s.id === service.id);
+      const fields = ['name', 'date', 'startTime', 'firstSongKey', 'preServicePlaylistId', 'spotifyPlaylistId', 'postServicePlaylistId', 'autoStartTargetSec', 'disablePadBridge'] as const;
+      const changed: Record<string, unknown> = {};
+      for (const f of fields) {
+        const a = prev?.[f as keyof typeof prev], b = service[f as keyof typeof service];
+        if (JSON.stringify(a) !== JSON.stringify(b)) changed[f] = prev ? { from: a, to: b } : b;
+      }
+      if (!prev || Object.keys(changed).length) console.log(prev ? '[operator] service edited' : '[operator] service added', { serviceId: service.id, ...changed });
+    } catch { /* logging only */ }
     set(state => {
       const exists = state.config.services.some(s => s.id === service.id);
       const next = exists
@@ -813,6 +841,7 @@ export const useAppStore = create<AppStoreState>((set, get) => ({
   },
 
   deleteService: (id) => {
+    console.log('[operator] service deleted', { serviceId: id });
     set(state => {
       const removed = state.config.services.find(s => s.id === id);
       const services = state.config.services.filter(s => s.id !== id);
@@ -1466,6 +1495,7 @@ export const useAppStore = create<AppStoreState>((set, get) => ({
 
   extendServiceStart: (serviceId, addSec) => {
     if (addSec === 0) return;
+    console.log('[operator] service start moved', { serviceId, bySec: addSec });
     set(state => {
       const services = state.config.services.map(s => {
         if (s.id !== serviceId) return s;

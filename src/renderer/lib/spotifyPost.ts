@@ -55,6 +55,7 @@ class SpotifyFreePlayer {
    * (spotify:track:…, optionally inside a playlist), fading in from silence.
    */
   async play(opts: { uri: string; contextUri?: string; label: string; fadeInSec: number }): Promise<{ ok: boolean; reason?: string }> {
+    console.log('[spotify] free play', { label: opts.label, uri: opts.uri, fadeInSec: opts.fadeInSec });
     if (this.stopping) await this.stopping;
     if (this.isActive()) await this.stop(0.5);
     const id = ++this.runId;
@@ -113,6 +114,7 @@ class SpotifyFreePlayer {
   async stop(fadeSec: number): Promise<void> {
     if (this.stopping) return this.stopping;
     if (!this.isActive()) return;
+    console.log('[spotify] free play stopped', { label: this.state.label, fadeSec });
     this.runId++;
     if (this.poll !== null) { window.clearInterval(this.poll); this.poll = null; }
     this.stopping = (async () => {

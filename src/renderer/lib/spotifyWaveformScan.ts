@@ -83,7 +83,7 @@ class WaveformScanner {
     for (const fn of this.listeners) fn(this.state);
   }
 
-  stop() { this.stopRequested = true; }
+  stop() { if (this.state.running) logSpotifyOperator('waveform scan stopped'); this.stopRequested = true; }
 
   /** `force`: scan even songs that already have a waveform (re-scan one song). */
   async start(tracks: SpotifyPlaylistTrack[], opts?: { force?: boolean }): Promise<void> {
@@ -98,6 +98,7 @@ class WaveformScanner {
       .map(u => tracks.find(t => t.uri === u)!)
       .filter(Boolean);
     if (todo.length === 0) { this.set({ note: 'Every song already has a waveform.' }); return; }
+    logSpotifyOperator('waveform scan started', { songs: todo.length, edgesSec: edges ?? 'whole songs' });
 
     const check = await window.runway.spotify.player({ op: 'check' });
     if (!check.ok) { this.set({ note: check.reason ?? 'Spotify isn’t open.' }); return; }
@@ -176,4 +177,16 @@ export function useWaveformScan(): WaveformScanState {
   const [st, setSt] = useState(waveformScanner.getState());
   useEffect(() => waveformScanner.subscribe(setSt), []);
   return st;
+}
+
+/**
+ * timing.log line for something the operator did to Spotify outside a
+ * service (Library plays, previews, edits). Flags it when a Spotify service
+ * run was playing, since that takes Spotify away from the service.
+ */
+export function logSpotifyOperator(what: string, detail?: Record<string, unknown>): void {
+  try {
+    const live = spotifyServiceRun.isActive() || spotifyFreePlay.isActive();
+    console.log(`[operator] ${what}`, { ...(detail ?? {}), ...(live ? { warning: 'a Spotify service / post-service was playing' } : {}) });
+  } catch { /* logging only */ }
 }
