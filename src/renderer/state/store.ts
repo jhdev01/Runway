@@ -23,7 +23,7 @@ interface PlaybackInfo {
   durationSec: number;
 }
 
-export type SettingsTab = 'audio' | 'midi' | 'propresenter' | 'planningcenter' | 'pads' | 'remote' | 'engine' | 'display' | 'about';
+export type SettingsTab = 'audio' | 'midi' | 'propresenter' | 'planningcenter' | 'pads' | 'remote' | 'spotify' | 'engine' | 'display' | 'about';
 
 interface AppStoreState {
   // UI
@@ -1024,7 +1024,7 @@ export const useAppStore = create<AppStoreState>((set, get) => ({
       const spTracks = (pl?.ok ? (pl.tracks ?? []) : [])
         .map(t => artCache[t.uri] ? { ...t, albumArtUrl: artCache[t.uri] } : t);
       if (spTracks.length === 0) {
-        return { ok: false, reason: `Couldn’t load the Spotify playlist “${service.spotifyPlaylistName ?? 'Spotify'}”. Check that Spotify is connected in Settings → Engine.` };
+        return { ok: false, reason: `Couldn’t load the Spotify playlist “${service.spotifyPlaylistName ?? 'Spotify'}”. Check that Spotify is connected in Settings › Spotify.` };
       }
       const date = new Date(service.date + 'T00:00:00');
       const [hh, mm] = service.startTime.split(':').map(Number);

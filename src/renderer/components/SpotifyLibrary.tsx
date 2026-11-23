@@ -112,7 +112,7 @@ export function SpotifyLibrary() {
     return (
       <div className="library-view" style={{ padding: 24 }}>
         <div className="settings-section-title">Spotify isn’t connected</div>
-        <div className="settings-section-sub">Connect your Spotify account once in Settings › Engine, then import playlists here.</div>
+        <div className="settings-section-sub">Connect your Spotify account once in Settings › Spotify, then import playlists here.</div>
         <button className="btn-secondary" onClick={() => openSettings('engine')}>Open Spotify settings</button>
       </div>
     );

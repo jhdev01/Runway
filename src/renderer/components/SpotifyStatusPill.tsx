@@ -15,7 +15,6 @@ const POLL_MS = 5000;
  */
 export function SpotifyStatusPill() {
   const clientId = useAppStore(s => s.config.spotify?.clientId);
-  const setView = useAppStore(s => s.setView);
   const [light, setLight] = useState<SpotifyLight>({ state: 'unknown', detail: 'Checking Spotify…' });
   // The top bar is always on screen, so this is where the waveform
   // recorder (Settings › Spotify › Draw waveforms) is switched on and off.
@@ -60,7 +59,7 @@ export function SpotifyStatusPill() {
   return (
     <button
       className="midi-status midi-status-button"
-      onClick={() => setView('settings')}
+      onClick={() => useAppStore.getState().openSettings('spotify')}
       data-state={light.state}
       title={scan.running ? `Scanning waveforms: ${scan.idx} of ${scan.total} (${scan.title}). ${light.detail}` : light.detail}
     >

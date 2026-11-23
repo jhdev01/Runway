@@ -17,7 +17,7 @@ import { SpotifyTestRunPanel } from '../components/SpotifyTestRunPanel';
 import { SpotifySongList } from '../components/SpotifySongList';
 import runwayIconUrl from '../assets/runway-icon.png';
 
-type SettingsTab = 'audio' | 'midi' | 'propresenter' | 'planningcenter' | 'pads' | 'remote' | 'engine' | 'display' | 'about';
+type SettingsTab = 'audio' | 'midi' | 'propresenter' | 'planningcenter' | 'pads' | 'remote' | 'spotify' | 'engine' | 'display' | 'about';
 
 export function SettingsView() {
   const [tab, setTab] = useState<SettingsTab>('audio');
@@ -39,6 +39,7 @@ export function SettingsView() {
           { id: 'planningcenter', label: 'Planning Center' },
           { id: 'pads', label: 'Pad Library' },
           { id: 'remote', label: 'Remote' },
+          { id: 'spotify', label: 'Spotify' },
           { id: 'engine', label: 'Engine' },
           { id: 'display', label: 'Display' },
           { id: 'about', label: 'About' },
@@ -60,6 +61,7 @@ export function SettingsView() {
         {tab === 'planningcenter' && <PlanningCenterSettings />}
         {tab === 'pads' && <PadSettings />}
         {tab === 'remote' && <RemoteSettings />}
+        {tab === 'spotify' && <><SpotifyAccountSection /><SpotifyTimingTestSection /></>}
         {tab === 'engine' && <EngineSettings />}
         {tab === 'display' && <DisplaySettings />}
         {tab === 'about' && <AboutSection />}
@@ -1913,10 +1915,6 @@ function EngineSettings() {
                          unit="min" step={1} max={60} />
         </div>
       </section>
-
-      <SpotifyAccountSection />
-
-      <SpotifyTimingTestSection />
 
       <BackupSection />
     </>
