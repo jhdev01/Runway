@@ -294,6 +294,24 @@ export type ActionPayload =
       // full. False → play once through; if the playlist is shorter
       // than the lead window the runway just ends short.
       fillWithMusic: boolean;
+    }
+  // Spotify (experimental, macOS): play a playlist from the top, or one
+  // song from it, in the Spotify app with a fade-in. Optionally fades
+  // Runway's own music out at the same time. Skipped while a service's
+  // Spotify runway is playing (it would knock the landing off).
+  | {
+      type: 'spotify_play';
+      playlistId: string;
+      playlistName?: string;  // human-readable cache for the editor
+      trackUri?: string;      // set = this one song (inside the playlist)
+      trackTitle?: string;
+      fadeInSec: number;
+      fadeOutRunwaySec: number; // 0 = leave Runway's music alone
+    }
+  // Spotify: fade out and pause whatever an action or post-service started.
+  | {
+      type: 'spotify_stop';
+      fadeOutSec: number;
     };
 
 /**
@@ -1070,7 +1088,9 @@ export interface SpotifyTrackEdit {
 /** One command to the Spotify desktop app (macOS, experimental). */
 export type SpotifyPlayerCommand =
   | { op: 'check' }
-  | { op: 'play'; uri: string }
+  | { op: 'play'; uri: string; contextUri?: string }
+  | { op: 'background' }
+  | { op: 'nowPlaying' }
   | { op: 'seek'; positionSec: number }
   | { op: 'volume'; volume: number }
   | { op: 'pause' }
@@ -1087,6 +1107,13 @@ export interface SpotifyPlayerReply {
   playerState?: 'playing' | 'paused' | 'stopped';
   positionSec?: number;
   volume?: number;
+  /** 'play' only: Spotify was already the front app before the song started. */
+  wasFrontmost?: boolean;
+  /** 'nowPlaying' only: details of the current song. */
+  title?: string;
+  artist?: string;
+  durationSec?: number;
+  artworkUrl?: string;
 }
 
 export interface SpotifyPlaylistSummary {

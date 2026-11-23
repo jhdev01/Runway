@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { SpotifyRunwayList } from '../components/SpotifyRunwayList';
+import { SpotifyRunwayList, useSpotifyNow } from '../components/SpotifyRunwayList';
+import { loadSpotifyPlaylists } from '../components/PreServicePlaylistSelect';
+import { spotifyFreePlay } from '../lib/spotifyPost';
 import { useAppStore } from '../state/store';
 import { useEngines } from '../state/engines';
 import { CountdownClock } from '../components/CountdownClock';
@@ -18,6 +20,7 @@ import { ACTION_META, describeAction, resolveActionFireMs } from '../lib/actionM
 import { todayISO, formatTime12h, parseTime, formatDuration } from '../lib/format';
 import { keyColor } from '@shared/music';
 import { effectiveDuration, resolveServiceFirstSongKey } from '@shared/types';
+import type { Playlist } from '@shared/types';
 
 /** Condense an arm-error message into a short chip label. Full message is the tooltip. */
 function shortArmWarning(msg: string): string {
@@ -41,6 +44,25 @@ export function LiveView() {
   const disarmService = useAppStore(s => s.disarmService);
   const extendServiceStart = useAppStore(s => s.extendServiceStart);
   const autoArmEnabled = useAppStore(s => s.autoArmEnabled);
+  const keyDisplayModeForSpotify = useAppStore(s => s.config.defaults.keyDisplayMode ?? 'sharp');
+  const spotifyRunwaySegments = useAppStore(s => s.currentRunway?.spotify?.segments);
+  const spotifyRunwayNow = useSpotifyNow(spotifyRunwaySegments);
+  // Spotify free play (post-service / Spotify actions): what Spotify reports.
+  const [freePlay, setFreePlay] = useState(spotifyFreePlay.getState());
+  useEffect(() => spotifyFreePlay.subscribe(setFreePlay), []);
+  // One "now playing" shape for both Spotify modes; null = Runway's own music.
+  const spotifyNow: null | { title: string; artist?: string; art?: string; positionSec: number; durationSec: number; key?: string } =
+    spotifyRunwayNow
+      ? {
+          title: spotifyRunwayNow.seg.title, artist: spotifyRunwayNow.seg.artist, art: spotifyRunwayNow.seg.albumArtUrl,
+          positionSec: spotifyRunwayNow.positionSec, durationSec: spotifyRunwayNow.seg.songDurSec, key: spotifyRunwayNow.seg.key,
+        }
+      : freePlay.active && freePlay.now?.title
+        ? {
+            title: freePlay.now.title, artist: freePlay.now.artist, art: freePlay.now.artworkUrl,
+            positionSec: freePlay.now.positionSec ?? 0, durationSec: freePlay.now.durationSec ?? 0,
+          }
+        : null;
   const setAutoArmEnabled = useAppStore(s => s.setAutoArmEnabled);
   const showPlayedTracks = useAppStore(s => s.config.ui?.showPlayedTracks ?? false);
   const updateConfig = useAppStore(s => s.updateConfig);
@@ -267,6 +289,11 @@ export function LiveView() {
   // so the pill doesn't display the wrong "ends in" for ~100 ms.
   const postServiceEndMs = useMemo(() => {
     if (!currentRunway?.isPostService) return 0;
+    // Spotify post-service: the Spotify app plays the playlist in order, so
+    // the end is its start plus the playlist's length (an hour if unknown).
+    if (currentRunway.spotifyPost) {
+      return currentRunway.musicStartMs + (currentRunway.totalSec > 0 ? currentRunway.totalSec : 3600) * 1000;
+    }
     if (runwayTruncation) return runwayTruncation.fireMs;
     const idx = currentRunway.currentTrackIndex;
     const expectedTrackId = currentRunway.trackIds[idx];
@@ -386,7 +413,21 @@ export function LiveView() {
   // Post-service playlist dropdown — always available so the operator can
   // fire a post-service even when no service is on the schedule. Defaults
   // from the active service's saved playlist; user can override per session.
-  const postPlaylists = useMemo(() => playlists.filter(p => p.kind === 'post'), [playlists]);
+  // Spotify playlists join the post-service list as "spotify:<id>" entries
+  // (the controller plays those through the Spotify app).
+  const spotifyCache = useAppStore(s => s.config.spotify?.playlistCache);
+  const [spotifyMine, setSpotifyMine] = useState<Array<{ id: string; name: string }>>([]);
+  useEffect(() => { void loadSpotifyPlaylists().then(setSpotifyMine); }, []);
+  const postPlaylists = useMemo(() => {
+    const sp: Array<{ id: string; name: string }> = [...spotifyMine];
+    for (const [id, pl] of Object.entries(spotifyCache ?? {})) {
+      if (!sp.some(p => p.id === id)) sp.push({ id, name: pl.name ?? 'Spotify playlist' });
+    }
+    return [
+      ...playlists.filter(p => p.kind === 'post'),
+      ...sp.map(p => ({ id: `spotify:${p.id}`, name: `${p.name} · Spotify` }) as unknown as Playlist),
+    ];
+  }, [playlists, spotifyMine, spotifyCache]);
   const [chosenPostId, setChosenPostId] = useState<string>('');
   const [postPickerOpen, setPostPickerOpen] = useState(false);
   // Auto-track the active service's post-service playlist so the
@@ -1143,7 +1184,7 @@ export function LiveView() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
               <div className="runway-title">
                 {currentRunway
-                  ? `${currentRunway.isPostService ? 'Post-Service' : 'Runway'} · ${currentRunway.spotify ? `${currentRunway.spotify.segments.length} Spotify songs` : `${queueTracks.length} tracks`} · ${formatDuration(runwayTruncation?.effectiveTotalSec ?? currentRunway.totalSec)}`
+                  ? `${currentRunway.isPostService ? 'Post-Service' : 'Runway'} · ${currentRunway.spotify ? `Spotify · ${currentRunway.spotify.playlistName} · ${currentRunway.spotify.segments.length} songs` : currentRunway.spotifyPost ? `Spotify · ${currentRunway.spotifyPost.playlistName}` : `${queueTracks.length} tracks`} · ${formatDuration(runwayTruncation?.effectiveTotalSec ?? currentRunway.totalSec)}`
                   : 'Runway · empty'}
               </div>
               {runwayTruncation && (
@@ -1220,8 +1261,29 @@ export function LiveView() {
             // fallback was removed: the row IS the runway, and a single
             // visual model is easier to reason about across services.
             void displayedCount; // (kept for the "displayed" derivation upstream)
+            if (currentRunway?.spotifyPost) {
+              return (
+                <div className="runway-list">
+                  <div className="timeline-empty">
+                    Spotify is playing “{currentRunway.spotifyPost.playlistName}” in order
+                    {spotifyNow ? ` · now: ${spotifyNow.title}` : ''}
+                  </div>
+                </div>
+              );
+            }
             if (currentRunway?.spotify) {
-              return <SpotifyRunwayList playlistName={currentRunway.spotify.playlistName} segments={currentRunway.spotify.segments} />;
+              const svc = currentRunway.serviceId ? services.find(s => s.id === currentRunway.serviceId) : undefined;
+              return (
+                <div className="runway-list">
+                  <SpotifyRunwayList
+                    segments={currentRunway.spotify.segments}
+                    landInKey={currentRunway.landInKey}
+                    showPad={!svc?.disablePadBridge && !currentRunway.skipPadBridge && (currentRunway.padBridgeSec || 0) > 0}
+                    padPlaying={currentRunway.phase === 'pad'}
+                    keyMode={keyDisplayModeForSpotify}
+                  />
+                </div>
+              );
             }
             if (queueTracks.length === 0) {
               return (
@@ -1475,7 +1537,11 @@ export function LiveView() {
 
         {/* Now playing */}
         <section className={`now-playing ${fadeToPadActive ? 'fade-holding' : ''}`}>
-          {(() => {
+          {spotifyNow ? (
+            spotifyNow.art
+              ? <img className="np-art" src={spotifyNow.art} alt="" />
+              : <div className="np-art np-art-placeholder" aria-hidden>♪</div>
+          ) : (() => {
             const t = tracks.find(t => t.id === musicPlayback.trackId);
             if (t?.albumArtUrl) {
               return (
@@ -1496,27 +1562,29 @@ export function LiveView() {
               {fadeToPadActive ? 'Holding on Pad' : 'Now Playing'}
             </div>
             <div className="np-title">
-              {(() => {
+              {spotifyNow ? `${spotifyNow.title}${spotifyNow.artist ? ` — ${spotifyNow.artist}` : ''}` : (() => {
                 const t = tracks.find(t => t.id === musicPlayback.trackId);
                 return t ? t.title : (musicPlayback.isPlaying ? 'Untitled' : 'Nothing playing');
               })()}
             </div>
             <div className="np-progress">
-              <span>{formatDuration(musicPlayback.positionSec)}</span>
+              <span>{formatDuration(spotifyNow ? spotifyNow.positionSec : musicPlayback.positionSec)}</span>
               <div className="np-progress-bar">
                 <div className="np-progress-fill" style={{
-                  width: musicPlayback.durationSec > 0
-                    ? `${(musicPlayback.positionSec / musicPlayback.durationSec) * 100}%`
-                    : '0%'
+                  width: spotifyNow
+                    ? `${spotifyNow.durationSec > 0 ? Math.min(100, (spotifyNow.positionSec / spotifyNow.durationSec) * 100) : 0}%`
+                    : musicPlayback.durationSec > 0
+                      ? `${(musicPlayback.positionSec / musicPlayback.durationSec) * 100}%`
+                      : '0%'
                 }} />
               </div>
-              <span>{formatDuration(musicPlayback.durationSec)}</span>
+              <span>{formatDuration(spotifyNow ? spotifyNow.durationSec : musicPlayback.durationSec)}</span>
             </div>
           </div>
           <div className="np-key">
             <div className="np-key-label">Key</div>
             <div className="np-key-value">
-              {(() => {
+              {spotifyNow ? (spotifyNow.key || '—') : (() => {
                 const t = tracks.find(t => t.id === musicPlayback.trackId);
                 return t?.key || '—';
               })()}

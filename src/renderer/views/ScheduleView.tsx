@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { PreServicePlaylistSelect } from '../components/PreServicePlaylistSelect';
+import { PreServicePlaylistSelect, PostServicePlaylistSelect } from '../components/PreServicePlaylistSelect';
 import { useAppStore, generateId } from '../state/store';
 import { useEngines } from '../state/engines';
 import { KeyPickerModal } from '../components/KeyPickerModal';
@@ -544,16 +544,10 @@ export function ScheduleView() {
                 </div>
                 <div className="service-field">
                   <span className="service-field-label">Post-service playlist</span>
-                  <select
-                    className="select"
-                    value={row.postServicePlaylistId || ''}
-                    onChange={e => onUpdatePatternRow(row.id, { postServicePlaylistId: e.target.value || undefined })}
-                  >
-                    <option value="">— none —</option>
-                    {playlists.filter(pl => pl.kind === 'post').map(pl => (
-                      <option key={pl.id} value={pl.id}>{pl.name}</option>
-                    ))}
-                  </select>
+                  <PostServicePlaylistSelect
+                    value={row.postServicePlaylistId}
+                    onChange={v => onUpdatePatternRow(row.id, { postServicePlaylistId: v })}
+                  />
                 </div>
                 <div className="service-field">
                   <span className="service-field-label">Pre-service action sequence</span>
@@ -792,16 +786,10 @@ function ServiceCard({ service, onEditKey, onUpdate, onDelete }: {
 
         <div className="service-field">
           <span className="service-field-label">Post-service playlist</span>
-          <select
-            className="select"
-            value={service.postServicePlaylistId || ''}
-            onChange={e => onUpdate({ postServicePlaylistId: e.target.value || undefined })}
-          >
-            <option value="">— none —</option>
-            {playlists.filter(p => p.kind === 'post').map(p => (
-              <option key={p.id} value={p.id}>{p.name}</option>
-            ))}
-          </select>
+          <PostServicePlaylistSelect
+            value={service.postServicePlaylistId}
+            onChange={v => onUpdate({ postServicePlaylistId: v })}
+          />
         </div>
 
         {(() => {

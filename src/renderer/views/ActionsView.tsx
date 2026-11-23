@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { loadSpotifyPlaylists } from '../components/PreServicePlaylistSelect';
 import { useAppStore } from '../state/store';
 import { useEngines } from '../state/engines';
 import type { Action, ActionPayload, ActionSequence, ActionAnchor, KeyName } from '@shared/types';
@@ -406,6 +407,8 @@ function ActionRow({
           <option value="music_action">Music transport</option>
           <option value="change_setlist">Change setlist</option>
           <option value="arm_playlist">Arm playlist</option>
+          <option value="spotify_play">Spotify: play playlist or song</option>
+          <option value="spotify_stop">Spotify: stop</option>
         </select>
         <PayloadEditor payload={action.payload} onChange={setPayload} />
         <input
@@ -526,6 +529,10 @@ function defaultPayloadFor(type: ActionPayload['type']): ActionPayload {
       return { type: 'change_setlist', playlistId: '', fadeOutSec: 2 };
     case 'arm_playlist':
       return { type: 'arm_playlist', playlistId: '', fadeOutSec: 2, fillWithMusic: true };
+    case 'spotify_play':
+      return { type: 'spotify_play', playlistId: '', fadeInSec: 4, fadeOutRunwaySec: 0 };
+    case 'spotify_stop':
+      return { type: 'spotify_stop', fadeOutSec: 3 };
   }
 }
 
@@ -797,6 +804,21 @@ function PayloadEditor({
       );
     case 'arm_playlist':
       return <ArmPlaylistEditor payload={payload} onChange={onChange as (p: Extract<ActionPayload, { type: 'arm_playlist' }>) => void} />;
+    case 'spotify_play':
+      return <SpotifyPlayEditor payload={payload} onChange={onChange as (p: Extract<ActionPayload, { type: 'spotify_play' }>) => void} />;
+    case 'spotify_stop':
+      return (
+        <div className="payload-row">
+          <NumberField
+            label="Fade s"
+            value={payload.fadeOutSec}
+            min={0}
+            max={30}
+            step={0.5}
+            onChange={n => onChange({ ...payload, fadeOutSec: n })}
+          />
+        </div>
+      );
   }
 }
 
@@ -847,6 +869,57 @@ function ArmPlaylistEditor({
         />
         <span>Music to fill</span>
       </label>
+    </div>
+  );
+}
+
+/** Spotify: play — playlist, optional single song, fade-in, Runway fade-out. */
+function SpotifyPlayEditor({ payload, onChange }: {
+  payload: Extract<ActionPayload, { type: 'spotify_play' }>;
+  onChange: (p: Extract<ActionPayload, { type: 'spotify_play' }>) => void;
+}) {
+  const cache = useAppStore(s => s.config.spotify?.playlistCache);
+  const [mine, setMine] = useState<Array<{ id: string; name: string }>>([]);
+  useEffect(() => { void loadSpotifyPlaylists().then(setMine); }, []);
+  const options = [...mine];
+  for (const [id, pl] of Object.entries(cache ?? {})) {
+    if (!options.some(o => o.id === id)) options.push({ id, name: pl.name ?? 'Spotify playlist' });
+  }
+  if (payload.playlistId && !options.some(o => o.id === payload.playlistId)) {
+    options.push({ id: payload.playlistId, name: payload.playlistName ?? 'Spotify playlist' });
+  }
+  // Songs come from the saved copy of the playlist (read it once in
+  // Settings › Engine › Spotify playlists to list its songs here).
+  const songs = payload.playlistId ? (cache?.[payload.playlistId]?.tracks ?? []) : [];
+  return (
+    <div className="payload-row">
+      <select
+        value={payload.playlistId}
+        onChange={e => {
+          const o = options.find(x => x.id === e.target.value);
+          onChange({ ...payload, playlistId: e.target.value, playlistName: o?.name, trackUri: undefined, trackTitle: undefined });
+        }}
+        title="Spotify playlist to play. Choose one of its songs next, or play it from the top."
+      >
+        <option value="">— Spotify playlist —</option>
+        {options.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+      </select>
+      <select
+        value={payload.trackUri ?? ''}
+        onChange={e => {
+          const t = songs.find(x => x.uri === e.target.value);
+          onChange({ ...payload, trackUri: t?.uri, trackTitle: t?.title });
+        }}
+        disabled={!payload.playlistId}
+        title={songs.length ? 'Play the whole playlist, or just this song' : 'Read this playlist in Settings › Engine to pick a single song'}
+      >
+        <option value="">Whole playlist</option>
+        {songs.map(t => <option key={t.uri} value={t.uri}>{t.title}{t.artist ? ` — ${t.artist}` : ''}</option>)}
+      </select>
+      <NumberField label="Fade in s" value={payload.fadeInSec} min={0} max={30} step={0.5}
+        onChange={n => onChange({ ...payload, fadeInSec: n })} />
+      <NumberField label="Runway music out s" value={payload.fadeOutRunwaySec} min={0} max={30} step={0.5}
+        onChange={n => onChange({ ...payload, fadeOutRunwaySec: n })} />
     </div>
   );
 }

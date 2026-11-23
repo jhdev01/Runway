@@ -60,6 +60,7 @@ export function SpotifyTestRunPanel({ playlist }: { playlist: SpotifyPlaylistRes
       lastFadeSec: defaults.musicFadeToPadSec ?? 5,
       audio,
       edits: useAppStore.getState().config.spotify?.trackEdits ?? {},
+      playlistId: playlist.playlistId,
     });
   };
 

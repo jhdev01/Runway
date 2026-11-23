@@ -5,7 +5,7 @@ import type { SpotifyPlaylistSummary } from '@shared/types';
 // Shared across every open menu so the Spotify list is fetched once per session.
 let spotifyListCache: SpotifyPlaylistSummary[] | null = null;
 let spotifyListPromise: Promise<SpotifyPlaylistSummary[]> | null = null;
-function loadSpotifyPlaylists(): Promise<SpotifyPlaylistSummary[]> {
+export function loadSpotifyPlaylists(): Promise<SpotifyPlaylistSummary[]> {
   if (spotifyListCache) return Promise.resolve(spotifyListCache);
   if (!spotifyListPromise) {
     spotifyListPromise = (async () => {
@@ -76,6 +76,42 @@ export function PreServicePlaylistSelect({ value, onChange }: {
           {spotifyOptions.map(p => (
             <option key={p.id} value={`spotify:${p.id}`}>{p.name}</option>
           ))}
+        </optgroup>
+      )}
+    </select>
+  );
+}
+
+/**
+ * Post-service music picker. Value is a Runway playlist id, or
+ * "spotify:<playlist id>" for a Spotify playlist (played in order by the
+ * Spotify app after the service).
+ */
+export function PostServicePlaylistSelect({ value, onChange }: {
+  value: string | undefined;
+  onChange: (postServicePlaylistId: string | undefined) => void;
+}) {
+  const playlists = useAppStore(s => s.config.playlists);
+  const cached = useAppStore(s => s.config.spotify?.playlistCache);
+  const [spotify, setSpotify] = useState<SpotifyPlaylistSummary[]>([]);
+  useEffect(() => { void loadSpotifyPlaylists().then(setSpotify); }, []);
+  const spotifyOptions = [...spotify];
+  for (const [id, pl] of Object.entries(cached ?? {})) {
+    if (!spotifyOptions.some(p => p.id === id)) spotifyOptions.push({ id, name: pl.name ?? 'Spotify playlist' });
+  }
+  const cur = value ?? '';
+  if (cur.startsWith('spotify:') && !spotifyOptions.some(p => `spotify:${p.id}` === cur)) {
+    spotifyOptions.push({ id: cur.slice(8), name: 'Spotify playlist' });
+  }
+  return (
+    <select className="select" value={cur} onChange={e => onChange(e.target.value || undefined)}>
+      <option value="">— none —</option>
+      {playlists.filter(p => p.kind === 'post').map(p => (
+        <option key={p.id} value={p.id}>{p.name}</option>
+      ))}
+      {spotifyOptions.length > 0 && (
+        <optgroup label="Spotify (experimental, Mac only)">
+          {spotifyOptions.map(p => <option key={p.id} value={`spotify:${p.id}`}>{p.name}</option>)}
         </optgroup>
       )}
     </select>

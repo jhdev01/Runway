@@ -27,6 +27,8 @@ export const ACTION_META: Record<ActionPayload['type'], ActionTypeMeta> = {
   music_action:              { type: 'music_action',              label: 'Music transport',   icon: '♫', color: '#fb7185' }, // rose
   change_setlist:            { type: 'change_setlist',            label: 'Change setlist',    icon: '⇄', color: '#e879f9' }, // fuchsia
   arm_playlist:              { type: 'arm_playlist',              label: 'Arm playlist',      icon: '▶', color: '#22d3ee' }, // cyan
+  spotify_play:              { type: 'spotify_play',              label: 'Spotify: play',     icon: '♫', color: '#1ed760' }, // spotify green
+  spotify_stop:              { type: 'spotify_stop',              label: 'Spotify: stop',     icon: '■', color: '#1ed760' },
 };
 
 /**
@@ -61,6 +63,10 @@ export function describeAction(action: Action): string {
       return `Change setlist → ${p.playlistName ?? p.playlistId}${p.fadeOutSec > 0 ? ` (fade ${p.fadeOutSec}s)` : ' (cut)'}`;
     case 'arm_playlist':
       return `Arm playlist → ${p.playlistName ?? p.playlistId}${p.fillWithMusic ? ' · fill' : ' · once through'}${p.fadeOutSec > 0 ? ` · fade ${p.fadeOutSec}s` : ''}`;
+    case 'spotify_play':
+      return `Spotify → ${p.trackTitle ? `“${p.trackTitle}”` : (p.playlistName ?? 'playlist')}${p.fadeInSec > 0 ? ` · fade in ${p.fadeInSec}s` : ''}${p.fadeOutRunwaySec > 0 ? ` · Runway music out ${p.fadeOutRunwaySec}s` : ''}`;
+    case 'spotify_stop':
+      return `Stop Spotify${p.fadeOutSec > 0 ? ` · fade ${p.fadeOutSec}s` : ''}`;
   }
 }
 

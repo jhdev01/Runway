@@ -57,6 +57,8 @@ export interface SpotifyRunSegment {
   fadeInSec?: number;    // operator's per-song fades (undefined = Runway's defaults)
   fadeOutSec?: number;
   trimmedEnd: boolean;   // stops before the song's natural end
+  albumArtUrl?: string;
+  key?: KeyName;         // operator-set key, for the Live runway chips
 }
 
 /** Playable range of a song after the operator's trims, clamped to sane values. */
@@ -157,6 +159,8 @@ export function planSpotifyRun(
       stopAt: isLast ? cursor + afterZeroSec(x.dur, x.b, e, lastFadeSec) * 1000 : cursor,
       fadeInSec: e?.fadeInSec, fadeOutSec: e?.fadeOutSec,
       trimmedEnd: x.b.end < x.dur - 0.05,
+      albumArtUrl: x.t.albumArtUrl,
+      key: e?.key,
     });
     cursor = startAt;
   }
@@ -182,6 +186,8 @@ export class SpotifyTestRunner {
   // the planned envelope so the song keeps its position underneath.
   private manualGain = 1;
   private lastSentVolume = 0;
+  // Playlist the songs come from, so Spotify stays in it (not the album).
+  private contextUri: string | undefined;
   // Set while stop() is fading Spotify out; a new start waits for it.
   private stopping: Promise<void> | null = null;
 
@@ -210,11 +216,13 @@ export class SpotifyTestRunner {
     lastFadeSec: number;
     audio: AudioEngine;
     edits?: Record<string, SpotifyTrackEdit>;
+    playlistId?: string;
   }): Promise<void> {
     if (this.stopping) await this.stopping;
     if (this.isActive()) return;
     const id = ++this.runId;
     this.audio = opts.audio;
+    this.contextUri = opts.playlistId ? `spotify:playlist:${opts.playlistId}` : undefined;
     this.lastFadeSec = opts.lastFadeSec;
     this.firstFadeInSec = FIRST_FADE_IN_SEC;
     const check = await this.cmd({ op: 'check' });
@@ -252,10 +260,12 @@ export class SpotifyTestRunner {
     endAt: number;
     lastFadeSec: number;
     firstFadeInSec: number;
+    playlistId?: string;
   }): Promise<void> {
     if (this.stopping) await this.stopping;
     if (this.isActive() || opts.segments.length === 0) return;
     const id = ++this.runId;
+    this.contextUri = opts.playlistId ? `spotify:playlist:${opts.playlistId}` : undefined;
     this.lastFadeSec = opts.lastFadeSec;
     this.firstFadeInSec = opts.firstFadeInSec;
     const check = await this.cmd({ op: 'check' });
@@ -327,7 +337,7 @@ export class SpotifyTestRunner {
       this.set({ currentIndex: i });
 
       // 1. Start the song silently and wait until Spotify reports it playing.
-      const play = await this.cmd({ op: 'play', uri: seg.uri });
+      const play = await this.cmd({ op: 'play', uri: seg.uri, contextUri: this.contextUri });
       if (!play.ok) throw new Error(play.reason ?? 'Spotify didn’t respond.');
       const loadStart = Date.now();
       let loaded = false;
@@ -339,6 +349,9 @@ export class SpotifyTestRunner {
         if (!live()) return;
       }
       if (!loaded) throw new Error(`Spotify didn’t start “${seg.title}” within 5 seconds. Check the connection and try again.`);
+      // Starting a song pulls Spotify to the front; put it back unless the
+      // operator already had it in front.
+      if (!play.wasFrontmost) void this.cmd({ op: 'background' });
 
       // Where the song should be at wall-clock time t.
       const targetPos = (t: number) => seg.startPosSec + (t - seg.startAt) / 1000;
@@ -363,6 +376,8 @@ export class SpotifyTestRunner {
         return Date.now();
       };
       let lastSeekAt = await jump();
+      // Some Spotify versions come forward a beat after the song starts.
+      if (!play.wasFrontmost) setTimeout(() => { void this.cmd({ op: 'background' }); }, 1200);
 
       // Joined mid-song: fade in from now rather than snapping to full volume.
       const fadeFrom = joiningLate && firstPlayed ? Date.now() : seg.startAt;
@@ -510,3 +525,15 @@ export class SpotifyTestRunner {
 export const spotifyTestRun = new SpotifyTestRunner();
 /** Separate runner for services, so a test run and a service never share state. */
 export const spotifyServiceRun = new SpotifyTestRunner();
+
+/** Where a planned Spotify runway is right now, from the wall clock. */
+export function spotifyNowPlaying(segments: SpotifyRunSegment[], now: number):
+  { index: number; seg: SpotifyRunSegment; positionSec: number } | null {
+  for (let i = 0; i < segments.length; i++) {
+    const s = segments[i];
+    if (now >= s.startAt && now < s.stopAt) {
+      return { index: i, seg: s, positionSec: s.startPosSec + (now - s.startAt) / 1000 };
+    }
+  }
+  return null;
+}

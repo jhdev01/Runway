@@ -81,6 +81,9 @@ interface AppStoreState {
     // Set when the service's music comes from a Spotify playlist: the
     // planned songs (trackIds is empty) that the controller hands to the
     // Spotify runner at music start.
+    // Post-service playing a Spotify playlist (the Spotify app plays it
+    // in order; no landing time).
+    spotifyPost?: { playlistId: string; playlistName: string };
     spotify?: {
       playlistId: string;
       playlistName: string;

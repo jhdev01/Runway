@@ -25,6 +25,7 @@ import type { Action, ActionPayload, ActionSequence, KeyName, PadFile, Track } f
 import { effectiveDuration } from '@shared/types';
 import { resolveActionFireMs } from './actionMeta';
 import { spotifyServiceRun, spotifyTestRun } from './spotifyTestRun';
+import { spotifyFreePlay } from './spotifyPost';
 
 type Store = typeof useAppStore;
 
@@ -69,6 +70,8 @@ export class ServiceController {
   // Spotify runner is playing for, and that runway's service start.
   private spotifyEpoch: number | null = null;
   private spotifyEndAt = 0;
+  // Arm epoch of the Spotify post-service runway, once Spotify is playing it.
+  private spotifyPostEpoch: number | null = null;
   // Spotify needs a few silent seconds before the first song to place it.
   private static readonly SPOTIFY_PRESTART_MS = 4000;
   // Filled by the EnginesProvider after construction.
@@ -519,6 +522,9 @@ export class ServiceController {
    * crossfade. No land-in-key, no pad bridge. Fades out when last track ends.
    */
   async startPostServicePlay(playlistId: string, originServiceId?: string): Promise<{ ok: boolean; reason?: string; warning?: string }> {
+    if (playlistId.startsWith('spotify:')) {
+      return this.startSpotifyPostService(playlistId.slice('spotify:'.length), originServiceId);
+    }
     const state = this.store.getState();
     const playlist = state.config.playlists.find(p => p.id === playlistId);
     if (!playlist) return { ok: false, reason: 'Playlist not found' };
@@ -683,7 +689,60 @@ export class ServiceController {
     const runway = state.currentRunway;
     if (!runway || !runway.isPostService) return;
     this.audio.fadeOutMusic(fadeSec);
+    if (runway.spotifyPost) void spotifyFreePlay.stop(fadeSec);
     state.setCurrentRunway(null);
+  }
+
+  /**
+   * Post-service from a Spotify playlist (experimental, macOS): the Spotify
+   * app plays the playlist in order with Runway's post-service fade-in.
+   * Same guards as the Runway-playlist path; no timing to land.
+   */
+  private async startSpotifyPostService(spotifyPlaylistId: string, originServiceId?: string): Promise<{ ok: boolean; reason?: string; warning?: string }> {
+    const state = this.store.getState();
+    if (state.currentRunway
+        && !state.currentRunway.isPostService
+        && (state.currentRunway.phase === 'music' || state.currentRunway.phase === 'pad')) {
+      return { ok: false, reason: 'Service runway is playing — panic before starting post-service.' };
+    }
+    if (state.currentRunway && !state.currentRunway.isPostService && state.currentRunway.serviceId) {
+      state.disarmService(state.currentRunway.serviceId);
+    }
+    if (state.currentRunway?.isPostService) this.stopPostService(1);
+    const cached = state.config.spotify?.playlistCache?.[spotifyPlaylistId];
+    const name = cached?.name ?? 'Spotify playlist';
+    const totalSec = (cached?.tracks ?? []).reduce((a, t) => a + t.durationMs / 1000, 0);
+    state.setCurrentRunway({
+      serviceId: null,
+      trackIds: [],
+      totalSec,
+      landInKey: undefined,
+      plannedStartTime: undefined,
+      startOffsetSec: 0,
+      targetMs: 0,
+      musicStartMs: Date.now(),
+      padStartMs: 0,
+      transitionMode: 'gapless',
+      crossfadeSec: 0,
+      padBridgeSec: 0,
+      padFadeOutSec: 0,
+      tailSec: 0,
+      phase: 'music',
+      currentTrackIndex: 0,
+      isPostService: true,
+      originServiceId,
+      spotifyPost: { playlistId: spotifyPlaylistId, playlistName: name },
+    });
+    const res = await spotifyFreePlay.play({
+      uri: `spotify:playlist:${spotifyPlaylistId}`,
+      label: name,
+      fadeInSec: state.config.defaults.postServiceFadeInSec ?? 4,
+    });
+    if (!res.ok) {
+      if (this.store.getState().currentRunway?.spotifyPost) this.store.getState().setCurrentRunway(null);
+      return { ok: false, reason: res.reason ?? 'Spotify didn’t start.' };
+    }
+    return { ok: true };
   }
 
   /**
@@ -1106,6 +1165,7 @@ export class ServiceController {
     const state = this.store.getState();
     const runway = state.currentRunway;
     if (spotifyServiceRun.isActive()) this.stopSpotify();
+    if (spotifyFreePlay.isActive()) void spotifyFreePlay.stop(state.config.defaults.panicFadeSec ?? 1.5);
     if (!runway && !state.musicPlayback.isPlaying) return;
     this.audio.panicFadeAll(state.config.defaults.panicFadeSec);
     state.setFadeToPadActive(false);
@@ -1344,6 +1404,18 @@ export class ServiceController {
     if (this.spotifyEpoch !== null && spotifyServiceRun.isActive()) {
       const ours = !!runway?.spotify && runway.armEpoch === this.spotifyEpoch;
       if (!ours && Date.now() < this.spotifyEndAt) this.stopSpotify();
+    }
+    // Spotify post-service whose runway was replaced (next service armed,
+    // another post-service started) fades out like Runway post-service does.
+    // Spotify actions (no runway of their own) are left to their own stop.
+    if (spotifyFreePlay.isActive() && this.spotifyPostEpoch !== null) {
+      const ours = !!runway?.spotifyPost && runway.armEpoch === this.spotifyPostEpoch;
+      if (!ours) {
+        this.spotifyPostEpoch = null;
+        void spotifyFreePlay.stop(state.config.defaults.postServiceFadeInSec ?? 4);
+      }
+    } else if (runway?.spotifyPost && spotifyFreePlay.isActive()) {
+      this.spotifyPostEpoch = runway.armEpoch ?? 0;
     }
 
     if (!runway) return;
@@ -1641,6 +1713,30 @@ export class ServiceController {
       case 'arm_playlist':
         await this.armPlaylistFromAction(p.playlistId, p.fadeOutSec, p.fillWithMusic, p.playlistName);
         log(`arm_playlist → ${p.playlistName ?? p.playlistId}${p.fillWithMusic ? ' (fill)' : ' (once)'}`);
+        return;
+      case 'spotify_play': {
+        if (spotifyServiceRun.isActive()) {
+          this.notifyActionError?.('Spotify action skipped: a service’s Spotify music is playing.');
+          return;
+        }
+        if (!p.playlistId) {
+          this.notifyActionError?.('Spotify action has no playlist set.');
+          return;
+        }
+        if (p.fadeOutRunwaySec > 0) this.audio.fadeOutMusic(p.fadeOutRunwaySec);
+        const res = await spotifyFreePlay.play({
+          uri: p.trackUri ?? `spotify:playlist:${p.playlistId}`,
+          contextUri: p.trackUri ? `spotify:playlist:${p.playlistId}` : undefined,
+          label: p.trackTitle ?? p.playlistName ?? 'Spotify',
+          fadeInSec: p.fadeInSec,
+        });
+        if (!res.ok) this.notifyActionError?.(`Spotify action: ${res.reason ?? 'didn’t start'}`);
+        log(`spotify_play → ${p.trackTitle ?? p.playlistName ?? p.playlistId}`);
+        return;
+      }
+      case 'spotify_stop':
+        await spotifyFreePlay.stop(p.fadeOutSec);
+        log('spotify_stop');
         return;
     }
   }
@@ -2004,8 +2100,26 @@ export class ServiceController {
       msUntilMusic: runway.musicStartMs - Date.now(),
       msUntilService: runway.targetMs - Date.now(),
     });
-    // A service always wins over a Spotify test run: both drive the same app.
-    if (spotifyTestRun.isActive()) void spotifyTestRun.stop();
+    // A service always wins over a Spotify test run or Spotify post-service
+    // / action music: they all drive the same app. Let those fade out and
+    // pause BEFORE the runway starts, or their pause could stop its first
+    // song. The runner joins late if this takes a moment.
+    const stops: Promise<void>[] = [];
+    if (spotifyTestRun.isActive()) stops.push(spotifyTestRun.stop());
+    if (spotifyFreePlay.isActive()) stops.push(spotifyFreePlay.stop(1.5));
+    const playlistId = sp.playlistId;
+    const epoch = this.spotifyEpoch;
+    void Promise.all(stops).then(() => {
+      if (this.spotifyEpoch !== epoch) return; // disarmed meanwhile
+      this.startSpotifyRunner(runway.targetMs, sp, playlistId);
+    });
+  }
+
+  private startSpotifyRunner(
+    targetMs: number,
+    sp: NonNullable<NonNullable<ReturnType<Store['getState']>['currentRunway']>['spotify']>,
+    playlistId: string,
+  ): void {
     const unsub = spotifyServiceRun.subscribe(st => {
       if (st.status === 'landed' || st.status === 'error') {
         console.log(`[spotify] runway ${st.status}`, { message: st.message, landingErrorMs: st.landingErrorMs });
@@ -2014,9 +2128,10 @@ export class ServiceController {
     });
     void spotifyServiceRun.startPlanned({
       segments: sp.segments,
-      endAt: runway.targetMs,
+      endAt: targetMs,
       lastFadeSec: sp.lastFadeSec,
       firstFadeInSec: sp.firstFadeInSec,
+      playlistId,
     });
   }
 
