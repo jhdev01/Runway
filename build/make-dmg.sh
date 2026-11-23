@@ -44,9 +44,15 @@ fi
 # kills the app at launch with "Runway cannot be opened because of a
 # problem." Plain ad-hoc (no runtime) is permissive and just works.
 echo "[make-dmg] ad-hoc signing Runway.app"
-codesign --force --deep --sign - "$APP_SRC" || {
-  echo "[make-dmg] ad-hoc codesign failed (continuing — DMG will be unsigned)"
-}
+# With MAC_SIGN_IDENTITY set (CI loads Runway's permanent self-made
+# certificate), every build carries the same signature, so macOS keeps
+# Runway's permissions across updates. Otherwise ad-hoc, as before.
+SIGN_ID="${MAC_SIGN_IDENTITY:--}"
+if ! codesign --force --deep --sign "$SIGN_ID" "$APP_SRC"; then
+  echo "[make-dmg] signing with $SIGN_ID failed; falling back to ad-hoc"
+  codesign --force --deep --sign - "$APP_SRC" || echo "[make-dmg] ad-hoc codesign failed (continuing — DMG will be unsigned)"
+fi
+codesign -dv "$APP_SRC" 2>&1 | grep -E "Authority|Signature|Identifier" || true
 
 echo "[make-dmg] staging contents in $STAGE"
 mkdir -p "$STAGE/.background"

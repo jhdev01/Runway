@@ -23,7 +23,8 @@ try {
     '-framework', 'ScreenCaptureKit', '-framework', 'CoreMedia',
     src, '-o', out,
   ], { stdio: 'inherit' });
-  execFileSync('codesign', ['--force', '--sign', '-', out], { stdio: 'inherit' });
+  // Same permanent identity as the app when CI provides one (see build.yml).
+  execFileSync('codesign', ['--force', '--sign', process.env.MAC_SIGN_IDENTITY || '-', out], { stdio: 'inherit' });
   console.log('[spotify-levels] built', out);
 } catch (e) {
   console.error('[spotify-levels] build FAILED; waveforms will be unavailable in this build');
