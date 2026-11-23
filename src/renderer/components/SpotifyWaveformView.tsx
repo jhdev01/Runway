@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import type { SpotifyPlaylistTrack, SpotifyTrackEdit, SpotifyWaveform } from '@shared/types';
 import { useAppStore } from '../state/store';
 import { songBounds } from '../lib/spotifyTestRun';
+import { waveformScanner, useWaveformScan } from '../lib/spotifyWaveformScan';
 
 type Marker = 'trimStartSec' | 'trimEndSec' | 'landSec';
 const HEIGHT = 84;
@@ -36,6 +37,8 @@ export function SpotifyWaveformView({ track, edit, onChange }: {
   const [playhead, setPlayhead] = useState<number | null>(null);
   const [drag, setDrag] = useState<{ marker: Marker; sec: number } | null>(null);
   const [note, setNote] = useState<string | null>(null);
+  const scan = useWaveformScan();
+  const scanningThis = scan.running && scan.total === 1 && scan.title === track.title;
 
   // Size to the panel.
   useEffect(() => {
@@ -226,8 +229,19 @@ export function SpotifyWaveformView({ track, edit, onChange }: {
       />
       <div className="settings-field-sub" style={{ display: 'flex', gap: 12, marginTop: 4 }}>
         <span>{drag ? `${drag.marker === 'trimStartSec' ? 'Start' : drag.marker === 'trimEndSec' ? 'End' : '0:00'} ${mmss(drag.sec)}` : 'Drag Start, End or 0:00. Click to play from there.'}</span>
+        {waveformsOn && (scanningThis
+          ? <button className="btn-secondary" onClick={() => waveformScanner.stop()}>Stop scan</button>
+          : <button
+              className="btn-secondary"
+              disabled={scan.running}
+              onClick={() => void waveformScanner.start([track], { force: true })}
+              title={scan.running ? 'Another scan is running' : 'Plays this song start to finish to draw its waveform. You can mute your Mac.'}
+            >
+              {coverage >= 0.95 ? 'Re-scan this song' : 'Scan this song'}
+            </button>)}
         <span style={{ marginLeft: 'auto' }}>
-          {!waveformsOn
+          {scanningThis ? 'Scanning: plays the song start to finish…'
+            : !waveformsOn
             ? 'Turn on Settings › Spotify › Draw waveforms to see this song’s shape.'
             : coverage === 0 ? 'No waveform yet: play the song through, or use Scan waveforms.'
             : coverage < 0.95 ? `Waveform ${Math.round(coverage * 100)}% heard.` : ''}

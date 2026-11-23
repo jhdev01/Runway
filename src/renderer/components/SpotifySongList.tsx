@@ -225,7 +225,7 @@ export function SpotifySongList({ tracks }: { tracks: SpotifyPlaylistTrack[] }) 
         </button>
         {waveformsOn && (scan.running
           ? <button className="btn-secondary" onClick={() => waveformScanner.stop()}>Stop scan ({scan.idx}/{scan.total}: {scan.title})</button>
-          : <button className="btn-secondary" onClick={() => void waveformScanner.start(tracks)} title="Plays this playlist’s songs that don’t have a waveform yet straight through, in the background. You can mute your Mac and walk away.">Scan waveforms</button>)}
+          : <button className="btn-secondary" onClick={() => void waveformScanner.start(tracks)} title="Draws waveforms for this playlist: plays its songs that don’t have one yet straight through, in the background. You can mute your Mac and walk away.">Scan this playlist</button>)}
         {lookup.note && <span className="settings-field-sub">{lookup.note}</span>}
         {scan.note && <span className="settings-field-sub">{scan.note}</span>}
       </div>

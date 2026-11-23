@@ -73,14 +73,15 @@ class WaveformScanner {
 
   stop() { this.stopRequested = true; }
 
-  async start(tracks: SpotifyPlaylistTrack[]): Promise<void> {
+  /** `force`: scan even songs that already have a waveform (re-scan one song). */
+  async start(tracks: SpotifyPlaylistTrack[], opts?: { force?: boolean }): Promise<void> {
     if (this.state.running) return;
     const blocked = waveformScanBlocked();
     if (blocked) { this.set({ note: `${blocked} Scan when it’s done.` }); return; }
     const uris = [...new Set(tracks.map(t => t.uri))];
     const cov = await window.runway.spotify.waveformCoverage(uris);
     const todo = uris
-      .filter(u => (cov[u] ?? 0) < DONE_AT)
+      .filter(u => opts?.force || (cov[u] ?? 0) < DONE_AT)
       .map(u => tracks.find(t => t.uri === u)!)
       .filter(Boolean);
     if (todo.length === 0) { this.set({ note: 'Every song already has a waveform.' }); return; }
@@ -118,8 +119,10 @@ class WaveformScanner {
             // Someone paused Spotify: carry on rather than wait forever.
             if (st.playerState === 'paused') await window.runway.spotify.player({ op: 'resume' });
           } else if (started) break;  // song ended / moved on
-          const c = await window.runway.spotify.waveformCoverage([t.uri]);
-          if ((c[t.uri] ?? 0) >= 0.98) break;
+          if (!opts?.force) {
+            const c = await window.runway.spotify.waveformCoverage([t.uri]);
+            if ((c[t.uri] ?? 0) >= 0.98) break;
+          }
         }
         done++;
       }
