@@ -1,4 +1,6 @@
 import React, { useEffect, useState } from 'react';
+import { spotifyServiceRun } from '../lib/spotifyTestRun';
+import { spotifyFreePlay } from '../lib/spotifyPost';
 import { useAppStore } from '../state/store';
 import { useEngines } from '../state/engines';
 import { MAJOR_KEYS, keyColor } from '@shared/music';
@@ -21,9 +23,11 @@ const KEYS: KeyName[] = MAJOR_KEYS;
 
 interface Props {
   onClose: () => void;
+  /** Library › Spotify: the Music side of the slider also sets Spotify's volume. */
+  controlSpotify?: boolean;
 }
 
-export function KeyTesterPiano({ onClose }: Props) {
+export function KeyTesterPiano({ onClose, controlSpotify = false }: Props) {
   const { audio } = useEngines();
   const pads = useAppStore(s => s.config.pads);
   const padArmedKey = useAppStore(s => s.padArmedKey);
@@ -71,6 +75,34 @@ export function KeyTesterPiano({ onClose }: Props) {
     audio.setCueLevel(music);
     audio.setPadLevel(pad);
   }, [crossfade, audio]);
+
+  // Spotify plays outside Runway, so for Spotify auditions the "Music" side
+  // sets Spotify's own volume (scaled from where it was when the drawer
+  // opened) and puts it back on close. Hands off while a service or post-
+  // service is driving Spotify, so the slider can't disturb them.
+  const spotifyBase = React.useRef<number | null>(null);
+  const spotifyBusy = () => spotifyServiceRun.isActive() || spotifyFreePlay.isActive();
+  useEffect(() => {
+    if (!controlSpotify) return;
+    void window.runway?.spotify?.player({ op: 'check' }).then(r => {
+      if (r.ok && r.volume !== undefined) spotifyBase.current = r.volume > 0 ? r.volume : 70;
+    });
+    return () => {
+      const base = spotifyBase.current;
+      if (base !== null && !spotifyBusy()) void window.runway?.spotify?.player({ op: 'volume', volume: base });
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [controlSpotify]);
+  useEffect(() => {
+    if (!controlSpotify) return;
+    const t = window.setTimeout(() => {
+      const base = spotifyBase.current;
+      if (base === null || spotifyBusy()) return;
+      void window.runway?.spotify?.player({ op: 'volume', volume: Math.round(base * levelsFor(crossfade).music) });
+    }, 60);
+    return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [crossfade, controlSpotify]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };

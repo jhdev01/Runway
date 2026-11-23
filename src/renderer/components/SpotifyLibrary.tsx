@@ -197,7 +197,7 @@ export function SpotifyLibrary() {
           </>
         )}
       </div>
-      {padOpen && <KeyTesterPiano onClose={() => setPadOpen(false)} />}
+      {padOpen && <KeyTesterPiano controlSpotify onClose={() => setPadOpen(false)} />}
     </div>
   );
 }
