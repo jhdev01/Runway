@@ -7,6 +7,8 @@ import { formatDuration } from '../lib/format';
 import { spotifyTestRun, type SpotifyRunState } from '../lib/spotifyTestRun';
 
 const LENGTHS: Array<{ label: string; sec: number | null }> = [
+  { label: '30 sec', sec: 30 },
+  { label: '1 min', sec: 60 },
   { label: '2 min', sec: 120 },
   { label: '5 min', sec: 300 },
   { label: '10 min', sec: 600 },
