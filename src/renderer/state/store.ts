@@ -1047,6 +1047,8 @@ export const useAppStore = create<AppStoreState>((set, get) => ({
         repeatToFill: opts?.repeatToFill ?? d.repeatToFill ?? true,
         shuffle: !!opts?.shuffle,
         lastFadeSec,
+        // The service's chosen last song (not for an action's playlist override).
+        pinnedUri: spOverride ? undefined : service.spotifyLastSongUri,
       });
       if (arr.segments.length === 0) return { ok: false, reason: 'Nothing to play in that Spotify playlist.' };
       const musicStartMs = arr.segments[0].startAt;

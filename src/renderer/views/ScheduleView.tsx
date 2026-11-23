@@ -644,6 +644,9 @@ function ServiceCard({ service, onEditKey, onUpdate, onDelete }: {
   const keyResolved = resolveServiceFirstSongKey(service, allServices);
   const pinResolved = resolveServiceLastSongTrackId(service, allServices);
   const effectiveKey = keyResolved.value;
+  // Spotify music: the imported playlist's songs and their keys (Last song picker).
+  const spotifyCache = useAppStore(s => s.config.spotify?.playlistCache);
+  const spotifyEdits = useAppStore(s => s.config.spotify?.trackEdits);
   const effectivePin = pinResolved.value;
   const keyInheritFrom = keyResolved.inheritedFrom;
   const pinInheritFrom = pinResolved.inheritedFrom;
@@ -854,6 +857,52 @@ function ServiceCard({ service, onEditKey, onUpdate, onDelete }: {
           return <>{renderActionRow('pre')}{renderActionRow('post')}</>;
         })()}
 
+        {service.spotifyPlaylistId && (() => {
+          // Spotify playlist: pick the song the runway ends on. Songs in the
+          // service's key are listed first.
+          const pl = spotifyCache?.[service.spotifyPlaylistId];
+          const songs = pl?.tracks ?? [];
+          const keyOf = (uri: string) => spotifyEdits?.[uri]?.key;
+          const seen = new Set<string>();
+          const unique = songs.filter(t => (seen.has(t.uri) ? false : (seen.add(t.uri), true)));
+          const inKey = effectiveKey ? unique.filter(t => keyOf(t.uri) === effectiveKey) : [];
+          const others = unique.filter(t => !inKey.includes(t));
+          const label = (t: typeof unique[number]) => `${t.title}${keyOf(t.uri) ? ` (${keyOf(t.uri)})` : ''}`;
+          const pinned = service.spotifyLastSongUri;
+          const stale = pinned && !unique.some(t => t.uri === pinned);
+          return (
+            <div className="service-field">
+              <span className="service-field-label">Last song</span>
+              <select
+                className="select"
+                value={pinned ?? ''}
+                onChange={e => onUpdate({ spotifyLastSongUri: e.target.value || undefined })}
+                title="The Spotify song the runway ends on at service start. Auto picks one in the service’s key."
+              >
+                <option value="">Auto{effectiveKey ? ` (a song in ${effectiveKey})` : ''}</option>
+                {inKey.length > 0 && (
+                  <optgroup label={`In ${effectiveKey}`}>
+                    {inKey.map(t => <option key={t.uri} value={t.uri}>{label(t)}</option>)}
+                  </optgroup>
+                )}
+                {others.length > 0 && (
+                  <optgroup label={inKey.length > 0 ? 'Other songs (pad bridge skipped if not in the key)' : 'Songs'}>
+                    {others.map(t => <option key={t.uri} value={t.uri}>{label(t)}</option>)}
+                  </optgroup>
+                )}
+                {stale && <option value={pinned}>(no longer in the playlist)</option>}
+              </select>
+              {!pl && (
+                <span style={{ fontSize: 11, color: 'var(--text-faint)' }}>Import this playlist in Playlists › Spotify to pick a song.</span>
+              )}
+              {stale && (
+                <span style={{ fontSize: 11, color: 'var(--red-bright)' }}>That song is no longer in the playlist. Pick another, or choose Auto.</span>
+              )}
+            </div>
+          );
+        })()}
+
+        {!service.spotifyPlaylistId && (
         <div className="service-field">
           <span className="service-field-label">Last song</span>
           <select
@@ -909,6 +958,7 @@ function ServiceCard({ service, onEditKey, onUpdate, onDelete }: {
             </span>
           )}
         </div>
+        )}
 
         <div className="service-field">
           <span className="service-field-label">Auto-start target</span>

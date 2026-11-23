@@ -1,7 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import type { KeyName, KeyProfile, MultitracksCandidate } from '@shared/types';
-import { parseKey } from '@shared/keyDetect';
-import { keyColor, displayKey } from '@shared/music';
+import { parseKey, keyRelation } from '@shared/keyDetect';
+import { rescoreProfile } from '@shared/keyLearn';
+import { learnedKeyParams } from '../lib/keyLearning';
+import { keyColor, displayKey, camelotOf, isMajor, MAJOR_KEYS, MINOR_KEYS } from '@shared/music';
 import { useAppStore } from '../state/store';
 
 const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
@@ -18,13 +20,92 @@ export function scaleOf(key: KeyName | undefined): number[] {
   } catch { return []; }
 }
 
+/** The major key with the same notes (G for Em); majors map to themselves. */
+export function signatureOf(key: KeyName): KeyName {
+  if (isMajor(key)) return key;
+  const i = MINOR_KEYS.indexOf(key);
+  return i >= 0 ? MAJOR_KEYS[i] : key;
+}
+/** The minor key with the same notes (Em for G). */
+function relativeMinorOf(major: KeyName): KeyName | undefined {
+  const i = MAJOR_KEYS.indexOf(major);
+  return i >= 0 ? MINOR_KEYS[i] : undefined;
+}
+
+export interface KeySpan { startSec: number; endSec: number; key: KeyName; strength: number }
+
+/**
+ * Splits a note map into stretches by the key they sound like (8-second
+ * windows, scored with the same detector, neighbouring windows in the same
+ * key merged, one-window blips smoothed away). Relative major/minor pairs
+ * (G and Em: the same notes) count as one key, shown as the major.
+ */
+export function keyTimeline(noteMap: Array<number[] | null> | null | undefined, windowSec = 10): KeySpan[] {
+  if (!noteMap || noteMap.length === 0) return [];
+  const params = learnedKeyParams();
+  const flat = Array(12).fill(1 / 12);
+  const wins: Array<KeySpan | null> = [];
+  for (let s = 0; s < noteMap.length; s += windowSec) {
+    const sum = new Array(12).fill(0);
+    let n = 0;
+    for (let i = s; i < Math.min(noteMap.length, s + windowSec); i++) {
+      const col = noteMap[i];
+      if (!col) continue;
+      n++;
+      for (let pc = 0; pc < 12; pc++) sum[pc] += col[pc];
+    }
+    if (n < 4) { wins.push(null); continue; }
+    const tot = sum.reduce((a, b) => a + b, 0) || 1;
+    const harm = sum.map(v => v / tot);
+    const r = rescoreProfile({ harm, bass: new Array(12).fill(0), intro: flat, outro: flat, tuning: 0 }, params);
+    wins.push({ startSec: s, endSec: Math.min(noteMap.length, s + windowSec), key: signatureOf(r.key), strength: r.confidence });
+  }
+  // Smooth single-window blips between two windows in the same key
+  // (looking past windows with too little heard to judge).
+  const idx = wins.map((w, i) => (w ? i : -1)).filter(i => i >= 0);
+  for (let j = 1; j < idx.length - 1; j++) {
+    const a = wins[idx[j - 1]]!, b = wins[idx[j]]!, c = wins[idx[j + 1]]!;
+    if (a.key === c.key && b.key !== a.key) wins[idx[j]] = { ...b, key: a.key };
+  }
+  const spans: KeySpan[] = [];
+  for (const w of wins) {
+    if (!w) continue;
+    const last = spans[spans.length - 1];
+    if (last && last.key === w.key && w.startSec - last.endSec <= windowSec * 3) {
+      last.endSec = w.endSec;
+      last.strength = Math.max(last.strength, w.strength);
+    } else spans.push({ ...w });
+  }
+  // A real key change lasts longer than this; shorter stretches are noise
+  // (a chord, a bridge passing note) and fold into the longer neighbour.
+  const MIN_SPAN = 20;
+  for (let guard = 0; guard < 50; guard++) {
+    const i = spans.findIndex(sp => sp.endSec - sp.startSec < MIN_SPAN);
+    if (i < 0 || spans.length < 2) break;
+    const prev = spans[i - 1], next = spans[i + 1];
+    const into = !prev ? next : !next ? prev : (prev.endSec - prev.startSec >= next.endSec - next.startSec ? prev : next);
+    into.startSec = Math.min(into.startSec, spans[i].startSec);
+    into.endSec = Math.max(into.endSec, spans[i].endSec);
+    spans.splice(i, 1);
+    // Join neighbours that are now the same key.
+    for (let j = spans.length - 1; j > 0; j--) {
+      if (spans[j].key === spans[j - 1].key) {
+        spans[j - 1].endSec = spans[j].endSec;
+        spans[j - 1].strength = Math.max(spans[j - 1].strength, spans[j].strength);
+        spans.splice(j, 1);
+      }
+    }
+  }
+  return spans;
+}
+
 /**
  * A song's notes over time (like a DJ tool's "key and pitch" chart): one
  * row per note, C at the bottom, brighter = that note sounds stronger in
  * that second. Lines up with the waveform above it (same zoom / scroll).
  * Rows in `highlightKey`'s scale are tinted, its home note most.
  */
-export function NoteMapStrip({ noteMap, durSec, zoomX, scrollX, height = 120, highlightKey }: {
+export function NoteMapStrip({ noteMap, durSec, zoomX, scrollX, height = 140, highlightKey }: {
   noteMap: Array<number[] | null> | null | undefined;
   durSec: number;
   zoomX: number;
@@ -53,7 +134,9 @@ export function NoteMapStrip({ noteMap, durSec, zoomX, scrollX, height = 120, hi
     g.clearRect(0, 0, w, height);
     const LABEL = 22;
     const plotW = w - LABEL;
-    const rowH = height / 12;
+    const LANE = 20;              // "key over time" band on top
+    const top = LANE + 2;
+    const rowH = (height - top) / 12;
     const scale = scaleOf(highlightKey);
     // Row tints for the key's scale.
     for (const pc of scale) {
@@ -61,6 +144,27 @@ export function NoteMapStrip({ noteMap, durSec, zoomX, scrollX, height = 120, hi
       g.fillRect(LABEL, height - (pc + 1) * rowH, plotW, rowH);
     }
     const x = (sec: number) => LABEL + ((sec / durSec) * zoomX - scrollX) * plotW;
+    // Key over time: each stretch of the song labelled with the key it sounds like.
+    g.font = '700 10px IBM Plex Mono, monospace';
+    g.textBaseline = 'middle';
+    for (const span of keyTimeline(noteMap)) {
+      const x0 = Math.max(LABEL, x(span.startSec)), x1 = Math.min(w, x(span.endSec));
+      if (x1 <= x0) continue;
+      const c = keyColor(span.key);
+      g.fillStyle = c.bg;
+      g.globalAlpha = 0.45 + 0.55 * Math.min(1, span.strength * 1.4);
+      g.fillRect(x0 + 0.5, 1, x1 - x0 - 1, LANE - 2);
+      g.globalAlpha = 1;
+      const rel = relativeMinorOf(span.key);
+      const label = x1 - x0 > 70 && rel ? `${displayKey(span.key)} · ${displayKey(rel)}` : displayKey(span.key);
+      if (x1 - x0 > 18) {
+        g.fillStyle = c.fg;
+        g.fillText(label, x0 + 5, LANE / 2);
+      }
+    }
+    g.fillStyle = 'rgba(255,255,255,0.5)';
+    g.font = '600 8px IBM Plex Mono, monospace';
+    g.fillText('KEY', 1, LANE / 2);
     if (noteMap) {
       for (let s = 0; s < noteMap.length; s++) {
         const col = noteMap[s];
@@ -73,7 +177,7 @@ export function NoteMapStrip({ noteMap, durSec, zoomX, scrollX, height = 120, hi
           // dark blue → teal → bright green, like a heat map
           const r = Math.round(20 + 60 * v), gg = Math.round(60 + 180 * v), b = Math.round(160 - 40 * v);
           g.fillStyle = `rgba(${r},${gg},${b},${0.25 + 0.75 * v})`;
-          g.fillRect(Math.max(LABEL, x0), height - (pc + 1) * rowH + 0.5, Math.max(1, x1 - Math.max(LABEL, x0)), rowH - 1);
+          g.fillRect(Math.max(LABEL, x0), height - (pc + 1) * rowH + 0.5, Math.max(1, x1 - Math.max(LABEL, x0)), Math.max(1, rowH - 1));
         }
       }
     }
@@ -91,6 +195,12 @@ export function NoteMapStrip({ noteMap, durSec, zoomX, scrollX, height = 120, hi
       {(!noteMap || noteMap.every(c => !c)) && (
         <div className="settings-field-sub" style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', pointerEvents: 'none' }}>
           No note map yet
+        </div>
+      )}
+      {noteMap && noteMap.some(c => c) && (
+        <div className="settings-field-sub" style={{ marginTop: 3 }}>
+          Top band: the key each part of the song sounds like (keys with the same notes, like G and Em, share a colour).
+          Below: each note brightens as it sounds; the key’s notes are shaded, its home note in orange.
         </div>
       )}
     </div>
@@ -141,6 +251,32 @@ export function KeyAnalysisPanel({ currentKey, heard, onSetKey, lookupMultitrack
       </button>
     );
   };
+  // Most likely keys, best first, with how well each fits and what it means.
+  const ranked = (() => {
+    if (!heard) return [] as Array<{ key: KeyName; fit: number; note: string }>;
+    let cands: Array<{ key: KeyName; score: number }> = [];
+    if (heard.profile) {
+      try { cands = rescoreProfile(heard.profile, learnedKeyParams()).candidates; } catch { /* fall through */ }
+    }
+    if (cands.length === 0) cands = [heard.key, ...(heard.candidates ?? [])].map((k, i) => ({ key: k, score: 1 - i * 0.1 }));
+    const seen = new Set<KeyName>();
+    cands = cands.filter(c => (seen.has(c.key) ? false : (seen.add(c.key), true))).slice(0, 4);
+    const best = cands[0];
+    const lo = Math.min(...cands.map(c => c.score));
+    return cands.map((c, i) => {
+      const fit = best.score > lo ? Math.round(35 + 65 * (c.score - lo) / (best.score - lo)) : 100;
+      let note = i === 0 ? 'Most likely' : '';
+      if (i > 0) {
+        const rel = keyRelation(best.key, c.key);
+        note = rel === 'relative' ? `Same notes as ${displayKey(best.key, keyMode)}: either works for the pad`
+          : rel === 'fifth' ? `Next-door key to ${displayKey(best.key, keyMode)} (one note different)`
+          : rel === 'parallel' ? `Same home note as ${displayKey(best.key, keyMode)}, ${isMajor(c.key) ? 'major' : 'minor'}`
+          : 'Less likely';
+      }
+      return { key: c.key, fit, note };
+    });
+  })();
+
   // Profile bars (harmony; key's scale highlighted).
   const prof = heard?.profile?.harm;
   const maxP = prof ? Math.max(...prof) : 0;
@@ -161,11 +297,24 @@ export function KeyAnalysisPanel({ currentKey, heard, onSetKey, lookupMultitrack
               ? `${heard.source}: ${displayKey(heard.key, keyMode)} (${Math.round(heard.confidence * 100)}% sure${heard.heardSec ? `, from ${heard.heardSec} s` : ''})${learned ? ' · using settings learned from your songs' : ''}`
               : 'No analysis yet. Play or scan the song (Spotify), or run Detect keys (Library).'}
         </div>
-        {heard && (
+        {heard && ranked.length > 0 && (
+          <div style={{ marginTop: 8, display: 'grid', gridTemplateColumns: 'auto auto minmax(80px, 160px) 1fr', gap: '4px 10px', alignItems: 'center' }}>
+            {ranked.map((r, i) => (
+              <React.Fragment key={r.key}>
+                {chip(r.key, '', i === 0 ? 'Most likely key. Click to use it.' : 'Click to use this key.', r.key === currentKey)}
+                <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: 11, opacity: 0.7 }} title="Camelot number (the Pad player shows these)">{camelotOf(r.key)}</span>
+                <div style={{ height: 8, borderRadius: 4, background: 'rgba(255,255,255,0.08)', overflow: 'hidden' }} title={`${r.fit}% of the best fit`}>
+                  <div style={{ width: `${r.fit}%`, height: '100%', background: i === 0 ? 'var(--accent-bright, #2dd4bf)' : 'rgba(255,255,255,0.35)' }} />
+                </div>
+                <span className="settings-field-sub">{r.note}</span>
+              </React.Fragment>
+            ))}
+          </div>
+        )}
+        {heard?.endKey && (
           <div className="pp-actions" style={{ flexWrap: 'wrap', marginTop: 6 }}>
-            {chip(heard.key, '', `${heard.source}. Click to use it.`)}
-            {(heard.candidates ?? []).filter(k => k !== heard.key).slice(0, 3).map(k => chip(k, '', 'Next likeliest. Click to use it.'))}
-            {heard.endKey && chip(heard.endKey, 'ends ', 'The last 30 seconds sound like this key (the song may change key). Click to use it for landing.')}
+            {chip(heard.endKey, 'ends ', 'The last 30 seconds sound like this key (the song may change key). Click to use it for landing.')}
+            <span className="settings-field-sub">The ending sounds like a different key; use it if the song modulates before it lands.</span>
           </div>
         )}
         {lookupMultitracks && (

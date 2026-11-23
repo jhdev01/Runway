@@ -10,6 +10,7 @@ import { systemPreferences } from 'electron';
 import { osa, tell, num, lit, friendly } from './spotifyTimingTest';
 import type { SpotifyPlayerCommand, SpotifyPlayerReply } from '../shared/types';
 import { spotifyConnectPlay, spotifyQuietStartReady, spotifySetQuietStart } from './spotifyAccount';
+import { fastSpotifyVolume } from './spotifyVolume';
 
 const URI_RE = /^spotify:(track|playlist):[A-Za-z0-9]+$/;
 const CONTEXT_RE = /^spotify:playlist:[A-Za-z0-9]+$/;
@@ -182,7 +183,10 @@ export async function spotifyPlayer(cmd: SpotifyPlayerCommand): Promise<SpotifyP
         await osa(tell(`set player position to ${lit(Math.max(0, cmd.positionSec))}`));
         break;
       case 'volume':
-        await osa(tell(`set sound volume to ${Math.round(Math.max(0, Math.min(100, cmd.volume)))}`));
+        // Fast lane first (fades send many of these a second); osascript if it isn't available.
+        if (!fastSpotifyVolume(cmd.volume)) {
+          await osa(tell(`set sound volume to ${Math.round(Math.max(0, Math.min(100, cmd.volume)))}`));
+        }
         break;
       case 'pause':
         await osa(tell('pause'));

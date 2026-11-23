@@ -5,6 +5,7 @@ import { formatDuration } from '../lib/format';
 import { waveformScanner, useWaveformScan, scanEdgesSec, logSpotifyOperator } from '../lib/spotifyWaveformScan';
 import { DragHandle, ServiceLandHandle, formatPreciseTime } from '../views/EditorView';
 import { effectiveGuess } from '../lib/keyLearning';
+import { fadeShape, FADE_STEP_MS } from '../lib/spotifyTestRun';
 import { NoteMapStrip } from './KeyAnalysis';
 
 const HEIGHT = 150;
@@ -91,7 +92,7 @@ export function SpotifyWaveformView({ track, edit, onChange, full = false, showN
   // ── Spotify playhead (polled, smoothed between polls) ─────────────────
   const [ph, setPh] = useState<{ pos: number; at: number; playing: boolean } | null>(null);
   const [now, setNow] = useState(Date.now());
-  const preview = useRef<{ origVol: number; lastVol: number } | null>(null);
+  const preview = useRef<{ origVol: number; lastVol: number; sentAt: number } | null>(null);
   const [previewing, setPreviewing] = useState(false);
   // Why a preview might be silent: the Mac muted (e.g. left muted after a
   // waveform scan) or Spotify's own volume at 0. Checked every few seconds.
@@ -149,11 +150,14 @@ export function SpotifyWaveformView({ track, edit, onChange, full = false, showN
     if (!p || playhead === null || !ph?.playing) return;
     if (playhead >= d.end - 0.05) { void endPreview(true); return; }
     let g = 1;
-    if (playhead >= d.start && d.fadeIn > 0) g = Math.min(g, Math.max(0, (playhead - d.start) / d.fadeIn));
-    if (d.fadeOut > 0) g = Math.min(g, Math.max(0, (d.end - playhead) / d.fadeOut));
+    // Same eased curve as the real runway's fades.
+    if (playhead >= d.start && d.fadeIn > 0) g = Math.min(g, fadeShape((playhead - d.start) / d.fadeIn));
+    if (d.fadeOut > 0) g = Math.min(g, fadeShape((d.end - playhead) / d.fadeOut));
     const vol = Math.round(p.origVol * g);
-    if (vol !== p.lastVol) {
+    const now = Date.now();
+    if (vol !== p.lastVol && now - p.sentAt >= FADE_STEP_MS) {
       p.lastVol = vol;
+      p.sentAt = now;
       void window.runway.spotify.player({ op: 'volume', volume: vol });
     }
   }, [now, ph]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -175,7 +179,7 @@ export function SpotifyWaveformView({ track, edit, onChange, full = false, showN
     let st = await window.runway.spotify.player({ op: 'state' });
     if (!preview.current) {
       const v = st.ok && st.volume !== undefined && st.volume >= 10 ? st.volume : 70;
-      preview.current = { origVol: v, lastVol: v };
+      preview.current = { origVol: v, lastVol: v, sentAt: 0 };
     }
     setPreviewing(true);
     if (!(st.ok && st.trackUri === track.uri)) {

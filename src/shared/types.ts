@@ -142,6 +142,10 @@ export interface ServiceInstance {
   // first service of the date; for the first service, undefined = Auto (let
   // arrange pick). Use resolveServiceLastSongTrackId.
   lastSongTrackId?: string;
+  // Same, when the music is a Spotify playlist: the spotify:track: URI the
+  // runway should end on. Kept separate from lastSongTrackId (which only
+  // holds Runway tracks). undefined = Auto (pick by key).
+  spotifyLastSongUri?: string;
   // Optional: full setlist
   setlist: SetlistSong[];
   // Auto-start mode

@@ -44,13 +44,19 @@ export function arrangeSpotifyRunway(opts: {
   repeatToFill: boolean;
   shuffle: boolean;
   lastFadeSec: number;      // Runway's Music fade, for the anchor's fade after 0:00
+  pinnedUri?: string;       // the service's chosen last song (Spotify)
 }): SpotifyArrangement {
   const { tracks, edits, requestedKey } = opts;
   const keyOf = (t: SpotifyPlaylistTrack) => edits[t.uri]?.key;
   let warning: string | undefined;
 
   let anchor: SpotifyPlaylistTrack | undefined;
-  if (requestedKey) {
+  // 1. The last song chosen in the service's settings, if it's in the playlist.
+  if (opts.pinnedUri) {
+    anchor = tracks.find(t => t.uri === opts.pinnedUri);
+    if (!anchor) warning = 'The chosen last song isn’t in this Spotify playlist any more. Picking by key instead.';
+  }
+  if (!anchor && requestedKey) {
     const exact = tracks.filter(t => keyOf(t) === requestedKey);
     if (exact.length) anchor = exact[exact.length - 1];
     if (!anchor) {
@@ -73,7 +79,11 @@ export function arrangeSpotifyRunway(opts: {
   const anchorKey = keyOf(anchor);
   const landInKey = requestedKey ?? anchorKey;
   const skipPadBridge = !!requestedKey && anchorKey !== requestedKey;
-  if (skipPadBridge) warning = `${warning ?? ''} Pad bridge skipped — no song in ${requestedKey}.`.trim();
+  if (skipPadBridge) {
+    warning = opts.pinnedUri && anchor.uri === opts.pinnedUri
+      ? `${warning ?? ''} The chosen last song is ${anchorKey ? `in ${anchorKey}` : 'not tagged with a key'}, not ${requestedKey}: pad bridge skipped.`.trim()
+      : `${warning ?? ''} Pad bridge skipped — no song in ${requestedKey}.`.trim();
+  }
 
   const span = (t: SpotifyPlaylistTrack, isAnchor: boolean) => {
     const b = songBounds(t.durationMs / 1000, edits[t.uri]);

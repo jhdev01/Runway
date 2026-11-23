@@ -35,7 +35,7 @@ const PLACE_TOLERANCE_MS = 40;    // re-place the first song (still silent) if f
 const STEP_MS = 250;              // playhead reading interval while the volume holds
 // While a fade is moving, Spotify's volume is updated this often (each
 // update is one quick AppleScript call), so fades glide instead of stepping.
-export const FADE_STEP_MS = 80;
+export const FADE_STEP_MS = 40;
 const FIRST_FADE_IN_SEC = 4;
 // Song changes are back to back, like Spotify's own playback: a song that
 // starts at its beginning only gets a click-free ramp (its intro does the
