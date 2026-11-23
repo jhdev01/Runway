@@ -62,8 +62,9 @@ export interface SpotifyRunSegment {
 /** Playable range of a song after the operator's trims, clamped to sane values. */
 export function songBounds(durSec: number, e: SpotifyTrackEdit | undefined) {
   const start = Math.min(Math.max(0, e?.trimStartSec ?? 0), Math.max(0, durSec - 1));
-  // A 0:00 marker with no End means "the song is done by 0:00": it ends at
-  // the marker. With an End after the marker, it plays on to that End.
+  // A 0:00 marker with no End: the marker is where the song's playable range
+  // ends for planning; the planner then lets it fade out AFTER 0:00. With an
+  // End after the marker, it plays on to that End.
   const landIn = e?.landSec !== undefined && e.landSec > start && e.landSec <= durSec ? e.landSec : undefined;
   const end = Math.min(durSec, Math.max(start + 1, e?.trimEndSec ?? landIn ?? durSec));
   const land = landIn !== undefined && landIn <= end ? landIn : end;
@@ -90,6 +91,25 @@ const IDLE: SpotifyRunState = {
 };
 
 /**
+ * How long the last song keeps sounding after 0:00. With an End later than
+ * the marker it plays on to that End. With only a marker it stays at full
+ * volume to 0:00 and then fades out over its Fade out (or Runway's Music
+ * fade), never past the song's real end.
+ */
+function afterZeroSec(
+  durSec: number,
+  b: { start: number; end: number; land: number },
+  e: SpotifyTrackEdit | undefined,
+  lastFadeSec: number,
+): number {
+  if (b.land < b.end) return b.end - b.land;
+  if (e?.landSec !== undefined && e.trimEndSec === undefined) {
+    return Math.max(0, Math.min(e.fadeOutSec ?? lastFadeSec, durSec - b.land));
+  }
+  return 0;
+}
+
+/**
  * Plans the playlist so its last song reaches its landing point (its trim
  * end, or its landing marker) at `endAt` (ms). Songs before it play their
  * trimmed range in full; the first one starts partway in to fit `lengthSec`.
@@ -99,6 +119,8 @@ export function planSpotifyRun(
   lengthSec: number | null,
   endAt: number,
   edits: Record<string, SpotifyTrackEdit> = {},
+  /** Fade for a last song that stops at its 0:00 marker (Runway's Music fade). */
+  lastFadeSec = 5,
 ): SpotifyRunSegment[] {
   const last = tracks.length - 1;
   const info = tracks.map((t, i) => {
@@ -132,7 +154,7 @@ export function planSpotifyRun(
     segs.unshift({
       uri: x.t.uri, title: x.t.title, artist: x.t.artist, songDurSec: x.dur,
       startPosSec, endPosSec: x.endPos, startAt, endAt: cursor,
-      stopAt: isLast ? cursor + (x.b.end - x.b.land) * 1000 : cursor,
+      stopAt: isLast ? cursor + afterZeroSec(x.dur, x.b, e, lastFadeSec) * 1000 : cursor,
       fadeInSec: e?.fadeInSec, fadeOutSec: e?.fadeOutSec,
       trimmedEnd: x.b.end < x.dur - 0.05,
     });
@@ -193,10 +215,10 @@ class SpotifyTestRunner {
 
     // Plan once against a zero end time to learn how long the music runs,
     // then for real so the first song starts PREROLL_MS from now.
-    const dry = planSpotifyRun(opts.tracks, opts.lengthSec, 0, opts.edits);
+    const dry = planSpotifyRun(opts.tracks, opts.lengthSec, 0, opts.edits, opts.lastFadeSec);
     const runMs = dry.length ? -dry[0].startAt : 0;
     const endAt = Date.now() + PREROLL_MS + runMs;
-    const segments = planSpotifyRun(opts.tracks, opts.lengthSec, endAt, opts.edits);
+    const segments = planSpotifyRun(opts.tracks, opts.lengthSec, endAt, opts.edits, opts.lastFadeSec);
     if (segments.length === 0) { this.set({ ...IDLE, status: 'error', message: 'Nothing to play in that playlist.' }); return; }
     this.set({ ...IDLE, status: 'running', segments, endAt, padKey: opts.padKey });
 
@@ -219,8 +241,11 @@ class SpotifyTestRunner {
       fadeOutEnd = seg.endAt - LOAD_LEAD_MS;
     } else if (seg.fadeOutSec !== undefined || seg.trimmedEnd || seg.stopAt > seg.endAt) {
       // Last song stopping before its natural end: fade so it doesn't cut off.
-      fadeOut = seg.fadeOutSec ?? this.lastFadeSec;
+      // A fade that would start before 0:00 is shortened so the song stays at
+      // full volume up to 0:00 whenever it sounds past it.
       fadeOutEnd = seg.stopAt - END_MUTE_MS;
+      fadeOut = seg.fadeOutSec ?? this.lastFadeSec;
+      if (seg.stopAt > seg.endAt) fadeOut = Math.min(fadeOut, (fadeOutEnd - seg.endAt) / 1000);
     }
     if (fadeOut > 0) g = Math.min(g, Math.max(0, (fadeOutEnd - now) / 1000 / fadeOut));
     return Math.round(this.originalVolume * g);
@@ -239,6 +264,8 @@ class SpotifyTestRunner {
     // Like Runway's own runway: the pad fades in over its lead-in so it's up
     // before the last song starts fading out by 0:00.
     const lastSeg = segments[last];
+    // Only when the song stops right at 0:00 (End set at the marker) does it
+    // fade before 0:00; then the pad starts earlier so it's up first.
     const fadesByZero = lastSeg.stopAt <= lastSeg.endAt
       && (lastSeg.trimmedEnd || lastSeg.fadeOutSec !== undefined);
     const lastFade = fadesByZero ? (lastSeg.fadeOutSec ?? this.lastFadeSec) : 0;
