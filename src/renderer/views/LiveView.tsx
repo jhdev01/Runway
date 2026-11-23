@@ -1040,12 +1040,32 @@ export function LiveView() {
                 <span className="hero-meta-label">Target</span>
                 <span className="hero-meta-value">{formatTime12h(parseTime(activeService.startTime))}</span>
               </div>
-              <div className="hero-meta-item">
-                <span className="hero-meta-label">Land in</span>
-                <span className={`hero-meta-value key ${isPostServiceRolling ? 'idle' : ''}`}>
-                  {resolveServiceFirstSongKey(activeService, services).value || '—'}
-                </span>
-              </div>
+              {(() => {
+                // Once armed, show the key the runway is actually landing in.
+                // The service's key can change after arming (Planning Center
+                // sync, an edit in Schedule); the armed runway keeps the key
+                // it was arranged for until it's re-armed.
+                const serviceKey = resolveServiceFirstSongKey(activeService, services).value;
+                const armedHere = !!currentRunway && !currentRunway.isPostService && currentRunway.serviceId === activeService.id;
+                const shown = armedHere ? (currentRunway?.landInKey ?? serviceKey) : serviceKey;
+                const stale = armedHere && !!serviceKey && !!currentRunway?.landInKey && currentRunway.landInKey !== serviceKey;
+                return (
+                  <div
+                    className="hero-meta-item"
+                    title={stale ? `Armed in ${shown}. The service’s key is now ${serviceKey}. Disarm and arm again to land in ${serviceKey}.` : undefined}
+                  >
+                    <span className="hero-meta-label">Land in</span>
+                    <span className={`hero-meta-value key ${isPostServiceRolling ? 'idle' : ''}`}>
+                      {shown || '—'}
+                    </span>
+                    {stale && (
+                      <span className="hero-meta-label" style={{ color: 'var(--warn, #f5a524)' }}>
+                        service now {serviceKey}
+                      </span>
+                    )}
+                  </div>
+                );
+              })()}
               {playlistInUse && !activeService.disablePadBridge && !currentRunway?.skipPadBridge && (
                 <div
                   className="hero-meta-item"
