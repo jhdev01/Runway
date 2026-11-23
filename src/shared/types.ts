@@ -752,6 +752,9 @@ export interface AppConfig {
     // Downloaded album art (data URLs) by spotify:track: URI, so art shows
     // without internet. Filled by Library › Spotify › Download artwork.
     artCache?: Record<string, string>;
+    // Draw waveforms of Spotify songs as they play (Mac). Off until the
+    // operator turns it on, since macOS asks for a permission first.
+    waveforms?: boolean;
   };
   // GetSongBPM API key — free tier (5k/day, attribution required)
   // returns tempo + key for searched songs. The realistic working
@@ -1062,6 +1065,10 @@ export const IPC = {
   SPOTIFY_PLAYLISTS_LIST: 'spotify:playlistsList',
   // Experimental: download a Spotify album image as a data URL.
   SPOTIFY_FETCH_ART: 'spotify:fetchArt',
+  SPOTIFY_WAVEFORM_ENABLE: 'spotify:waveformEnable',
+  SPOTIFY_WAVEFORM_STATUS: 'spotify:waveformStatus',
+  SPOTIFY_WAVEFORM_GET: 'spotify:waveformGet',
+  SPOTIFY_WAVEFORM_COVERAGE: 'spotify:waveformCoverage',
   MULTITRACKS_LOOKUP: 'track:multitracks',
 } as const;
 
@@ -1074,6 +1081,17 @@ export interface SpotifyStatus {
   canControl?: boolean;
   /** Quiet start is switched on (songs start without showing Spotify). */
   quietStart?: boolean;
+}
+export interface SpotifyWaveform {
+  binSec: number;          // seconds per column
+  durationSec: number;
+  peaks: number[];         // 0…1 per column; -1 = that part hasn't been heard yet
+  coverage: number;        // share of the song heard, 0…1
+}
+export interface SpotifyWaveformStatus {
+  enabled: boolean;
+  tap: 'off' | 'starting' | 'on' | 'denied' | 'unavailable' | 'error';
+  reason?: string;
 }
 export interface SpotifyPlaylistTrack {
   uri: string;             // spotify:track:…

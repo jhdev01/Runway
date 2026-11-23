@@ -16,6 +16,12 @@ export function SpotifyStatusPill() {
   const clientId = useAppStore(s => s.config.spotify?.clientId);
   const setView = useAppStore(s => s.setView);
   const [light, setLight] = useState<SpotifyLight>({ state: 'unknown', detail: 'Checking Spotify…' });
+  // The top bar is always on screen, so this is where the waveform
+  // recorder (Settings › Spotify › Draw waveforms) is switched on and off.
+  const waveforms = useAppStore(s => !!s.config.spotify?.waveforms);
+  useEffect(() => {
+    void window.runway?.spotify?.waveformEnable?.(waveforms);
+  }, [waveforms]);
 
   useEffect(() => {
     if (!clientId) return;

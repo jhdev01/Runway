@@ -9,3 +9,4 @@ release/
 .idea/
 # Claude Code local session state — operator-specific, not for the repo
 .claude/
+build/native/runway-spotify-levels

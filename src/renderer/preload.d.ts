@@ -1,4 +1,4 @@
-import type { LibraryBundlePreview, LibraryImportMode, LibraryImportReport, AppConfig, Track, KeyName, PpRequest, PpResponse, PcoRequest, PcoResponse, RelinkReport, RemoteNetworkInterface, SpotifyStatus, SpotifyPlaylistResult, SpotifyPlayerCommand, SpotifyPlayerReply, SpotifyPlaylistList, MultitracksResult } from '@shared/types';
+import type { LibraryBundlePreview, LibraryImportMode, LibraryImportReport, AppConfig, Track, KeyName, PpRequest, PpResponse, PcoRequest, PcoResponse, RelinkReport, RemoteNetworkInterface, SpotifyStatus, SpotifyPlaylistResult, SpotifyPlayerCommand, SpotifyPlayerReply, SpotifyPlaylistList, MultitracksResult, SpotifyWaveform, SpotifyWaveformStatus } from '@shared/types';
 
 export {};
 
@@ -92,6 +92,10 @@ declare global {
         player: (cmd: SpotifyPlayerCommand) => Promise<SpotifyPlayerReply>;
         listPlaylists: () => Promise<SpotifyPlaylistList>;
         fetchArt: (url: string) => Promise<{ ok: boolean; dataUrl?: string; reason?: string }>;
+        waveformEnable: (on: boolean) => Promise<SpotifyWaveformStatus>;
+        waveformStatus: () => Promise<SpotifyWaveformStatus>;
+        waveform: (uri: string) => Promise<SpotifyWaveform | null>;
+        waveformCoverage: (uris: string[]) => Promise<Record<string, number>>;
       };
       diagnostics: {
         appendTimingLog: (line: string) => void;

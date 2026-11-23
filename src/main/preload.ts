@@ -55,6 +55,10 @@ const IPC = {
   SPOTIFY_PLAYER: 'spotify:player',
   SPOTIFY_PLAYLISTS_LIST: 'spotify:playlistsList',
   SPOTIFY_FETCH_ART: 'spotify:fetchArt',
+  SPOTIFY_WAVEFORM_ENABLE: 'spotify:waveformEnable',
+  SPOTIFY_WAVEFORM_STATUS: 'spotify:waveformStatus',
+  SPOTIFY_WAVEFORM_GET: 'spotify:waveformGet',
+  SPOTIFY_WAVEFORM_COVERAGE: 'spotify:waveformCoverage',
   // MultiTracks.com song lookup — returns the published original master
   // key for worship songs, plus alternates when the catalog disagrees.
   MULTITRACKS_LOOKUP: 'track:multitracks',
@@ -144,6 +148,10 @@ contextBridge.exposeInMainWorld('runway', {
     player: (cmd: unknown) => ipcRenderer.invoke(IPC.SPOTIFY_PLAYER, cmd),
     listPlaylists: () => ipcRenderer.invoke(IPC.SPOTIFY_PLAYLISTS_LIST),
     fetchArt: (url: string) => ipcRenderer.invoke(IPC.SPOTIFY_FETCH_ART, url),
+    waveformEnable: (on: boolean) => ipcRenderer.invoke(IPC.SPOTIFY_WAVEFORM_ENABLE, on),
+    waveformStatus: () => ipcRenderer.invoke(IPC.SPOTIFY_WAVEFORM_STATUS),
+    waveform: (uri: string) => ipcRenderer.invoke(IPC.SPOTIFY_WAVEFORM_GET, uri),
+    waveformCoverage: (uris: string[]) => ipcRenderer.invoke(IPC.SPOTIFY_WAVEFORM_COVERAGE, uris),
   },
   planningCenter: {
     request: (req: unknown) => ipcRenderer.invoke(IPC.PCO_REQUEST, req),

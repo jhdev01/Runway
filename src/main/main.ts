@@ -10,6 +10,7 @@ import { exportLibraryBundle, readBundle, previewBundle, applyBundle } from './l
 import { IPC, type PpRequest, type PpResponse, type PcoRequest, type PcoResponse, type AppConfig, type RelinkReport, type TraySnapshot, type LibraryImportMode } from '../shared/types';
 import { runSpotifyTimingTest } from './spotifyTimingTest';
 import { spotifyPlayer } from './spotifyPlayer';
+import { spotifyWaveformEnable, spotifyWaveformStatus, spotifyWaveformGet, spotifyWaveformCoverage, spotifyWaveformShutdown } from './spotifyWaveform';
 import type { SpotifyPlayerCommand } from '../shared/types';
 import { spotifyConnect, spotifyStatus, spotifyDisconnect, spotifyReadPlaylist, spotifyListPlaylists, spotifyFetchArt } from './spotifyAccount';
 import { RemoteServer, listLanUrls, listNetworkInterfaces, type RemoteSnapshot } from './remoteServer';
@@ -933,6 +934,11 @@ function registerIpcHandlers() {
   // drives the Spotify desktop app only; never touches Runway's audio.
   ipcMain.handle(IPC.SPOTIFY_PLAYLISTS_LIST, async () => spotifyListPlaylists());
   ipcMain.handle(IPC.SPOTIFY_FETCH_ART, async (_e, url: string) => (typeof url === 'string' ? spotifyFetchArt(url) : { ok: false, reason: 'Bad URL.' }));
+  ipcMain.handle(IPC.SPOTIFY_WAVEFORM_ENABLE, async (_e, on: unknown) => spotifyWaveformEnable(on === true));
+  ipcMain.handle(IPC.SPOTIFY_WAVEFORM_STATUS, async () => spotifyWaveformStatus());
+  ipcMain.handle(IPC.SPOTIFY_WAVEFORM_GET, async (_e, uri: unknown) => (typeof uri === 'string' ? spotifyWaveformGet(uri) : null));
+  ipcMain.handle(IPC.SPOTIFY_WAVEFORM_COVERAGE, async (_e, uris: unknown) => (Array.isArray(uris) ? spotifyWaveformCoverage(uris as string[]) : {}));
+  app.on('will-quit', () => spotifyWaveformShutdown());
   ipcMain.handle(IPC.SPOTIFY_PLAYER, async (_e, cmd: SpotifyPlayerCommand) => {
     if (!cmd || typeof cmd !== 'object' || typeof (cmd as { op?: unknown }).op !== 'string') {
       return { ok: false, reason: 'Bad Spotify command.' };

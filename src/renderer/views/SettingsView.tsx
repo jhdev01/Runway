@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useAppStore, generateId } from '../state/store';
 import { useEngines } from '../state/engines';
 import { ALL_KEYS, MAJOR_KEYS, MINOR_KEYS, keyColor, displayKey } from '@shared/music';
-import type { RelinkReport, LibraryBundlePreview, LibraryImportMode, AudioBusConfig, MidiAction, MidiBinding, KeyName, PadFile, ProPresenterSyncConfig, MidiDevicePref, SpotifyStatus, SpotifyPlaylistResult, SpotifyPlaylistList } from '@shared/types';
+import type { RelinkReport, LibraryBundlePreview, LibraryImportMode, AudioBusConfig, MidiAction, MidiBinding, KeyName, PadFile, ProPresenterSyncConfig, MidiDevicePref, SpotifyStatus, SpotifyPlaylistResult, SpotifyPlaylistList, SpotifyWaveformStatus } from '@shared/types';
 import { DEFAULT_CONFIG } from '@shared/types';
 import { formatDuration } from '../lib/format';
 import type { MidiDeviceSnapshot } from '../lib/midiEngine';
@@ -1955,6 +1955,50 @@ function SpotifyWindowPermission() {
   );
 }
 
+// Draw waveforms of Spotify songs (Mac): Runway listens to the Spotify app's
+// loudness as songs play (never the sound itself) and draws it in the song
+// editor. macOS asks for Screen & System Audio Recording permission first.
+function SpotifyWaveformSetting() {
+  const on = useAppStore(s => !!s.config.spotify?.waveforms);
+  const updateConfig = useAppStore(s => s.updateConfig);
+  const [st, setSt] = useState<SpotifyWaveformStatus | null>(null);
+  useEffect(() => {
+    let alive = true;
+    const read = () => window.runway?.spotify?.waveformStatus?.().then(x => { if (alive) setSt(x); }).catch(() => undefined);
+    void read();
+    const t = window.setInterval(read, 2000);
+    return () => { alive = false; window.clearInterval(t); };
+  }, []);
+  if (st && st.tap === 'unavailable' && !on) {
+    return st.reason ? <div className="settings-section-sub" style={{ marginTop: 12 }}>Waveforms: {st.reason}</div> : null;
+  }
+  const label = !on ? null
+    : st?.tap === 'on' ? { ok: true, text: 'Listening to Spotify. Songs get a waveform as they play through.' }
+    : st?.tap === 'denied' || st?.tap === 'error' || st?.tap === 'unavailable' ? { ok: false, text: st.reason ?? 'Couldn’t listen to Spotify.' }
+    : { ok: true, text: 'On. Starts listening when Spotify plays.' };
+  return (
+    <div style={{ marginTop: 12 }}>
+      <label style={{ display: 'flex', gap: 8, alignItems: 'center', cursor: 'pointer' }}>
+        <input
+          type="checkbox"
+          checked={on}
+          onChange={e => {
+            const latest = useAppStore.getState().config.spotify;
+            updateConfig({ spotify: { ...latest, waveforms: e.target.checked } });
+          }}
+        />
+        <span>Draw waveforms of Spotify songs (Mac)</span>
+      </label>
+      <div className="settings-section-sub" style={{ marginTop: 4 }}>
+        Runway listens to how loud Spotify is as each song plays (never the sound itself, nothing is recorded) and
+        draws the song’s waveform in its Edit panel. A song needs to play through once. macOS asks you to allow
+        Runway under Screen &amp; System Audio Recording; Runway only listens to Spotify, never your screen.
+      </div>
+      {label && <div className={`pp-status ${label.ok ? 'ok' : 'err'}`}>{label.text}</div>}
+    </div>
+  );
+}
+
 // Experimental: sign in to Spotify and read a playlist's song list.
 // Read-only — nothing here plays audio or touches services.
 function SpotifyAccountSection() {
@@ -2080,6 +2124,7 @@ function SpotifyAccountSection() {
         </div>
       )}
       {!(status.quietStart && status.canControl) && <SpotifyWindowPermission />}
+      {status.connected && <SpotifyWaveformSetting />}
       {status.connected && (
         <div className="pp-actions" style={{ marginTop: 10 }}>
           <span className="settings-field-sub">Import playlists, set keys and download artwork in</span>
