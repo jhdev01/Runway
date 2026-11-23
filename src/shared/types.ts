@@ -1119,6 +1119,8 @@ export interface SpotifyKeyGuess {
   at: number;
   /** For re-scoring with learned settings (Settings › key learning). */
   profile?: KeyProfile;
+  /** Note map: per second of the song, 12 note strengths 0–99 (C first); null = not heard. Display only. */
+  noteMap?: Array<number[] | null>;
 }
 export interface SpotifyWaveform {
   key?: SpotifyKeyGuess;

@@ -127,3 +127,37 @@ export function learnKeyParams(examples: KeyExample[]): KeyLearnResult {
   const adopt = after - before >= Math.max(2, n * 0.05);
   return { params, examples: n, before, after, adopt };
 }
+
+/**
+ * A song's note map: for each second, how strongly each of the 12 notes
+ * (C first) sounded, 0–99 relative to that second's loudest note; null for
+ * seconds not analysed. `secOf` maps a time in the analysed audio to the
+ * second of the song it came from (they differ when only parts of a song
+ * were heard). Display only.
+ */
+export function noteMapOf(
+  f: KeyFeatures,
+  durSec: number,
+  secOf: (tSec: number) => number | null = t => t,
+): Array<number[] | null> {
+  const n = Math.max(1, Math.ceil(durSec));
+  const acc: Array<Float64Array | null> = new Array(n).fill(null);
+  const { harm, weight, hopSec, index } = f.frames;
+  const frames = weight.length;
+  for (let i = 0; i < frames; i++) {
+    const t = (index ? index[i] : i) * hopSec;
+    const s = secOf(t);
+    if (s === null) continue;
+    const sec = Math.floor(s);
+    if (sec < 0 || sec >= n) continue;
+    const col = acc[sec] ?? (acc[sec] = new Float64Array(12));
+    const w = weight[i] || 1;
+    for (let pc = 0; pc < 12; pc++) col[pc] += harm[i * 12 + pc] * w;
+  }
+  return acc.map(col => {
+    if (!col) return null;
+    let mx = 0;
+    for (const v of col) if (v > mx) mx = v;
+    return mx > 0 ? Array.from(col, v => Math.round((v / mx) * 99)) : null;
+  });
+}

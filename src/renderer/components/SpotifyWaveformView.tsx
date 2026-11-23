@@ -5,6 +5,7 @@ import { formatDuration } from '../lib/format';
 import { waveformScanner, useWaveformScan, scanEdgesSec, logSpotifyOperator } from '../lib/spotifyWaveformScan';
 import { DragHandle, ServiceLandHandle, formatPreciseTime } from '../views/EditorView';
 import { effectiveGuess } from '../lib/keyLearning';
+import { NoteMapStrip } from './KeyAnalysis';
 
 const HEIGHT = 150;
 const ZOOM_MAX_X = 64;
@@ -37,10 +38,14 @@ function draftOf(edit: SpotifyTrackEdit, dur: number): Draft {
  * Saves the same Start / End / Fade / 0:00 fields as the boxes below it, so
  * nothing about service timing changes.
  */
-export function SpotifyWaveformView({ track, edit, onChange }: {
+export function SpotifyWaveformView({ track, edit, onChange, full = false, showNotes = false }: {
   track: SpotifyPlaylistTrack;
   edit: SpotifyTrackEdit;
   onChange: (e: SpotifyTrackEdit) => void;
+  /** Editor page: the waveform fills the space it's given. */
+  full?: boolean;
+  /** Show the song's note map under the waveform (same zoom / scroll). */
+  showNotes?: boolean;
 }) {
   const dur = track.durationMs / 1000;
   const waveformsOn = useAppStore(s => !!s.config.spotify?.waveforms);
@@ -251,7 +256,7 @@ export function SpotifyWaveformView({ track, edit, onChange }: {
     const c = canvasRef.current;
     const box = containerRef.current;
     if (!c || !box) return;
-    const w = box.clientWidth, h = HEIGHT;
+    const w = box.clientWidth, h = full ? Math.max(80, box.clientHeight) : HEIGHT;
     const dpr = window.devicePixelRatio || 1;
     c.width = w * dpr; c.height = h * dpr;
     const g = c.getContext('2d');
@@ -305,7 +310,7 @@ export function SpotifyWaveformView({ track, edit, onChange }: {
   })();
   const trimLen = Math.max(0, d.end - d.start);
   return (
-    <div style={{ marginBottom: 12 }}>
+    <div style={full ? { display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 } : { marginBottom: 12 }}>
       <div className="pp-actions" style={{ marginBottom: 6 }}>
         <button className="btn-primary" onClick={togglePlay} style={{ minWidth: 120 }}>
           {isPlaying ? '◼ Stop' : '▶ Preview'}
@@ -362,7 +367,7 @@ export function SpotifyWaveformView({ track, edit, onChange }: {
       <div
         ref={containerRef}
         className="editor-canvas-frame"
-        style={{ height: HEIGHT, flex: 'none' }}
+        style={full ? { flex: 1, minHeight: 120 } : { height: HEIGHT, flex: 'none' }}
         onClick={e => {
           const t = e.target as HTMLElement;
           if (t.closest('.editor-handle') || t.closest('.editor-marker')) return;
@@ -431,6 +436,11 @@ export function SpotifyWaveformView({ track, edit, onChange }: {
         )}
       </div>
 
+      {showNotes && (
+        <div style={{ marginTop: 6, flex: 'none' }}>
+          <NoteMapStrip noteMap={wave?.key?.noteMap} durSec={dur} zoomX={zoomX} scrollX={scrollX} height={full ? 130 : 90} highlightKey={heardKey?.key} />
+        </div>
+      )}
       <div className="settings-field-sub" style={{ display: 'flex', gap: 12, marginTop: 6, flexWrap: 'wrap' }}>
         <span>
           Drag Start / End. Shift+drag for fades. Option-click for 0:00. Click to play from there.

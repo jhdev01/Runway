@@ -4,6 +4,11 @@ import { useEngines } from '../state/engines';
 import { formatDuration } from '../lib/format';
 import { filePathToUrl } from '../lib/audioEngine';
 import type { Track } from '@shared/types';
+import { SpotifyEditorPage } from '../components/SpotifyEditorPage';
+import { KeyAnalysisPanel, NoteMapStrip } from '../components/KeyAnalysis';
+import { analyzeTrackNotes } from '../lib/keyAnalysis';
+import { profileOf } from '@shared/keyLearn';
+import type { KeyDetectResult } from '@shared/keyDetect';
 
 /**
  * Non-destructive audio editor — pick a track, set trim points and fades,
@@ -49,6 +54,49 @@ export function EditorView() {
       // the library and made the picker unusable for users with big scans.
     }
   }, [pendingEditorTrackId, consumePendingEditorTrackId]);
+
+  // A Spotify song opened from Library / Playlists (or picked below).
+  const [spotifyUri, setSpotifyUri] = useState<string | null>(null);
+  const [localBeforeSpotify, setLocalBeforeSpotify] = useState<string>('');
+  const pendingSpotify = useAppStore(s => s.pendingEditorSpotifyUri);
+  const consumePendingSpotify = useAppStore(s => s.consumePendingEditorSpotifyUri);
+  const spotifySongs = useAppStore(s => s.config.spotify?.playlistCache);
+  const openSpotify = (uri: string) => {
+    // Unload the local track so its keyboard shortcuts don't also fire.
+    if (!spotifyUri) setLocalBeforeSpotify(trackId);
+    setTrackId('');
+    setSpotifyUri(uri);
+  };
+  useEffect(() => {
+    const uri = consumePendingSpotify();
+    if (uri) openSpotify(uri);
+  }, [pendingSpotify]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Key analysis + note map for the open track (worked out from the file in
+  // a background worker; cached per file for the session).
+  const [notes, setNotes] = useState<{ busy: boolean; map: Array<number[] | null> | null; result: KeyDetectResult | null }>({ busy: false, map: null, result: null });
+  const notesForPath = allTracks.find(t => t.id === trackId)?.filePath;
+  useEffect(() => {
+    setNotes({ busy: !!notesForPath, map: null, result: null });
+    if (!notesForPath) return;
+    // Like Library's Detect keys: no heavy analysis while a service plays.
+    const r0 = useAppStore.getState().currentRunway;
+    if (r0 && (r0.phase === 'music' || r0.phase === 'pad')) { setNotes({ busy: false, map: null, result: null }); return; }
+    let alive = true;
+    void analyzeTrackNotes(notesForPath).then(r => {
+      if (!alive) return;
+      setNotes({ busy: false, map: r.noteMap, result: r.result });
+      // Keep the note profile with the track so key learning can use it.
+      const t = useAppStore.getState().config.tracks.find(x => x.id === trackId);
+      if (t && r.result && !t.keyProfile) {
+        updateTrack(t.id, {
+          keyProfile: profileOf(r.result), detectedKey: r.result.key, keyConfidence: r.result.confidence,
+          detectedKeyAlts: r.result.candidates.slice(1, 3).map(c => c.key),
+        });
+      }
+    }).catch(() => { if (alive) setNotes({ busy: false, map: null, result: null }); });
+    return () => { alive = false; };
+  }, [notesForPath]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const tracks = useMemo(() => {
     if (filter === 'all') return allTracks;
@@ -474,6 +522,16 @@ export function EditorView() {
   const playheadPct = secToPct(playheadSec);
   const landPct = landSec !== null ? secToPct(landSec) : null;
 
+  if (spotifyUri) {
+    return (
+      <SpotifyEditorPage
+        uri={spotifyUri}
+        onPick={openSpotify}
+        onExit={() => { setSpotifyUri(null); setTrackId(localBeforeSpotify); }}
+      />
+    );
+  }
+
   return (
     <div className="editor-view">
       <div className="editor-toolbar">
@@ -504,6 +562,21 @@ export function EditorView() {
           <option value="library">Library</option>
           <option value="all">All tracks</option>
         </select>
+        {Object.values(spotifySongs ?? {}).some(pl => (pl?.tracks?.length ?? 0) > 0) && (
+          <select
+            className="editor-filter"
+            value=""
+            onChange={e => { if (e.target.value) openSpotify(e.target.value); }}
+            title="Edit a song from your imported Spotify playlists"
+          >
+            <option value="">Spotify song…</option>
+            {Object.values(spotifySongs ?? {}).filter(pl => pl?.ok).map(pl => (
+              <optgroup key={pl.playlistId ?? pl.name} label={pl.name ?? 'Spotify playlist'}>
+                {(pl.tracks ?? []).map((t, i) => <option key={`${t.uri}-${i}`} value={t.uri}>{t.title}</option>)}
+              </optgroup>
+            ))}
+          </select>
+        )}
         {hiddenCount > 0 && (
           <span className="editor-hidden-count">
             {hiddenCount} hidden
@@ -632,7 +705,20 @@ export function EditorView() {
       </div>
 
       {buffer && (
-        <div className="editor-footer">
+        <div style={{ padding: '0 24px 12px', flexShrink: 0 }}>
+          <NoteMapStrip
+            noteMap={notes.map}
+            durSec={buffer.duration}
+            zoomX={zoomX}
+            scrollX={scrollX}
+            height={110}
+            highlightKey={notes.result?.key}
+          />
+        </div>
+      )}
+
+      {buffer && (
+        <div className="editor-footer" style={{ maxHeight: '45vh', overflowY: 'auto' }}>
           <div className="editor-fields">
             <SecField label="Start" value={startSec} max={endSec - 0.1} onChange={v => setStartSec(Math.max(0, Math.min(endSec - 0.1, v)))} />
             <SecField label="End" value={endSec} min={startSec + 0.1} max={buffer.duration} onChange={v => setEndSec(Math.max(startSec + 0.1, Math.min(buffer.duration, v)))} />
@@ -696,6 +782,19 @@ export function EditorView() {
             </span>
             {saveStatus && <span style={{ color: 'var(--accent-bright)', fontSize: 13 }}>{saveStatus}</span>}
           </div>
+          {selectedTrack && (
+            <KeyAnalysisPanel
+              currentKey={selectedTrack.key}
+              analysing={notes.busy}
+              heard={notes.result ? {
+                key: notes.result.key, confidence: notes.result.confidence,
+                candidates: notes.result.candidates.map(c => c.key),
+                profile: profileOf(notes.result), source: 'Detected from the file',
+              } : null}
+              onSetKey={k => updateTrack(selectedTrack.id, { key: k })}
+              lookupMultitracks={() => window.runway.files.multitracksLookup(selectedTrack.artist ?? '', selectedTrack.title, buffer.duration)}
+            />
+          )}
         </div>
       )}
     </div>

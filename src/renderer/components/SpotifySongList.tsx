@@ -6,7 +6,7 @@ import { effectiveGuess } from '../lib/keyLearning';
 import { formatDuration } from '../lib/format';
 import { songBounds } from '../lib/spotifyTestRun';
 import { KeyPickerModal } from './KeyPickerModal';
-import { SpotifyWaveformView } from './SpotifyWaveformView';
+import { saveSpotifyEdit } from '../lib/spotifyEdits';
 import { waveformScanner, useWaveformScan, scanEdgesSec, logSpotifyOperator } from '../lib/spotifyWaveformScan';
 import { keyColor, displayKey } from '@shared/music';
 
@@ -37,10 +37,12 @@ const FIELDS: Array<{ key: Field; label: string; kind: 'pos' | 'fade'; mark: boo
   { key: 'fadeOutSec', label: 'Fade out', kind: 'fade', mark: false, hint: 'Seconds. Blank = Runway’s default (Music fade, for the last song).' },
 ];
 
-function SongEditor({ track, edit, onChange }: {
+/** The Start / End / 0:00 / fade boxes with Mark here, Play in Spotify and Clear edits. */
+export function SpotifySongFields({ track, edit, onChange, wide = false }: {
   track: SpotifyPlaylistTrack;
   edit: SpotifyTrackEdit;
   onChange: (e: SpotifyTrackEdit) => void;
+  wide?: boolean;
 }) {
   const [drafts, setDrafts] = useState<Partial<Record<Field, string>>>({});
   const [note, setNote] = useState<string | null>(null);
@@ -71,10 +73,27 @@ function SongEditor({ track, edit, onChange }: {
 
   const b = songBounds(dur, edit);
   return (
-    <div style={{ margin: '6px 0 10px 32px', padding: '10px 12px', border: '1px solid var(--border)', borderRadius: 6 }}>
-      <SpotifyWaveformView track={track} edit={edit} onChange={onChange} />
-      <div style={{ display: 'grid', gridTemplateColumns: 'auto 110px auto', gap: '6px 10px', alignItems: 'center' }}>
-        {FIELDS.map(f => (
+    <div>
+      <div style={wide
+        ? { display: 'grid', gridTemplateColumns: 'repeat(5, minmax(150px, 1fr))', gap: '6px 16px', alignItems: 'end' }
+        : { display: 'grid', gridTemplateColumns: 'auto 110px auto', gap: '6px 10px', alignItems: 'center' }}>
+        {FIELDS.map(f => wide ? (
+          <div key={f.key} style={{ display: 'flex', flexDirection: 'column', gap: 4 }} title={f.hint}>
+            <span style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.6, color: 'var(--text-faint)', fontWeight: 600 }}>{f.label}</span>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <input
+                type="text"
+                value={drafts[f.key] ?? (f.kind === 'pos' ? fmtPos(edit[f.key]) : (edit[f.key]?.toString() ?? ''))}
+                placeholder={f.key === 'trimEndSec' ? fmtPos(dur) : f.kind === 'pos' ? (f.key === 'trimStartSec' ? '0:00.0' : 'end') : 'default'}
+                onChange={e => setDrafts(d => ({ ...d, [f.key]: e.target.value }))}
+                onBlur={e => commit(f.key, e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                style={{ fontSize: 14, padding: 8, fontFamily: 'IBM Plex Mono, monospace', width: '100%', minWidth: 0 }}
+              />
+              {f.mark && <button className="btn-secondary" onClick={() => void mark(f.key)} title="Set to where Spotify is playing now">Mark</button>}
+            </div>
+          </div>
+        ) : (
           <React.Fragment key={f.key}>
             <label htmlFor={`sp-edit-${track.uri}-${f.key}`} title={f.hint}>{f.label}</label>
             <input
@@ -116,7 +135,7 @@ function SongEditor({ track, edit, onChange }: {
 // Live", "Way Maker (Live at …)", "(feat. …)", "- Radio Version"), and
 // Spotify lists every credited artist. Search on the plain title and the
 // first artist; the lookup still uses the song length to pick the right cut.
-function spotifyLookupTitle(title: string): string {
+export function spotifyLookupTitle(title: string): string {
   const plain = title
     .replace(/\s+-\s+.*$/, '')
     .replace(/\s*[([](?:feat|ft|with|live|radio|single|acoustic|remaster|edit|version|studio|deluxe)\b[^)\]]*[)\]]/gi, '')
@@ -124,7 +143,7 @@ function spotifyLookupTitle(title: string): string {
     .trim();
   return plain || title;
 }
-function spotifyLookupArtist(artist: string): string {
+export function spotifyLookupArtist(artist: string): string {
   return (artist ?? '').split(/,\s*/)[0]?.trim() ?? '';
 }
 /** How far ahead (0..1 match score) the best match must be to apply it without asking. */
@@ -143,7 +162,6 @@ export function SpotifySongList({ tracks }: { tracks: SpotifyPlaylistTrack[] }) 
   const keyMode = config.defaults.keyDisplayMode ?? 'sharp';
   const edits = config.spotify?.trackEdits ?? {};
   const artCache = config.spotify?.artCache ?? {};
-  const [open, setOpen] = useState<string | null>(null);
   const [keyFor, setKeyFor] = useState<string | null>(null);
   const [lookup, setLookup] = useState<{ busy: boolean; done: number; total: number; note: string | null }>(
     { busy: false, done: 0, total: 0, note: null },
@@ -153,20 +171,7 @@ export function SpotifySongList({ tracks }: { tracks: SpotifyPlaylistTrack[] }) 
     const latest = useAppStore.getState().config.spotify;
     updateConfig({ spotify: { ...latest, trackEdits: next } });
   };
-  const save = (uri: string, e: SpotifyTrackEdit) => {
-    {
-      const before = useAppStore.getState().config.spotify?.trackEdits?.[uri] ?? {};
-      const title = tracks.find(t => t.uri === uri)?.title;
-      logSpotifyOperator('spotify song edited', { title, from: before, to: e });
-    }
-    // A key changed by hand is the operator's own (key learning may use it).
-    const prevKey = useAppStore.getState().config.spotify?.trackEdits?.[uri]?.key;
-    if (e.key !== prevKey) e = { ...e, keyAuto: undefined };
-    const clean = Object.fromEntries(Object.entries(e).filter(([, v]) => v !== undefined)) as SpotifyTrackEdit;
-    const next = { ...(useAppStore.getState().config.spotify?.trackEdits ?? {}) };
-    if (Object.keys(clean).length) next[uri] = clean; else delete next[uri];
-    saveAll(next);
-  };
+  const save = (uri: string, e: SpotifyTrackEdit) => saveSpotifyEdit(uri, e, tracks.find(t => t.uri === uri)?.title);
 
   // Fills in keys for songs that don't have one, from the MultiTracks.com
   // catalog (the same source as Library › Keys from MultiTracks). A clear
@@ -314,7 +319,7 @@ export function SpotifySongList({ tracks }: { tracks: SpotifyPlaylistTrack[] }) 
         {lookup.note && <span className="settings-field-sub">{lookup.note}</span>}
         {scan.note && <span className="settings-field-sub">{scan.note}</span>}
       </div>
-      <div style={open ? undefined : { maxHeight: 460, overflowY: 'auto' }}>
+      <div style={{ maxHeight: 460, overflowY: 'auto' }}>
         {tracks.map((t, i) => {
           const e = edits[t.uri] ?? {};
           const { key, ...trimEdits } = e;
@@ -433,11 +438,10 @@ export function SpotifySongList({ tracks }: { tracks: SpotifyPlaylistTrack[] }) 
                 })()}
                 {edited && <span className="pp-status ok" title="This song has trims or fades">edited</span>}
                 <span style={{ width: 40, textAlign: 'right' }}>{formatDuration(b.end - b.start)}</span>
-                <button className="btn-secondary" onClick={() => setOpen(open === rowKey ? null : rowKey)}>
-                  {open === rowKey ? 'Done' : 'Edit'}
+                <button className="btn-secondary" onClick={() => useAppStore.getState().openSpotifyEditor(t.uri)} title="Open in the Editor: waveform, zoom, trims, fades, 0:00 and key analysis">
+                  Edit
                 </button>
               </div>
-              {open === rowKey && <SongEditor track={t} edit={e} onChange={ne => save(t.uri, ne)} />}
             </div>
           );
         })}

@@ -152,6 +152,12 @@ interface AppStoreState {
   pendingEditorTrackId: string | null;
   openEditor: (trackId: string) => void;
   consumePendingEditorTrackId: () => string | null;
+  // Deep-link a Spotify song into the Editor view; Back returns to where
+  // it was opened from.
+  pendingEditorSpotifyUri: string | null;
+  editorReturnView: ViewName | null;
+  openSpotifyEditor: (uri: string) => void;
+  consumePendingEditorSpotifyUri: () => string | null;
   setMidiConnected: (b: boolean) => void;
   setPpStatus: (s: 'disabled' | 'unknown' | 'ok' | 'err') => void;
   setPpTimers: (t: { uuid: string; name: string; index?: number }[]) => void;
@@ -328,6 +334,14 @@ export const useAppStore = create<AppStoreState>((set, get) => ({
     const id = get().pendingEditorTrackId;
     if (id) set({ pendingEditorTrackId: null });
     return id;
+  },
+  pendingEditorSpotifyUri: null,
+  editorReturnView: null,
+  openSpotifyEditor: (uri) => set(s => ({ view: 'editor', pendingEditorSpotifyUri: uri, editorReturnView: s.view === 'editor' ? s.editorReturnView : s.view })),
+  consumePendingEditorSpotifyUri: () => {
+    const uri = get().pendingEditorSpotifyUri;
+    if (uri) set({ pendingEditorSpotifyUri: null });
+    return uri;
   },
   setMidiConnected: (b) => set({ midiConnected: b }),
   setPpStatus: (s) => set({ ppStatus: s }),

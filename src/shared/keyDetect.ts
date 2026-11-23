@@ -206,7 +206,7 @@ export interface KeyFeatures {
   outroBass: Float64Array;  // normalised bass chroma, last few seconds
   tuningCents: number;
   /** Per-frame tuned chroma (frame-major, 12 values per frame). */
-  frames: { harm: Float32Array; bass: Float32Array; weight: Float32Array; hopSec: number };
+  frames: { harm: Float32Array; bass: Float32Array; weight: Float32Array; hopSec: number; index?: Int32Array };
 }
 
 /** Scoring weights. Exposed so tests can sweep them; the app uses defaults. */
@@ -426,7 +426,8 @@ export function extractKeyFeatures(
   const outroBass = normalise(fold(sumFine(bassFrames, active.length - edgeFrames, active.length)));
   return {
     harm, bass, introBass, outroBass, tuningCents,
-    frames: { harm: frameHarm, bass: frameBass, weight: frameWeights, hopSec: frameSec },
+    // index: each kept frame's position (frames are hop apart; silent ones are skipped).
+    frames: { harm: frameHarm, bass: frameBass, weight: frameWeights, hopSec: frameSec, index: Int32Array.from(active) },
   };
 }
 
@@ -503,7 +504,7 @@ export function scoreKeyFeatures(
   };
 }
 
-function parseKey(key: KeyName): { pc: number; minor: boolean } {
+export function parseKey(key: KeyName): { pc: number; minor: boolean } {
   const mi = MINOR_NAMES.indexOf(key);
   if (mi >= 0) return { pc: mi, minor: true };
   return { pc: MAJOR_NAMES.indexOf(key), minor: false };

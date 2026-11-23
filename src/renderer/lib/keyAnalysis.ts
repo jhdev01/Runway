@@ -99,3 +99,25 @@ export async function analyzeTrackKey(filePath: string): Promise<KeyDetectResult
   }
   return detectKey(samples, ANALYSIS_RATE, learnedKeyParams());
 }
+
+/**
+ * For the Editor: the file's detected key plus its note map (per second,
+ * 12 note strengths). Runs in its own worker so it never queues behind a
+ * Library "Detect keys" batch. Cached per file for the session.
+ */
+const noteCache = new Map<string, { result: KeyDetectResult | null; noteMap: Array<number[] | null> | null }>();
+export async function analyzeTrackNotes(filePath: string): Promise<{ result: KeyDetectResult | null; noteMap: Array<number[] | null> | null }> {
+  const hit = noteCache.get(filePath);
+  if (hit) return hit;
+  const samples = await decodeMono(filePath);
+  const out = await new Promise<{ result: KeyDetectResult | null; noteMap: Array<number[] | null> | null }>((resolve) => {
+    let w: Worker;
+    try { w = new KeyDetectWorker(); } catch { resolve({ result: detectKey(samples, ANALYSIS_RATE, learnedKeyParams()), noteMap: null }); return; }
+    w.onmessage = (e: MessageEvent<KeyWorkerResponse>) => { w.terminate(); resolve({ result: e.data.result, noteMap: e.data.noteMap ?? null }); };
+    w.onerror = () => { w.terminate(); resolve({ result: null, noteMap: null }); };
+    const msg: KeyWorkerRequest = { id: 0, samples, sampleRate: ANALYSIS_RATE, params: learnedKeyParams(), noteMap: true };
+    w.postMessage(msg);
+  });
+  noteCache.set(filePath, out);
+  return out;
+}
