@@ -437,6 +437,7 @@ export function SpotifyWaveformView({ track, edit, onChange }: {
           Trim length · {formatDuration(trimLen)}{trimLen < dur - 0.05 ? ` / original ${formatDuration(dur)}` : ''}
           {scanningThis ? ' · scanning…' : coverage > 0 && coverage < 0.95 ? ` · waveform ${Math.round(coverage * 100)}% heard` : ''}
           {previewing ? ' · preview plays your fades' : ''}
+          {wave?.key ? ` · Runway heard ${wave.key.key}${wave.key.endKey ? `, ends in ${wave.key.endKey}` : ''} (${Math.round(wave.key.confidence * 100)}% sure)` : ''}
         </span>
       </div>
       {note && <div className="pp-status err">{note}</div>}

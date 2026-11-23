@@ -1,4 +1,4 @@
-import type { LibraryBundlePreview, LibraryImportMode, LibraryImportReport, AppConfig, Track, KeyName, PpRequest, PpResponse, PcoRequest, PcoResponse, RelinkReport, RemoteNetworkInterface, SpotifyStatus, SpotifyPlaylistResult, SpotifyPlayerCommand, SpotifyPlayerReply, SpotifyPlaylistList, MultitracksResult, SpotifyWaveform, SpotifyWaveformStatus } from '@shared/types';
+import type { LibraryBundlePreview, LibraryImportMode, LibraryImportReport, AppConfig, Track, KeyName, PpRequest, PpResponse, PcoRequest, PcoResponse, RelinkReport, RemoteNetworkInterface, SpotifyStatus, SpotifyPlaylistResult, SpotifyPlayerCommand, SpotifyPlayerReply, SpotifyPlaylistList, MultitracksResult, SpotifyWaveform, SpotifyWaveformStatus, SpotifyKeyGuess } from '@shared/types';
 
 export {};
 
@@ -97,6 +97,8 @@ declare global {
         waveform: (uri: string) => Promise<SpotifyWaveform | null>;
         /** With `edgesSec`: coverage of just the first and last `edgesSec` seconds. */
         waveformCoverage: (uris: string[], edgesSec?: number) => Promise<Record<string, number>>;
+        /** Keys Runway detected by listening, for songs it has heard. */
+        waveformKeys: (uris: string[]) => Promise<Record<string, SpotifyKeyGuess>>;
       };
       diagnostics: {
         appendTimingLog: (line: string) => void;

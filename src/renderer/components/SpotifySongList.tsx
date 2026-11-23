@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useAppStore } from '../state/store';
-import type { KeyName, SpotifyPlaylistTrack, SpotifyTrackEdit } from '@shared/types';
+import type { KeyName, MultitracksCandidate, SpotifyKeyGuess, SpotifyPlaylistTrack, SpotifyTrackEdit } from '@shared/types';
+import { keyRelation } from '@shared/keyDetect';
 import { formatDuration } from '../lib/format';
 import { songBounds } from '../lib/spotifyTestRun';
 import { KeyPickerModal } from './KeyPickerModal';
@@ -127,6 +128,8 @@ function spotifyLookupArtist(artist: string): string {
 }
 /** How far ahead (0..1 match score) the best match must be to apply it without asking. */
 const CLEAR_WIN = 0.1;
+/** A key Runway heard this clearly is set without asking (same bar as Library's detector). */
+const HEARD_SURE = 0.5;
 
 /**
  * The songs of a Spotify playlist with album art, a key per song, and
@@ -165,35 +168,62 @@ export function SpotifySongList({ tracks }: { tracks: SpotifyPlaylistTrack[] }) 
   const lookUpKeys = async () => {
     const targets = tracks.filter(t => !edits[t.uri]?.key);
     setLookup({ busy: true, done: 0, total: targets.length, note: null });
-    let set = 0, unsure = 0, missing = 0, done = 0;
+    let set = 0, unsure = 0, missing = 0, unheard = 0, done = 0;
     const nextSuggest: typeof suggest = {};
+    // What Runway heard (its own key detector, from scans / plays).
+    const heard = await window.runway.spotify.waveformKeys(targets.map(t => t.uri)).catch(() => ({} as Record<string, SpotifyKeyGuess>));
+    const apply = (uri: string, key: KeyName) => {
+      const cur = useAppStore.getState().config.spotify?.trackEdits ?? {};
+      saveAll({ ...cur, [uri]: { ...(cur[uri] ?? {}), key } });
+      set++;
+    };
     for (const t of targets) {
+      const det = heard[t.uri];
+      let mtBest: MultitracksCandidate | undefined;
+      let mtAll: MultitracksCandidate[] = [];
+      let mtClear = false;
       try {
         const res = await window.runway.files.multitracksLookup(
           spotifyLookupArtist(t.artist), spotifyLookupTitle(t.title), t.durationMs / 1000,
         );
-        const best = res?.best;
-        const alts = res?.alternates ?? [];
-        const runnerUp = alts[0]?.score ?? 0;
-        if (best && (alts.length === 0 || best.score - runnerUp >= CLEAR_WIN)) {
-          const cur = useAppStore.getState().config.spotify?.trackEdits ?? {};
-          saveAll({ ...cur, [t.uri]: { ...(cur[t.uri] ?? {}), key: best.key } });
-          set++;
-        } else if (best) {
-          unsure++;
-          nextSuggest[t.uri] = [best, ...alts].map(c => ({
-            key: c.key,
-            label: `${c.title}${c.artist ? ` — ${c.artist}` : ''}${c.album ? ` (${c.album})` : ''}`,
-          }));
-        } else missing++;
-      } catch { missing++; }
+        mtBest = res?.best;
+        mtAll = mtBest ? [mtBest, ...(res?.alternates ?? [])] : [];
+        mtClear = !!mtBest && ((res?.alternates?.length ?? 0) === 0 || mtBest.score - (res!.alternates[0]?.score ?? 0) >= CLEAR_WIN);
+      } catch { /* offline: go on what was heard */ }
+
+      const heardSure = !!det && det.confidence >= HEARD_SURE;
+      // MultiTracks lists the original key's root as a major key; a heard
+      // minor key that's its relative (Em for G) is the same thing.
+      const agrees = (k: KeyName) => !!det && (det.key === k || keyRelation(det.key, k) === 'relative');
+      const mtAgreeing = mtAll.find(c => agrees(c.key));
+
+      if (det && mtAgreeing) apply(t.uri, mtAgreeing.key);              // both say the same
+      else if (heardSure && !mtBest) apply(t.uri, det!.key);             // only heard, and clearly
+      else if (!det && mtClear) apply(t.uri, mtBest!.key);               // only MultiTracks, one clear match
+      else if (det || mtBest) {
+        unsure++;
+        const opts: Array<{ key: KeyName; label: string }> = [];
+        if (det) {
+          opts.push({ key: det.key, label: `Heard by Runway (${Math.round(det.confidence * 100)}% sure, from ${det.heardSec} s of the song)` });
+          if (det.endKey) opts.push({ key: det.endKey, label: 'Heard by Runway: the last 30 seconds' });
+        }
+        for (const c of mtAll) {
+          if (opts.some(o => o.key === c.key)) continue;
+          opts.push({ key: c.key, label: `MultiTracks: ${c.title}${c.artist ? ` — ${c.artist}` : ''}${c.album ? ` (${c.album})` : ''}` });
+        }
+        nextSuggest[t.uri] = opts.slice(0, 5);
+      } else {
+        missing++;
+      }
+      if (!det) unheard++;
       done++;
       setLookup(l => ({ ...l, done }));
       setSuggest({ ...nextSuggest });
     }
     const parts = [`Set ${set} key${set === 1 ? '' : 's'}`];
-    if (unsure) parts.push(`${unsure} could be more than one key (pick on the row)`);
-    if (missing) parts.push(`${missing} not on MultiTracks (set those yourself)`);
+    if (unsure) parts.push(`${unsure} to pick on the row`);
+    if (missing) parts.push(`${missing} not found`);
+    if (unheard && waveformsOn) parts.push(`${unheard} not heard yet (Scan this playlist, then Find keys again for better results)`);
     setLookup({ busy: false, done, total: targets.length, note: targets.length ? parts.join(', ') + '.' : 'Every song already has a key.' });
   };
 
@@ -202,6 +232,7 @@ export function SpotifySongList({ tracks }: { tracks: SpotifyPlaylistTrack[] }) 
   const scan = useWaveformScan();
   // How much of each song has a waveform; refreshed live while anything plays.
   const [cov, setCov] = useState<Record<string, number>>({});
+  const [heardKeys, setHeardKeys] = useState<Record<string, SpotifyKeyGuess>>({});
   const uriKey = tracks.map(t => t.uri).join('|');
   useEffect(() => {
     if (!waveformsOn) return;
@@ -209,7 +240,8 @@ export function SpotifySongList({ tracks }: { tracks: SpotifyPlaylistTrack[] }) 
     const read = async () => {
       try {
         const c = await window.runway.spotify.waveformCoverage(tracks.map(t => t.uri), scanEdgesSec());
-        if (alive) setCov(c);
+        const k = await window.runway.spotify.waveformKeys(tracks.map(t => t.uri));
+        if (alive) { setCov(c); setHeardKeys(k); }
       } catch { /* ignore */ }
     };
     void read();
@@ -236,8 +268,13 @@ export function SpotifySongList({ tracks }: { tracks: SpotifyPlaylistTrack[] }) 
   return (
     <div style={{ marginTop: 6 }}>
       <div className="pp-actions" style={{ marginBottom: 6 }}>
-        <button className="btn-secondary" onClick={() => void lookUpKeys()} disabled={lookup.busy}>
-          {lookup.busy ? `Looking up keys… ${lookup.done}/${lookup.total}` : 'Look up keys'}
+        <button
+          className="btn-secondary"
+          onClick={() => void lookUpKeys()}
+          disabled={lookup.busy}
+          title="Fills in keys for songs without one, from what Runway heard (scan or play the songs first) and the MultiTracks catalog. Where they disagree, the choices show on the row."
+        >
+          {lookup.busy ? `Finding keys… ${lookup.done}/${lookup.total}` : 'Find keys'}
         </button>
         {waveformsOn && (scan.running
           ? (
@@ -340,6 +377,39 @@ export function SpotifySongList({ tracks }: { tracks: SpotifyPlaylistTrack[] }) 
                     })}
                   </span>
                 )}
+                {(() => {
+                  // What Runway heard, when it disagrees with the set key or there's none yet.
+                  const h = heardKeys[t.uri];
+                  if (!h || suggest[t.uri]) return null;
+                  const sc = keyColor(h.key);
+                  const setKey = (k: KeyName) => save(t.uri, { ...(edits[t.uri] ?? {}), key: k });
+                  if (!key) {
+                    return (
+                      <button
+                        type="button"
+                        onClick={() => setKey(h.key)}
+                        title={`Runway heard ${displayKey(h.key, keyMode)} (${Math.round(h.confidence * 100)}% sure, from ${h.heardSec} s). Click to use it.`}
+                        style={{ minWidth: 36, padding: '2px 6px', borderRadius: 4, cursor: 'pointer', fontFamily: 'IBM Plex Mono, monospace', fontWeight: 600, fontSize: 11, background: sc.bg, color: sc.fg, border: '1px dashed var(--border-bright)', opacity: 0.85 }}
+                      >
+                        {displayKey(h.key, keyMode)}?
+                      </button>
+                    );
+                  }
+                  const differs = h.confidence >= HEARD_SURE && h.key !== key && keyRelation(h.key, key) !== 'relative';
+                  const endsElsewhere = h.endKey && h.endKey !== key && keyRelation(h.endKey, key) !== 'relative';
+                  if (!differs && !endsElsewhere) return null;
+                  return (
+                    <span
+                      style={{ fontSize: 11, color: '#f5a524', cursor: 'pointer' }}
+                      title={differs
+                        ? `Runway heard ${displayKey(h.key, keyMode)} (${Math.round(h.confidence * 100)}% sure). Click to use it instead of ${displayKey(key, keyMode)}.`
+                        : `The last 30 seconds sound like ${displayKey(h.endKey!, keyMode)}, so the song may change key before it ends. Click to use ${displayKey(h.endKey!, keyMode)} for landing.`}
+                      onClick={() => setKey(differs ? h.key : h.endKey!)}
+                    >
+                      {differs ? `heard ${displayKey(h.key, keyMode)}` : `ends ${displayKey(h.endKey!, keyMode)}?`}
+                    </span>
+                  );
+                })()}
                 {edited && <span className="pp-status ok" title="This song has trims or fades">edited</span>}
                 <span style={{ width: 40, textAlign: 'right' }}>{formatDuration(b.end - b.start)}</span>
                 <button className="btn-secondary" onClick={() => setOpen(open === rowKey ? null : rowKey)}>

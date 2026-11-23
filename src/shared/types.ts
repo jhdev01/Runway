@@ -1074,6 +1074,7 @@ export const IPC = {
   SPOTIFY_WAVEFORM_STATUS: 'spotify:waveformStatus',
   SPOTIFY_WAVEFORM_GET: 'spotify:waveformGet',
   SPOTIFY_WAVEFORM_COVERAGE: 'spotify:waveformCoverage',
+  SPOTIFY_WAVEFORM_KEYS: 'spotify:waveformKeys',
   MULTITRACKS_LOOKUP: 'track:multitracks',
 } as const;
 
@@ -1087,7 +1088,18 @@ export interface SpotifyStatus {
   /** Quiet start is switched on (songs start without showing Spotify). */
   quietStart?: boolean;
 }
+/** A key Runway worked out by listening to a Spotify song (its own detector). */
+export interface SpotifyKeyGuess {
+  key: KeyName;
+  confidence: number;      // 0…1: how clearly it beat other keys
+  candidates: KeyName[];   // best first
+  heardSec: number;        // seconds of the song it was based on
+  endKey?: KeyName;        // the last 30 s, when that's a different key
+  endConfidence?: number;
+  at: number;
+}
 export interface SpotifyWaveform {
+  key?: SpotifyKeyGuess;
   binSec: number;          // seconds per column
   durationSec: number;
   peaks: number[];         // 0…1 per column; -1 = that part hasn't been heard yet

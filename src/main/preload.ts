@@ -59,6 +59,7 @@ const IPC = {
   SPOTIFY_WAVEFORM_STATUS: 'spotify:waveformStatus',
   SPOTIFY_WAVEFORM_GET: 'spotify:waveformGet',
   SPOTIFY_WAVEFORM_COVERAGE: 'spotify:waveformCoverage',
+  SPOTIFY_WAVEFORM_KEYS: 'spotify:waveformKeys',
   // MultiTracks.com song lookup — returns the published original master
   // key for worship songs, plus alternates when the catalog disagrees.
   MULTITRACKS_LOOKUP: 'track:multitracks',
@@ -152,6 +153,7 @@ contextBridge.exposeInMainWorld('runway', {
     waveformStatus: () => ipcRenderer.invoke(IPC.SPOTIFY_WAVEFORM_STATUS),
     waveform: (uri: string) => ipcRenderer.invoke(IPC.SPOTIFY_WAVEFORM_GET, uri),
     waveformCoverage: (uris: string[], edgesSec?: number) => ipcRenderer.invoke(IPC.SPOTIFY_WAVEFORM_COVERAGE, uris, edgesSec),
+    waveformKeys: (uris: string[]) => ipcRenderer.invoke(IPC.SPOTIFY_WAVEFORM_KEYS, uris),
   },
   planningCenter: {
     request: (req: unknown) => ipcRenderer.invoke(IPC.PCO_REQUEST, req),

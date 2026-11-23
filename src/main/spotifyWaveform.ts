@@ -15,7 +15,8 @@ import { spawn, type ChildProcessWithoutNullStreams } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import { osa, num } from './spotifyTimingTest';
-import type { SpotifyWaveform, SpotifyWaveformStatus } from '../shared/types';
+import type { KeyName, SpotifyKeyGuess, SpotifyWaveform, SpotifyWaveformStatus } from '../shared/types';
+import { detectKey } from '../shared/keyDetect';
 
 const BIN_SEC = 0.1;            // one waveform column per 0.1 s of song
 const POLL_MS = 400;            // how often Spotify's playhead is read
@@ -26,7 +27,18 @@ const IDLE_STOP_MS = 20_000;    // stop listening after Spotify is idle this lon
 const SAVE_DEBOUNCE_MS = 3000;
 
 interface Anchor { uri: string; posSec: number; at: number; volume: number; playing: boolean; durSec: number }
-interface Wave { durationSec: number; peaks: number[] } // peaks: 0…1, -1 = not heard yet
+interface Wave { durationSec: number; peaks: number[]; key?: SpotifyKeyGuess } // peaks: 0…1, -1 = not heard yet
+
+// ── Key detection ─────────────────────────────────────────────────────
+// While a song plays, its sound (low-rate mono from the helper) is kept in
+// memory, one-second slots by song position. When the song stops or
+// changes, Runway's own key detector (the one Library uses on your files)
+// runs on what was heard, the result is saved with the waveform, and the
+// sound is thrown away. Nothing audible is ever written to disk.
+const KEY_MIN_SEC = 15;        // need at least this much heard to guess
+const END_KEY_SEC = 30;        // the song's ending, for "ends in" keys
+interface Slot { data: Float32Array; filled: number }
+let keyBuf: { uri: string; rate: number; durSec: number; slots: Map<number, Slot> } | null = null;
 
 let enabled = false;
 let tap: ChildProcessWithoutNullStreams | null = null;
@@ -62,9 +74,9 @@ function loadWave(uri: string): Wave | null {
   const id = idOf(uri);
   if (!id) return null;
   try {
-    const raw = JSON.parse(fs.readFileSync(path.join(dir(), `${id}.json`), 'utf8')) as { durationSec?: number; peaks?: number[] };
+    const raw = JSON.parse(fs.readFileSync(path.join(dir(), `${id}.json`), 'utf8')) as { durationSec?: number; peaks?: number[]; key?: SpotifyKeyGuess };
     if (typeof raw.durationSec === 'number' && Array.isArray(raw.peaks)) {
-      const w: Wave = { durationSec: raw.durationSec, peaks: raw.peaks.map(v => (v < 0 ? -1 : v / 1000)) };
+      const w: Wave = { durationSec: raw.durationSec, peaks: raw.peaks.map(v => (v < 0 ? -1 : v / 1000)), key: (raw as { key?: SpotifyKeyGuess }).key };
       waves.set(uri, w);
       return w;
     }
@@ -82,7 +94,7 @@ function saveSoon(): void {
       const w = waves.get(uri);
       const id = idOf(uri);
       if (!w || !id) continue;
-      const body = JSON.stringify({ v: 1, binSec: BIN_SEC, durationSec: w.durationSec, peaks: w.peaks.map(v => (v < 0 ? -1 : Math.round(v * 1000))) });
+      const body = JSON.stringify({ v: 1, binSec: BIN_SEC, durationSec: w.durationSec, key: w.key, peaks: w.peaks.map(v => (v < 0 ? -1 : Math.round(v * 1000))) });
       try { fs.writeFileSync(path.join(dir(), `${id}.json`), body); } catch { /* disk full etc.: try next time */ }
     }
     dirty.clear();
@@ -130,6 +142,74 @@ function onLevel(wallMs: number, durMs: number, peak: number): void {
   saveSoon();
 }
 
+/** Keeps one audio buffer (in memory) at its place in the song, for key detection. */
+function onPcm(wallMs: number, rate: number, b64: string): void {
+  const a = anchor;
+  if (!a || !a.playing || !idOf(a.uri) || !(rate > 1000)) return;
+  if (Date.now() - a.at > ANCHOR_MAX_AGE_MS) return;
+  if (wallMs - jumpedAt < AFTER_JUMP_MS) return;
+  if (a.volume < MIN_VOLUME) return;
+  const startSec = a.posSec + (wallMs - a.at) / 1000;
+  if (startSec < 0 || startSec > a.durSec) return;
+  if (!keyBuf || keyBuf.uri !== a.uri || keyBuf.rate !== rate) {
+    if (keyBuf) finishKey();
+    keyBuf = { uri: a.uri, rate, durSec: a.durSec, slots: new Map() };
+  }
+  const bytes = Buffer.from(b64, 'base64');
+  const n = Math.floor(bytes.length / 2);
+  let idx = Math.round(startSec * rate);
+  for (let i = 0; i < n; i++, idx++) {
+    const sec = Math.floor(idx / rate);
+    let slot = keyBuf.slots.get(sec);
+    if (!slot) { slot = { data: new Float32Array(rate), filled: 0 }; keyBuf.slots.set(sec, slot); }
+    const off = idx - sec * rate;
+    if (slot.data[off] === 0) slot.filled++;
+    slot.data[off] = bytes.readInt16LE(i * 2) / 32768 || 1e-9;
+  }
+}
+
+function joinSlots(secs: number[], slots: Map<number, Slot>, rate: number): Float32Array {
+  const out = new Float32Array(secs.length * rate);
+  secs.forEach((s, i) => out.set(slots.get(s)!.data, i * rate));
+  return out;
+}
+
+const guessOf = (r: ReturnType<typeof detectKey>) => r
+  ? { key: r.key as KeyName, confidence: Math.round(r.confidence * 100) / 100, candidates: r.candidates.slice(0, 3).map(c => c.key as KeyName) }
+  : null;
+
+/** Runs the key detector on what was heard of the song, saves the result, drops the audio. */
+function finishKey(): void {
+  const kb = keyBuf;
+  keyBuf = null;
+  if (!kb) return;
+  const full = [...kb.slots.entries()].filter(([, s]) => s.filled >= kb.rate * 0.8).map(([sec]) => sec).sort((x, y) => x - y);
+  if (full.length < KEY_MIN_SEC) return;
+  try {
+    const w = loadWave(kb.uri);
+    if (!w) return;
+    const prev = w.key;
+    // A shorter listen doesn't replace a better-informed guess.
+    if (prev && prev.heardSec > full.length + 5) return;
+    const all = guessOf(detectKey(joinSlots(full, kb.slots, kb.rate), kb.rate));
+    if (!all) return;
+    const tailSecs = full.filter(s => s >= kb.durSec - END_KEY_SEC);
+    const end = tailSecs.length >= 12 ? guessOf(detectKey(joinSlots(tailSecs, kb.slots, kb.rate), kb.rate)) : null;
+    w.key = {
+      ...all,
+      heardSec: full.length,
+      endKey: end && end.key !== all.key ? end.key : undefined,
+      endConfidence: end && end.key !== all.key ? end.confidence : undefined,
+      at: Date.now(),
+    };
+    dirty.add(kb.uri);
+    saveSoon();
+    console.log('[spotify-key]', kb.uri, w.key);
+  } catch (e) {
+    console.warn('[spotify-key] detection failed', e);
+  }
+}
+
 function startTap(): void {
   if (tap || Date.now() < retryAfter) return;
   const exe = helperPath();
@@ -141,7 +221,7 @@ function startTap(): void {
   tapState = 'starting';
   tapReason = undefined;
   buf = '';
-  const child = spawn(exe, ['com.spotify.client'], { stdio: ['pipe', 'pipe', 'pipe'] });
+  const child = spawn(exe, ['com.spotify.client', '--pcm'], { stdio: ['pipe', 'pipe', 'pipe'] });
   tap = child;
   child.stdout.setEncoding('utf8');
   child.stdout.on('data', (chunk: string) => {
@@ -150,7 +230,10 @@ function startTap(): void {
     while ((nl = buf.indexOf('\n')) >= 0) {
       const line = buf.slice(0, nl).trim();
       buf = buf.slice(nl + 1);
-      if (line.startsWith('L ')) {
+      if (line.startsWith('A ')) {
+        const sp1 = line.indexOf(' ', 2), sp2 = line.indexOf(' ', sp1 + 1);
+        onPcm(Number(line.slice(2, sp1)), Number(line.slice(sp1 + 1, sp2)), line.slice(sp2 + 1));
+      } else if (line.startsWith('L ')) {
         const [, w, d, p] = line.split(' ');
         onLevel(Number(w), Number(d), Number(p));
       } else if (line === 'R') {
@@ -205,7 +288,7 @@ async function poll(): Promise<void> {
     ]);
     const at = (sentAt + Date.now()) / 2;
     const [uri, st, pos, vol, dur] = out.split('\t');
-    if (!uri) { anchor = null; idleSince ??= Date.now(); }
+    if (!uri) { anchor = null; idleSince ??= Date.now(); finishKey(); }
     else {
       const next: Anchor = {
         uri, posSec: num(pos ?? ''), at, volume: Math.round(num(vol ?? '')), playing: st === 'playing',
@@ -220,6 +303,8 @@ async function poll(): Promise<void> {
       prevVolume = anchor?.volume ?? null;
       anchor = next;
       if (next.playing) idleSince = null; else idleSince ??= Date.now();
+      // Song changed or stopped: work out the key of what was heard.
+      if (keyBuf && (keyBuf.uri !== next.uri || !next.playing)) finishKey();
     }
     if (anchor?.playing) startTap();
     else if (idleSince !== null && Date.now() - idleSince > IDLE_STOP_MS) stopTap();
@@ -254,7 +339,7 @@ export function spotifyWaveformStatus(): SpotifyWaveformStatus {
 export function spotifyWaveformGet(uri: string): SpotifyWaveform | null {
   const w = loadWave(uri);
   if (!w) return null;
-  return { binSec: BIN_SEC, durationSec: w.durationSec, peaks: w.peaks, coverage: coverage(w) };
+  return { binSec: BIN_SEC, durationSec: w.durationSec, peaks: w.peaks, coverage: coverage(w), key: w.key };
 }
 
 /** How much of each song has a waveform (0…1). */
@@ -265,7 +350,19 @@ export function spotifyWaveformCoverage(uris: string[], edgesSec?: number): Reco
   return res;
 }
 
+/** Detected keys (from what Runway heard) for these songs. */
+export function spotifyWaveformKeys(uris: string[]): Record<string, SpotifyKeyGuess> {
+  const res: Record<string, SpotifyKeyGuess> = {};
+  for (const u of uris.slice(0, 2000)) {
+    if (typeof u !== 'string') continue;
+    const k = loadWave(u)?.key;
+    if (k) res[u] = k;
+  }
+  return res;
+}
+
 export function spotifyWaveformShutdown(): void {
+  finishKey();
   if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
   stopTap();
 }

@@ -7,6 +7,10 @@
 //   L <wallMs> <durMs> <peak>      one line per audio buffer (~10–20 ms):
 //                                  wall-clock start (ms since 1970),
 //                                  length in ms, peak level 0…1
+//   A <wallMs> <rate> <base64>     (with --pcm) the same buffer as low-rate
+//                                  mono 16-bit samples, for Runway's key
+//                                  detector. Runway analyses it in memory
+//                                  and discards it; nothing is saved.
 //   E <code> <message>             couldn't start / stopped; then exits
 //
 // The sound itself is discarded as soon as its peak is measured. Runway
@@ -21,6 +25,7 @@ setvbuf(stdout, nil, _IOLBF, 0)
 func emit(_ s: String) { print(s); fflush(stdout) }
 
 let bundleId = CommandLine.arguments.count > 1 ? CommandLine.arguments[1] : "com.spotify.client"
+let sendPcm = CommandLine.arguments.contains("--pcm")
 
 // Quit when Runway closes our stdin.
 Thread.detachNewThread {
@@ -87,22 +92,47 @@ final class LevelTap: NSObject, SCStreamOutput, SCStreamDelegate {
     let durMs = Double(frames) / rate * 1000
 
     var peak: Float = 0
+    var mono = [Float](repeating: 0, count: frames)
+    var chans = 0
     do {
       try sb.withAudioBufferList { abl, _ in
         for buf in abl {
           guard let data = buf.mData else { continue }
           let n = Int(buf.mDataByteSize) / MemoryLayout<Float>.size
+          let ch = max(1, Int(buf.mNumberChannels))
           let p = data.bindMemory(to: Float.self, capacity: n)
           for i in 0..<n {
             let v = abs(p[i])
             if v > peak { peak = v }
+            if sendPcm {
+              let f = i / ch
+              if f < frames { mono[f] += p[i] }
+            }
           }
+          chans += ch
         }
       }
     } catch {
       return
     }
     emit(String(format: "L %.0f %.1f %.4f", wallMs, durMs, min(peak, 4)))
+    if sendPcm && chans > 0 {
+      // Average to mono and keep every Nth (averaged) sample: ~12 kHz is all
+      // the key detector uses (it ignores everything above 2 kHz).
+      let step = max(1, Int((rate / 12000).rounded()))
+      let outCount = frames / step
+      guard outCount > 0 else { return }
+      var out = [Int16](repeating: 0, count: outCount)
+      let scale = 1 / Float(chans * step)
+      for j in 0..<outCount {
+        var acc: Float = 0
+        for k in 0..<step { acc += mono[j * step + k] }
+        let v = max(-1, min(1, acc * scale))
+        out[j] = Int16(v * 32767)
+      }
+      let b64 = out.withUnsafeBufferPointer { Data(buffer: $0) }.base64EncodedString()
+      emit(String(format: "A %.0f %.0f ", wallMs, rate / Double(step)) + b64)
+    }
   }
 }
 

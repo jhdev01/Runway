@@ -10,7 +10,7 @@ import { exportLibraryBundle, readBundle, previewBundle, applyBundle } from './l
 import { IPC, type PpRequest, type PpResponse, type PcoRequest, type PcoResponse, type AppConfig, type RelinkReport, type TraySnapshot, type LibraryImportMode } from '../shared/types';
 import { runSpotifyTimingTest } from './spotifyTimingTest';
 import { spotifyPlayer } from './spotifyPlayer';
-import { spotifyWaveformEnable, spotifyWaveformStatus, spotifyWaveformGet, spotifyWaveformCoverage, spotifyWaveformShutdown } from './spotifyWaveform';
+import { spotifyWaveformEnable, spotifyWaveformStatus, spotifyWaveformGet, spotifyWaveformCoverage, spotifyWaveformKeys, spotifyWaveformShutdown } from './spotifyWaveform';
 import type { SpotifyPlayerCommand } from '../shared/types';
 import { spotifyConnect, spotifyStatus, spotifyDisconnect, spotifyReadPlaylist, spotifyListPlaylists, spotifyFetchArt } from './spotifyAccount';
 import { RemoteServer, listLanUrls, listNetworkInterfaces, type RemoteSnapshot } from './remoteServer';
@@ -938,6 +938,7 @@ function registerIpcHandlers() {
   ipcMain.handle(IPC.SPOTIFY_WAVEFORM_STATUS, async () => spotifyWaveformStatus());
   ipcMain.handle(IPC.SPOTIFY_WAVEFORM_GET, async (_e, uri: unknown) => (typeof uri === 'string' ? spotifyWaveformGet(uri) : null));
   ipcMain.handle(IPC.SPOTIFY_WAVEFORM_COVERAGE, async (_e, uris: unknown, edgesSec: unknown) => (Array.isArray(uris) ? spotifyWaveformCoverage(uris as string[], typeof edgesSec === 'number' ? edgesSec : undefined) : {}));
+  ipcMain.handle(IPC.SPOTIFY_WAVEFORM_KEYS, async (_e, uris: unknown) => (Array.isArray(uris) ? spotifyWaveformKeys(uris as string[]) : {}));
   app.on('will-quit', () => spotifyWaveformShutdown());
   ipcMain.handle(IPC.SPOTIFY_PLAYER, async (_e, cmd: SpotifyPlayerCommand) => {
     if (!cmd || typeof cmd !== 'object' || typeof (cmd as { op?: unknown }).op !== 'string') {
