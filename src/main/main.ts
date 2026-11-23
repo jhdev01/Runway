@@ -9,6 +9,8 @@ import { relinkConfig } from './relink';
 import { exportLibraryBundle, readBundle, previewBundle, applyBundle } from './libraryBundle';
 import { IPC, type PpRequest, type PpResponse, type PcoRequest, type PcoResponse, type AppConfig, type RelinkReport, type TraySnapshot, type LibraryImportMode } from '../shared/types';
 import { runSpotifyTimingTest } from './spotifyTimingTest';
+import { spotifyPlayer } from './spotifyPlayer';
+import type { SpotifyPlayerCommand } from '../shared/types';
 import { spotifyConnect, spotifyStatus, spotifyDisconnect, spotifyReadPlaylist } from './spotifyAccount';
 import { RemoteServer, listLanUrls, listNetworkInterfaces, type RemoteSnapshot } from './remoteServer';
 import { multitracksLookup } from './multitracksLookup';
@@ -929,6 +931,12 @@ function registerIpcHandlers() {
 
   // Experimental Spotify landing-precision test. Standalone diagnostic —
   // drives the Spotify desktop app only; never touches Runway's audio.
+  ipcMain.handle(IPC.SPOTIFY_PLAYER, async (_e, cmd: SpotifyPlayerCommand) => {
+    if (!cmd || typeof cmd !== 'object' || typeof (cmd as { op?: unknown }).op !== 'string') {
+      return { ok: false, reason: 'Bad Spotify command.' };
+    }
+    return spotifyPlayer(cmd);
+  });
   ipcMain.handle(IPC.SPOTIFY_TIMING_TEST, async (_e, track?: string) => {
     return runSpotifyTimingTest(typeof track === 'string' ? track : undefined);
   });

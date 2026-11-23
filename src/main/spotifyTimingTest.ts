@@ -55,7 +55,7 @@ let running = false;
 
 const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
 
-function osa(lines: string[]): Promise<string> {
+export function osa(lines: string[]): Promise<string> {
   return new Promise((resolve, reject) => {
     const args: string[] = [];
     for (const l of lines) args.push('-e', l);
@@ -66,12 +66,12 @@ function osa(lines: string[]): Promise<string> {
   });
 }
 
-const tell = (...body: string[]) => ['tell application "Spotify"', ...body, 'end tell'];
+export const tell = (...body: string[]) => ['tell application "Spotify"', ...body, 'end tell'];
 
 // AppleScript prints reals with a comma in some system locales ("12,5").
-const num = (s: string) => Number(s.trim().replace(',', '.'));
+export const num = (s: string) => Number(s.trim().replace(',', '.'));
 // AppleScript real literals must use a dot regardless of locale.
-const lit = (n: number) => n.toFixed(3);
+export const lit = (n: number) => n.toFixed(3);
 
 /** Accepts a Spotify share link or URI; returns a spotify:track: URI or null. */
 export function parseSpotifyTrack(input: string): string | null {
@@ -87,7 +87,7 @@ function median(xs: number[]): number {
   return a.length % 2 ? a[mid] : (a[mid - 1] + a[mid]) / 2;
 }
 
-function friendly(e: unknown): string {
+export function friendly(e: unknown): string {
   const msg = e instanceof Error ? e.message : String(e);
   if (/-1743|not authori[sz]ed|not allowed/i.test(msg)) {
     return 'macOS blocked Runway from controlling Spotify. Open System Settings → Privacy & Security → Automation and allow Runway to control Spotify, then try again.';
@@ -117,7 +117,11 @@ export async function runSpotifyTimingTest(trackInput?: string): Promise<Spotify
       await osa(tell('set sound volume to 0', `play track "${uri}"`));
       await sleep(1500);
     } else {
-      uri = await osa(tell('return id of current track'));
+      try {
+        uri = await osa(tell('return id of current track'));
+      } catch {
+        return { ok: false, reason: 'Play a song in Spotify first, or paste a Spotify song link.' };
+      }
       if (!/^spotify:track:/.test(uri)) {
         return { ok: false, reason: 'Play a song in Spotify first, or paste a Spotify song link.' };
       }
@@ -150,9 +154,16 @@ export async function runSpotifyTimingTest(trackInput?: string): Promise<Spotify
       await osa(tell(`play track "${uri}"`));
       let loaded = false;
       while (Date.now() - loadStart < LOAD_TIMEOUT_MS) {
-        const st = await osa(tell(
-          'return (id of current track) & "|" & (player state as text) & "|" & (player position as text)',
-        ));
+        // While a song loads Spotify briefly has no current track and
+        // answers with error -1728; that just means "not yet", so ask again.
+        let st = '';
+        try {
+          st = await osa(tell(
+            'return (id of current track) & "|" & (player state as text) & "|" & (player position as text)',
+          ));
+        } catch (e) {
+          if (!/-1728/.test(e instanceof Error ? e.message : String(e))) throw e;
+        }
         const [id, state, posStr] = st.split('|');
         // Near the top of the song = the restart has actually happened
         // (replaying the current song can still report its old position).

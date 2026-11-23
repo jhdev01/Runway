@@ -6,7 +6,7 @@
 # the image but Finder renders the window blank.
 #
 # This script:
-#   1. Stages the contents (.app, .command, .txt, .background/) in a tmp dir
+#   1. Stages the contents (.app, Install Help.html, .background/) in a tmp dir
 #   2. Creates a read-write HFS+ DMG large enough to hold them
 #   3. Mounts it, uses AppleScript to set window background + icon
 #      positions + view options
@@ -51,8 +51,16 @@ codesign --force --deep --sign - "$APP_SRC" || {
 echo "[make-dmg] staging contents in $STAGE"
 mkdir -p "$STAGE/.background"
 cp -R "$APP_SRC" "$STAGE/Runway.app"
-cp "$ROOT/build/HOW TO INSTALL.txt" "$STAGE/HOW TO INSTALL.txt"
-cp "$ROOT/build/dmg-background.png" "$STAGE/.background/dmg-background.png"
+cp "$ROOT/build/Install Help.html" "$STAGE/Install Help.html"
+# Combine the 1x and 2x artwork into one Retina-aware TIFF so the text is
+# sharp on Retina screens. Fall back to the 1x PNG if tiffutil balks.
+BG_NAME="dmg-background.tiff"
+if ! tiffutil -cathidpicheck "$ROOT/build/dmg-background.png" "$ROOT/build/dmg-background@2x.png" \
+     -out "$STAGE/.background/$BG_NAME" >/dev/null 2>&1; then
+  echo "[make-dmg] tiffutil failed; using the 1x PNG background"
+  BG_NAME="dmg-background.png"
+  cp "$ROOT/build/dmg-background.png" "$STAGE/.background/$BG_NAME"
+fi
 ln -s /Applications "$STAGE/Applications"
 
 echo "[make-dmg] creating read-write DMG"
@@ -96,15 +104,21 @@ with timeout of 120 seconds
       set current view of container window to icon view
       set toolbar visible of container window to false
       set statusbar visible of container window to false
-      set the bounds of container window to {200, 120, 840, 720}
+      -- Not every macOS version accepts this; the 660-tall window leaves
+      -- room for the path bar either way.
+      try
+        set pathbar visible of container window to false
+      end try
+      set the bounds of container window to {200, 120, 840, 780}
       set viewOpts to the icon view options of container window
       set arrangement of viewOpts to not arranged
       set icon size of viewOpts to 96
-      set background picture of viewOpts to file ".background:dmg-background.png"
+      set background picture of viewOpts to file ".background:$BG_NAME"
       delay 1
-      set position of item "Runway.app" of container window to {160, 200}
-      set position of item "Applications" of container window to {480, 200}
-      set position of item "HOW TO INSTALL.txt" of container window to {320, 460}
+      -- Must match the artwork drawn by make-dmg-background.py.
+      set position of item "Runway.app" of container window to {160, 190}
+      set position of item "Applications" of container window to {480, 190}
+      set position of item "Install Help.html" of container window to {320, 450}
       delay 1
       update without registering applications
       delay 3

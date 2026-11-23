@@ -11,6 +11,8 @@ import { PpItemPicker } from '../components/PpItemPicker';
 import { runPcoKeySync, type PcoServiceType } from '../lib/planningCenterClient';
 import { RotaryKnob } from '../components/RotaryKnob';
 import { Toggle } from '../components/Toggle';
+import { SpotifyTestRunPanel } from '../components/SpotifyTestRunPanel';
+import { SpotifySongList } from '../components/SpotifySongList';
 import runwayIconUrl from '../assets/runway-icon.png';
 
 type SettingsTab = 'audio' | 'midi' | 'propresenter' | 'planningcenter' | 'pads' | 'remote' | 'engine' | 'display' | 'about';
@@ -1953,7 +1955,7 @@ function SpotifyAccountSection() {
       <div className="settings-section-title">Spotify playlists (experimental)</div>
       <div className="settings-section-sub">
         Sign in so Runway can read the songs in your Spotify playlists. Spotify only lets Runway read
-        playlists you created or collaborate on. This only reads the song list — it doesn’t play anything yet.
+        playlists you created or collaborate on. After reading one, you can try a test run below.
       </div>
       {!status.connected && (
         <div className="settings-section-sub">
@@ -2009,18 +2011,11 @@ function SpotifyAccountSection() {
             <strong>{playlist.name}</strong> — {playlist.tracks.length} songs, {formatDuration(totalSec)} total
             {playlist.skipped ? ` (${playlist.skipped} skipped: podcasts or local files)` : ''}
           </div>
-          <div style={{ maxHeight: 260, overflowY: 'auto', marginTop: 6 }}>
-            {playlist.tracks.map((t, i) => (
-              <div key={`${t.uri}-${i}`} style={{ display: 'flex', gap: 8 }}>
-                <span style={{ width: 24, textAlign: 'right', opacity: 0.6 }}>{i + 1}</span>
-                <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {t.title}{t.artist ? ` — ${t.artist}` : ''}
-                </span>
-                <span>{formatDuration(t.durationMs / 1000)}</span>
-              </div>
-            ))}
-          </div>
+          <SpotifySongList tracks={playlist.tracks} />
         </div>
+      )}
+      {playlist?.ok && playlist.tracks && playlist.tracks.length > 0 && (
+        <SpotifyTestRunPanel playlist={playlist} />
       )}
     </section>
   );
