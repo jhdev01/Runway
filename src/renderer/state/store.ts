@@ -246,6 +246,8 @@ interface AppStoreState {
       // action so a sequence can swap which playlist arms without
       // mutating the service's saved settings.
       playlistOverrideId?: string;
+      // Same, with a Spotify playlist (imported in Playlists › Spotify).
+      spotifyPlaylistOverrideId?: string;
       // Override the global `repeatToFill` default for this arm only.
       repeatToFill?: boolean;
       // Internal: set on the automatic re-arm after a preload failure so it
@@ -988,8 +990,9 @@ export const useAppStore = create<AppStoreState>((set, get) => ({
     // Spotify playlist as the music source (experimental). Runway-playlist
     // services never enter this branch, so their timing is untouched. An
     // arm_playlist action's override still means "use this Runway playlist".
-    if (service.spotifyPlaylistId && !opts?.playlistOverrideId) {
-      const spId = service.spotifyPlaylistId;
+    const spOverride = opts?.spotifyPlaylistOverrideId;
+    if ((spOverride || service.spotifyPlaylistId) && !opts?.playlistOverrideId) {
+      const spId = (spOverride ?? service.spotifyPlaylistId)!;
       const cache = state.config.spotify?.playlistCache ?? {};
       let pl = cache[spId];
       try {

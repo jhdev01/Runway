@@ -1774,9 +1774,13 @@ export class ServiceController {
       currentRunwayServiceId: state.currentRunway?.serviceId ?? null,
       currentRunwayIsPostService: state.currentRunway?.isPostService ?? false,
     });
-    const playlist = playlistId
+    // "spotify:<id>" = an imported Spotify playlist; anything else is a
+    // Runway playlist (unchanged path).
+    const spId = playlistId?.startsWith('spotify:') ? playlistId.slice('spotify:'.length) : null;
+    const playlist = playlistId && !spId
       ? state.config.playlists.find(p => p.id === playlistId)
       : undefined;
+    const displayName = playlist?.name ?? playlistName ?? playlistId;
     /**
      * Fail-out helper: notify the operator AND tear down the OLD
      * runway so its `advanceMusic` doesn't keep rolling into the
@@ -1802,7 +1806,11 @@ export class ServiceController {
       }, Math.max(300, fadeStop * 1000));
     };
 
-    if (!playlistId || !playlist) {
+    if (spId && !state.config.spotify?.playlistCache?.[spId]) {
+      failAndEndRunway(`arm_playlist: Spotify playlist "${playlistName ?? spId}" isn’t imported any more — runway ended.`);
+      return;
+    }
+    if (!spId && (!playlistId || !playlist)) {
       // No playlist set on the action (or it's been deleted).
       console.log('[arm_playlist] no playlist set — ending runway here');
       failAndEndRunway(
@@ -1812,7 +1820,7 @@ export class ServiceController {
       );
       return;
     }
-    if (playlist.trackIds.length === 0) {
+    if (playlist && playlist.trackIds.length === 0) {
       failAndEndRunway(`arm_playlist: "${playlist.name}" is empty — runway ended.`);
       return;
     }
@@ -1834,6 +1842,11 @@ export class ServiceController {
       // swap (like change_setlist) so the action does the obvious-
       // correct thing instead of going silent. Notify so they know
       // why we didn't actually arm anything.
+      if (spId || !playlist) {
+        // Spotify: nothing to land at, so nothing to arm.
+        this.notifyActionError?.(`arm_playlist: no upcoming service in the schedule for "${displayName}" to land at.`);
+        return;
+      }
       console.log('[arm_playlist] no upcoming service — falling back to standalone playlist swap');
       this.notifyActionError?.(
         `arm_playlist: no upcoming service in the schedule — playing "${playlist.name}" as a standalone runway. Schedule a future service if you want to arm one.`,
@@ -1884,11 +1897,9 @@ export class ServiceController {
       const result = await state.armService(
         target.service.id,
         (filePath) => this.audio.loadBuffer(filePath).then(() => undefined),
-        {
-          playlistOverrideId: playlistId,
-          leadOverrideSec,
-          repeatToFill: fillWithMusic,
-        },
+        spId
+          ? { spotifyPlaylistOverrideId: spId, leadOverrideSec, repeatToFill: fillWithMusic }
+          : { playlistOverrideId: playlistId, leadOverrideSec, repeatToFill: fillWithMusic },
       );
       if (!result.ok) {
         const msg = `arm_playlist refused: ${result.reason ?? 'unknown error'}`;
@@ -1896,7 +1907,7 @@ export class ServiceController {
         this.notifyActionError?.(msg);
         return;
       }
-      console.log('[arm_playlist] armed →', target.service.name || target.service.startTime, 'with', playlist.name);
+      console.log('[arm_playlist] armed →', target.service.name || target.service.startTime, 'with', displayName, spId ? '(Spotify)' : '');
       if (result.warning) this.notifyActionError?.(result.warning);
     } finally {
       // Clear after the fade has had time to complete + a small

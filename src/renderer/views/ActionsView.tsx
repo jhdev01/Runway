@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { loadSpotifyPlaylists } from '../components/PreServicePlaylistSelect';
+import { loadSpotifyPlaylists, importedSpotifyPlaylists } from '../components/PreServicePlaylistSelect';
 import { useAppStore } from '../state/store';
 import { useEngines } from '../state/engines';
 import type { Action, ActionPayload, ActionSequence, ActionAnchor, KeyName } from '@shared/types';
@@ -830,13 +830,19 @@ function ArmPlaylistEditor({
   onChange: (next: Extract<ActionPayload, { type: 'arm_playlist' }>) => void;
 }) {
   const playlists = useAppStore(s => s.config.playlists);
+  // Imported Spotify playlists (Playlists › Spotify), as "spotify:<id>".
+  useAppStore(s => s.config.spotify?.playlistCache);
+  const spotify = importedSpotifyPlaylists();
   return (
     <div className="payload-row">
       <select
         value={payload.playlistId}
         onChange={e => {
-          const pl = playlists.find(p => p.id === e.target.value);
-          onChange({ ...payload, playlistId: e.target.value, playlistName: pl?.name });
+          const v = e.target.value;
+          const name = v.startsWith('spotify:')
+            ? spotify.find(p => `spotify:${p.id}` === v)?.name
+            : playlists.find(p => p.id === v)?.name;
+          onChange({ ...payload, playlistId: v, playlistName: name });
         }}
         title="Arms this playlist as the next service's pre-service music. Replaces whatever is playing: post-service fades out and queued pre-service music is cleared."
       >
@@ -846,7 +852,13 @@ function ArmPlaylistEditor({
             {p.name} ({p.kind === 'pre' ? 'Pre' : p.kind === 'post' ? 'Post' : 'Special'})
           </option>
         ))}
-        {payload.playlistId && !playlists.some(p => p.id === payload.playlistId) && (
+        {spotify.length > 0 && (
+          <optgroup label="Spotify (Mac)">
+            {spotify.map(p => <option key={p.id} value={`spotify:${p.id}`}>{p.name} · Spotify</option>)}
+          </optgroup>
+        )}
+        {payload.playlistId && !playlists.some(p => p.id === payload.playlistId)
+          && !spotify.some(p => `spotify:${p.id}` === payload.playlistId) && (
           <option value={payload.playlistId}>(missing) {payload.playlistName ?? payload.playlistId}</option>
         )}
       </select>
