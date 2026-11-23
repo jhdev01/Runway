@@ -1,12 +1,11 @@
-import React, { useRef, useState } from 'react';
+import React, { useState } from 'react';
 import { useAppStore } from '../state/store';
 import type { KeyName, SpotifyPlaylistTrack, SpotifyTrackEdit } from '@shared/types';
 import { formatDuration } from '../lib/format';
 import { songBounds } from '../lib/spotifyTestRun';
 import { KeyPickerModal } from './KeyPickerModal';
 import { SpotifyWaveformView } from './SpotifyWaveformView';
-import { spotifyServiceRun, spotifyTestRun } from '../lib/spotifyTestRun';
-import { spotifyFreePlay } from '../lib/spotifyPost';
+import { waveformScanner, useWaveformScan } from '../lib/spotifyWaveformScan';
 import { keyColor, displayKey } from '@shared/music';
 
 type Field = 'trimStartSec' | 'trimEndSec' | 'landSec' | 'fadeInSec' | 'fadeOutSec';
@@ -198,50 +197,9 @@ export function SpotifySongList({ tracks }: { tracks: SpotifyPlaylistTrack[] }) 
     setLookup({ busy: false, done, total: targets.length, note: targets.length ? parts.join(', ') + '.' : 'Every song already has a key.' });
   };
 
-  // Scan waveforms: plays each song that doesn't have one yet straight
-  // through so the waveform recorder hears it. Never during a service or
-  // test run. The Mac can be muted; Spotify's own volume just can't be 0.
+  // Scan waveforms for this playlist (runs in the background; see spotifyWaveformScan).
   const waveformsOn = !!config.spotify?.waveforms;
-  const [scan, setScan] = useState<{ running: boolean; idx: number; total: number; title: string; note: string | null }>(
-    { running: false, idx: 0, total: 0, title: '', note: null },
-  );
-  const scanStop = useRef(false);
-  const busyElsewhere = () => spotifyServiceRun.isActive() || spotifyTestRun.isActive() || spotifyFreePlay.isActive()
-    || (() => { const r = useAppStore.getState().currentRunway; return !!r && (r.phase === 'music' || r.phase === 'pad'); })();
-  const scanWaveforms = async () => {
-    if (busyElsewhere()) { setScan(x => ({ ...x, note: 'Something is playing. Scan when the service or test run is done.' })); return; }
-    const cov = await window.runway.spotify.waveformCoverage(tracks.map(t => t.uri));
-    const todo = tracks.filter((t, i, all) => (cov[t.uri] ?? 0) < 0.95 && all.findIndex(x => x.uri === t.uri) === i);
-    if (todo.length === 0) { setScan(x => ({ ...x, note: 'Every song already has a waveform.' })); return; }
-    scanStop.current = false;
-    const check = await window.runway.spotify.player({ op: 'check' });
-    if (!check.ok) { setScan(x => ({ ...x, note: check.reason ?? 'Spotify isn’t open.' })); return; }
-    const origVol = check.volume ?? 70;
-    if (origVol < 20) await window.runway.spotify.player({ op: 'volume', volume: 50 });
-    let done = 0;
-    for (const t of todo) {
-      if (scanStop.current || busyElsewhere()) break;
-      setScan({ running: true, idx: done + 1, total: todo.length, title: t.title, note: null });
-      const r = await window.runway.spotify.player({ op: 'play', uri: t.uri });
-      if (!r.ok) { setScan(x => ({ ...x, note: r.reason ?? 'Couldn’t play in Spotify.' })); break; }
-      if (!r.wasFrontmost) window.setTimeout(() => { void window.runway.spotify.player({ op: 'background' }); }, 800);
-      const limit = Date.now() + t.durationMs + 20_000;
-      let started = false;
-      while (Date.now() < limit && !scanStop.current) {
-        await new Promise(res => setTimeout(res, 1500));
-        const st = await window.runway.spotify.player({ op: 'state' });
-        if (st.ok && st.trackUri === t.uri) started = true;
-        else if (started) break;                       // song ended / moved on
-        if (busyElsewhere()) { scanStop.current = true; break; }
-        const c = await window.runway.spotify.waveformCoverage([t.uri]);
-        if ((c[t.uri] ?? 0) >= 0.98) break;
-      }
-      done++;
-    }
-    await window.runway.spotify.player({ op: 'pause' });
-    if (origVol < 20) await window.runway.spotify.player({ op: 'volume', volume: origVol });
-    setScan({ running: false, idx: 0, total: 0, title: '', note: scanStop.current ? 'Scan stopped.' : `Scanned ${done} song${done === 1 ? '' : 's'}.` });
-  };
+  const scan = useWaveformScan();
 
   // Audition a song in Spotify (no fades, no timing — just play / pause).
   const [playingUri, setPlayingUri] = useState<string | null>(null);
@@ -266,8 +224,8 @@ export function SpotifySongList({ tracks }: { tracks: SpotifyPlaylistTrack[] }) 
           {lookup.busy ? `Looking up keys… ${lookup.done}/${lookup.total}` : 'Look up keys'}
         </button>
         {waveformsOn && (scan.running
-          ? <button className="btn-secondary" onClick={() => { scanStop.current = true; }}>Stop scan ({scan.idx}/{scan.total}: {scan.title})</button>
-          : <button className="btn-secondary" onClick={() => void scanWaveforms()} title="Plays songs without a waveform straight through so Runway can draw them. You can mute your Mac while it runs.">Scan waveforms</button>)}
+          ? <button className="btn-secondary" onClick={() => waveformScanner.stop()}>Stop scan ({scan.idx}/{scan.total}: {scan.title})</button>
+          : <button className="btn-secondary" onClick={() => void waveformScanner.start(tracks)} title="Plays this playlist’s songs that don’t have a waveform yet straight through, in the background. You can mute your Mac and walk away.">Scan waveforms</button>)}
         {lookup.note && <span className="settings-field-sub">{lookup.note}</span>}
         {scan.note && <span className="settings-field-sub">{scan.note}</span>}
       </div>

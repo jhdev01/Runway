@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useAppStore } from '../state/store';
+import { useWaveformScan } from '../lib/spotifyWaveformScan';
 
 type SpotifyLight = { state: 'on' | 'err' | 'unknown'; detail: string };
 
@@ -19,6 +20,7 @@ export function SpotifyStatusPill() {
   // The top bar is always on screen, so this is where the waveform
   // recorder (Settings › Spotify › Draw waveforms) is switched on and off.
   const waveforms = useAppStore(s => !!s.config.spotify?.waveforms);
+  const scan = useWaveformScan();
   useEffect(() => {
     void window.runway?.spotify?.waveformEnable?.(waveforms);
   }, [waveforms]);
@@ -60,10 +62,10 @@ export function SpotifyStatusPill() {
       className="midi-status midi-status-button"
       onClick={() => setView('settings')}
       data-state={light.state}
-      title={light.detail}
+      title={scan.running ? `Scanning waveforms: ${scan.idx} of ${scan.total} (${scan.title}). ${light.detail}` : light.detail}
     >
       <div className={`midi-dot ${light.state === 'on' ? '' : light.state === 'err' ? 'disabled' : 'off'}`} />
-      <span>Spotify</span>
+      <span>{scan.running ? `Spotify · scan ${scan.idx}/${scan.total}` : 'Spotify'}</span>
     </button>
   );
 }

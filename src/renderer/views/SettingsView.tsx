@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { waveformScanner, useWaveformScan, allImportedSpotifySongs } from '../lib/spotifyWaveformScan';
 import { useAppStore, generateId } from '../state/store';
 import { useEngines } from '../state/engines';
 import { ALL_KEYS, MAJOR_KEYS, MINOR_KEYS, keyColor, displayKey } from '@shared/music';
@@ -1962,6 +1963,7 @@ function SpotifyWaveformSetting() {
   const on = useAppStore(s => !!s.config.spotify?.waveforms);
   const updateConfig = useAppStore(s => s.updateConfig);
   const [st, setSt] = useState<SpotifyWaveformStatus | null>(null);
+  const scan = useWaveformScan();
   useEffect(() => {
     let alive = true;
     const read = () => window.runway?.spotify?.waveformStatus?.().then(x => { if (alive) setSt(x); }).catch(() => undefined);
@@ -1995,6 +1997,32 @@ function SpotifyWaveformSetting() {
         Runway under Screen &amp; System Audio Recording; Runway only listens to Spotify, never your screen.
       </div>
       {label && <div className={`pp-status ${label.ok ? 'ok' : 'err'}`}>{label.text}</div>}
+      {on && (
+        <div className="pp-actions" style={{ marginTop: 8 }}>
+          {scan.running ? (
+            <>
+              <span className="pp-status ok">Scanning {scan.idx} of {scan.total}: {scan.title}</span>
+              <button className="btn-secondary" onClick={() => waveformScanner.stop()}>Stop</button>
+            </>
+          ) : (
+            <>
+              <button
+                className="btn-secondary"
+                onClick={() => void waveformScanner.start(allImportedSpotifySongs())}
+                disabled={allImportedSpotifySongs().length === 0}
+                title="Plays every imported Spotify song that doesn’t have a waveform yet, one after another"
+              >
+                Scan all songs
+              </button>
+              <span className="settings-field-sub">
+                Plays every imported Spotify song without a waveform, start to finish. Mute your Mac and walk away;
+                it keeps going on other screens and stops by itself before a service starts.
+              </span>
+            </>
+          )}
+        </div>
+      )}
+      {on && !scan.running && scan.note && <div className="settings-section-sub">{scan.note}</div>}
     </div>
   );
 }
