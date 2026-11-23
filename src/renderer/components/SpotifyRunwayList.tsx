@@ -9,12 +9,13 @@ import { spotifyServiceRun, spotifyNowPlaying, type SpotifyRunSegment, type Spot
  * playlist. Same chip strip as the Runway-track runway (title, artist,
  * length, key badge, progress bar, pad chip) plus album art.
  */
-export function SpotifyRunwayList({ segments, landInKey, showPad, padPlaying, keyMode }: {
+export function SpotifyRunwayList({ segments, landInKey, showPad, padPlaying, keyMode, showPlayed }: {
   segments: SpotifyRunSegment[];
   landInKey?: KeyName;
   showPad: boolean;
   padPlaying: boolean;
   keyMode: 'sharp' | 'flat';
+  showPlayed: boolean;
 }) {
   const [run, setRun] = useState<SpotifyRunState>(spotifyServiceRun.getState());
   const [now, setNow] = useState(Date.now());
@@ -32,6 +33,9 @@ export function SpotifyRunwayList({ segments, landInKey, showPad, padPlaying, ke
         {segments.map((s, i) => {
           const isCurrent = live?.index === i;
           const isPlayed = live ? i < live.index : now >= s.stopAt;
+          // Like the normal runway: finished songs drop off the front so the
+          // current one leads, unless "Show played tracks" is on.
+          if (isPlayed && !showPlayed) return null;
           const span = s.stopAt - s.startAt;
           const progressPct = isCurrent ? Math.min(100, ((now - s.startAt) / span) * 100) : isPlayed ? 100 : 0;
           const c = s.key ? keyColor(s.key) : null;

@@ -34,8 +34,14 @@ const FIRST_SONG_LEAD_MS = 2600;  // first song starts this early, silent, to ch
 const PLACE_TOLERANCE_MS = 40;    // re-place the first song (still silent) if further off than this
 const STEP_MS = 250;              // volume step / playhead reading interval
 const FIRST_FADE_IN_SEC = 4;
-const TRANSITION_FADE_IN_SEC = 1.5;
-const TRANSITION_FADE_OUT_SEC = 2.5;
+// Song changes are back to back, like Spotify's own playback: a song that
+// starts at its beginning only gets a click-free ramp (its intro does the
+// rest), and one that plays to its natural ending gets no fade at all (its
+// own ending does). Real fades only where a song is cut: a trimmed start or
+// end, the first song, or a fade the operator set.
+const TRANSITION_FADE_IN_SEC = 1.5;   // song starting mid-way (trimmed / joined)
+const TRANSITION_FADE_OUT_SEC = 2.5;  // song cut before its natural ending
+const NATURAL_START_RAMP_SEC = 0.3;   // song starting at 0:00
 const SETTLE_AFTER_SEEK_MS = 600; // ignore readings right after a jump
 const MIN_FIRST_SEGMENT_SEC = 8;  // drop a first song that would only play a few seconds
 const LANDING_WINDOW_MS = 8000;   // landing error = readings in the last 8 s
@@ -290,12 +296,15 @@ export class SpotifyTestRunner {
   }
 
   private envelope(seg: SpotifyRunSegment, isFirst: boolean, isLast: boolean, now: number, fadeFrom = seg.startAt): number {
-    const fadeIn = seg.fadeInSec ?? (isFirst ? this.firstFadeInSec : TRANSITION_FADE_IN_SEC);
+    const fadeIn = seg.fadeInSec ?? (isFirst
+      ? this.firstFadeInSec
+      : seg.startPosSec < 0.5 ? NATURAL_START_RAMP_SEC : TRANSITION_FADE_IN_SEC);
     let g = fadeIn > 0 ? Math.min(1, Math.max(0, (now - fadeFrom) / 1000 / fadeIn)) : (now >= fadeFrom ? 1 : 0);
     let fadeOut = 0;
     let fadeOutEnd = seg.stopAt;
     if (!isLast) {
-      fadeOut = seg.fadeOutSec ?? TRANSITION_FADE_OUT_SEC;
+      // Played to its natural ending: no fade, the song ends itself.
+      fadeOut = seg.fadeOutSec ?? (seg.trimmedEnd ? TRANSITION_FADE_OUT_SEC : 0);
       fadeOutEnd = seg.endAt - LOAD_LEAD_MS;
     } else if (seg.fadeOutSec !== undefined || seg.trimmedEnd || seg.stopAt > seg.endAt) {
       // Last song stopping before its natural end: fade so it doesn't cut off.

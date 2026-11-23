@@ -24,6 +24,21 @@ function parseState(out: string): Pick<SpotifyPlayerReply, 'trackUri' | 'playerS
   };
 }
 
+async function keepSpotifyBehind(): Promise<void> {
+  try {
+    await osa([
+      'tell application "System Events"',
+      'repeat 12 times',
+      'if exists application process "Spotify" then',
+      'if frontmost of application process "Spotify" then set visible of application process "Spotify" to false',
+      'end if',
+      'delay 0.08',
+      'end repeat',
+      'end tell',
+    ]);
+  } catch { /* permission refused: Spotify may come forward */ }
+}
+
 export async function spotifyPlayer(cmd: SpotifyPlayerCommand): Promise<SpotifyPlayerReply> {
   if (process.platform !== 'darwin') {
     return { ok: false, reason: 'Spotify control only works on a Mac for now.' };
@@ -55,7 +70,12 @@ export async function spotifyPlayer(cmd: SpotifyPlayerCommand): Promise<SpotifyP
           'return "front:" & (wasFront as text)',
         ]);
         const answeredAt = Date.now();
-        return { ok: true, sentAt, answeredAt, wasFrontmost: out.trim() === 'front:true' };
+        const wasFrontmost = out.trim() === 'front:true';
+        // Spotify pulls itself forward when a new song starts. If it wasn't in
+        // front, keep pushing it back for the next second (it can come forward
+        // a beat after the command). Runs alongside; doesn't delay the reply.
+        if (!wasFrontmost) void keepSpotifyBehind();
+        return { ok: true, sentAt, answeredAt, wasFrontmost };
       }
       case 'background':
         // Hide Spotify if it jumped in front (macOS brings it forward when a

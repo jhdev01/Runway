@@ -1283,6 +1283,7 @@ export function LiveView() {
                     showPad={!svc?.disablePadBridge && !currentRunway.skipPadBridge && (currentRunway.padBridgeSec || 0) > 0}
                     padPlaying={currentRunway.phase === 'pad'}
                     keyMode={keyDisplayModeForSpotify}
+                    showPlayed={showPlayedTracks}
                   />
                 </div>
               );
