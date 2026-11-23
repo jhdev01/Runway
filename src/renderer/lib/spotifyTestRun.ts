@@ -21,7 +21,7 @@
  */
 
 import type { AudioEngine } from './audioEngine';
-import type { KeyName, SpotifyPlaylistTrack, SpotifyPlayerCommand, SpotifyPlayerReply } from '@shared/types';
+import type { KeyName, SpotifyPlaylistTrack, SpotifyPlayerCommand, SpotifyPlayerReply, SpotifyTrackEdit } from '@shared/types';
 
 const PREROLL_MS = 4000;          // gap between pressing Start and the first song
 const LOAD_LEAD_MS = 700;         // start each song this early, silent
@@ -43,6 +43,8 @@ const LANDING_WINDOW_MS = 8000;   // landing error = readings in the last 8 s
 // into whatever it would play next before the pause arrives. The song's
 // own ending covers it.
 const END_MUTE_MS = 300;
+// Last song with a trimmed end or landing marker but no fade-out set: fade over this.
+const LAST_TRIM_FADE_SEC = 2;
 
 export interface SpotifyRunSegment {
   uri: string;
@@ -50,8 +52,21 @@ export interface SpotifyRunSegment {
   artist: string;
   songDurSec: number;
   startPosSec: number;   // where in the song this segment starts
+  endPosSec: number;     // song position at endAt (trim end, or the landing marker for the last song)
   startAt: number;       // wall-clock ms
-  endAt: number;
+  endAt: number;         // for the last song: the countdown's 0:00
+  stopAt: number;        // when the song goes silent (after endAt only if a landing marker is set)
+  fadeInSec?: number;    // operator's per-song fades (undefined = Runway's defaults)
+  fadeOutSec?: number;
+  trimmedEnd: boolean;   // stops before the song's natural end
+}
+
+/** Playable range of a song after the operator's trims, clamped to sane values. */
+export function songBounds(durSec: number, e: SpotifyTrackEdit | undefined) {
+  const start = Math.min(Math.max(0, e?.trimStartSec ?? 0), Math.max(0, durSec - 1));
+  const end = Math.min(durSec, Math.max(start + 1, e?.trimEndSec ?? durSec));
+  const land = e?.landSec !== undefined && e.landSec > start && e.landSec <= end ? e.landSec : end;
+  return { start, end, land };
 }
 
 export type SpotifyRunStatus = 'idle' | 'running' | 'landed' | 'stopped' | 'error';
@@ -73,37 +88,53 @@ const IDLE: SpotifyRunState = {
   landingErrorMs: null, corrections: 0, padKey: null, padPlaying: false,
 };
 
-/** Plans the playlist so its last song ends at `endAt` (ms). */
+/**
+ * Plans the playlist so its last song reaches its landing point (its trim
+ * end, or its landing marker) at `endAt` (ms). Songs before it play their
+ * trimmed range in full; the first one starts partway in to fit `lengthSec`.
+ */
 export function planSpotifyRun(
   tracks: SpotifyPlaylistTrack[],
   lengthSec: number | null,
   endAt: number,
+  edits: Record<string, SpotifyTrackEdit> = {},
 ): SpotifyRunSegment[] {
-  const total = tracks.reduce((s, t) => s + t.durationMs / 1000, 0);
+  const last = tracks.length - 1;
+  const info = tracks.map((t, i) => {
+    const dur = t.durationMs / 1000;
+    const b = songBounds(dur, edits[t.uri]);
+    const endPos = i === last ? b.land : b.end;
+    return { t, dur, b, endPos, span: endPos - b.start };
+  });
+  const total = info.reduce((s, x) => s + x.span, 0);
   let remaining = lengthSec === null ? total : Math.min(lengthSec, total);
-  const picked: Array<{ t: SpotifyPlaylistTrack; startPosSec: number }> = [];
-  for (let i = tracks.length - 1; i >= 0 && remaining > 0; i--) {
-    const dur = tracks[i].durationMs / 1000;
-    if (dur >= remaining) {
-      picked.unshift({ t: tracks[i], startPosSec: dur - remaining });
+  const picked: Array<{ x: typeof info[number]; startPosSec: number; isLast: boolean }> = [];
+  for (let i = last; i >= 0 && remaining > 0; i--) {
+    const x = info[i];
+    if (x.span >= remaining) {
+      picked.unshift({ x, startPosSec: x.endPos - remaining, isLast: i === last });
       remaining = 0;
     } else {
-      picked.unshift({ t: tracks[i], startPosSec: 0 });
-      remaining -= dur;
+      picked.unshift({ x, startPosSec: x.b.start, isLast: i === last });
+      remaining -= x.span;
     }
   }
   // A first song that would only play a few seconds just sounds like a glitch.
-  if (picked.length > 1) {
-    const first = picked[0];
-    if (first.t.durationMs / 1000 - first.startPosSec < MIN_FIRST_SEGMENT_SEC) picked.shift();
-  }
+  if (picked.length > 1 && picked[0].x.endPos - picked[0].startPosSec < MIN_FIRST_SEGMENT_SEC) picked.shift();
+
   const segs: SpotifyRunSegment[] = [];
   let cursor = endAt;
   for (let i = picked.length - 1; i >= 0; i--) {
-    const { t, startPosSec } = picked[i];
-    const songDurSec = t.durationMs / 1000;
-    const startAt = cursor - (songDurSec - startPosSec) * 1000;
-    segs.unshift({ uri: t.uri, title: t.title, artist: t.artist, songDurSec, startPosSec, startAt, endAt: cursor });
+    const { x, startPosSec, isLast } = picked[i];
+    const e = edits[x.t.uri];
+    const startAt = cursor - (x.endPos - startPosSec) * 1000;
+    segs.unshift({
+      uri: x.t.uri, title: x.t.title, artist: x.t.artist, songDurSec: x.dur,
+      startPosSec, endPosSec: x.endPos, startAt, endAt: cursor,
+      stopAt: isLast ? cursor + (x.b.end - x.b.land) * 1000 : cursor,
+      fadeInSec: e?.fadeInSec, fadeOutSec: e?.fadeOutSec,
+      trimmedEnd: x.b.end < x.dur - 0.05,
+    });
     cursor = startAt;
   }
   return segs;
@@ -145,6 +176,7 @@ class SpotifyTestRunner {
     padFilePath: string | null;
     padLeadInSec: number;
     audio: AudioEngine;
+    edits?: Record<string, SpotifyTrackEdit>;
   }): Promise<void> {
     if (this.isActive()) return;
     const id = ++this.runId;
@@ -154,10 +186,12 @@ class SpotifyTestRunner {
     this.originalVolume = check.volume && check.volume > 0 ? check.volume : 70;
     await this.cmd({ op: 'volume', volume: 0 });
 
-    const endAt = Date.now() + PREROLL_MS + (opts.lengthSec === null
-      ? opts.tracks.reduce((s, t) => s + t.durationMs, 0)
-      : Math.min(opts.lengthSec * 1000, opts.tracks.reduce((s, t) => s + t.durationMs, 0)));
-    const segments = planSpotifyRun(opts.tracks, opts.lengthSec, endAt);
+    // Plan once against a zero end time to learn how long the music runs,
+    // then for real so the first song starts PREROLL_MS from now.
+    const dry = planSpotifyRun(opts.tracks, opts.lengthSec, 0, opts.edits);
+    const runMs = dry.length ? -dry[0].startAt : 0;
+    const endAt = Date.now() + PREROLL_MS + runMs;
+    const segments = planSpotifyRun(opts.tracks, opts.lengthSec, endAt, opts.edits);
     if (segments.length === 0) { this.set({ ...IDLE, status: 'error', message: 'Nothing to play in that playlist.' }); return; }
     this.set({ ...IDLE, status: 'running', segments, endAt, padKey: opts.padKey });
 
@@ -171,12 +205,19 @@ class SpotifyTestRunner {
   }
 
   private envelope(seg: SpotifyRunSegment, idx: number, last: number, now: number): number {
-    const fadeIn = idx === 0 ? FIRST_FADE_IN_SEC : TRANSITION_FADE_IN_SEC;
-    let g = Math.min(1, Math.max(0, (now - seg.startAt) / 1000 / fadeIn));
+    const fadeIn = seg.fadeInSec ?? (idx === 0 ? FIRST_FADE_IN_SEC : TRANSITION_FADE_IN_SEC);
+    let g = fadeIn > 0 ? Math.min(1, Math.max(0, (now - seg.startAt) / 1000 / fadeIn)) : (now >= seg.startAt ? 1 : 0);
+    let fadeOut = 0;
+    let fadeOutEnd = seg.stopAt;
     if (idx < last) {
-      const fadeOutEnd = seg.endAt - LOAD_LEAD_MS;
-      g = Math.min(g, Math.max(0, (fadeOutEnd - now) / 1000 / TRANSITION_FADE_OUT_SEC));
+      fadeOut = seg.fadeOutSec ?? TRANSITION_FADE_OUT_SEC;
+      fadeOutEnd = seg.endAt - LOAD_LEAD_MS;
+    } else if (seg.fadeOutSec !== undefined || seg.trimmedEnd || seg.stopAt > seg.endAt) {
+      // Last song stopping before its natural end: fade so it doesn't cut off.
+      fadeOut = seg.fadeOutSec ?? LAST_TRIM_FADE_SEC;
+      fadeOutEnd = seg.stopAt - END_MUTE_MS;
     }
+    if (fadeOut > 0) g = Math.min(g, Math.max(0, (fadeOutEnd - now) / 1000 / fadeOut));
     return Math.round(this.originalVolume * g);
   }
 
@@ -260,7 +301,7 @@ class SpotifyTestRunner {
 
       // 3. Play it through: step the volume only when a fade changes it,
       // otherwise just read the playhead. No jumps while it's audible.
-      const stopAt = i < last ? seg.endAt - LOAD_LEAD_MS : seg.endAt - END_MUTE_MS;
+      const stopAt = i < last ? seg.endAt - LOAD_LEAD_MS : seg.stopAt - END_MUTE_MS;
       const songErrs: number[] = [];
       let sentVolume = -1;
       let notPlayingSince: number | null = null;
@@ -289,7 +330,7 @@ class SpotifyTestRunner {
             notPlayingSince = null;
             if (loopStart - lastSeekAt > SETTLE_AFTER_SEEK_MS) {
               songErrs.push(e);
-              if (i === last && seg.endAt - loopStart < LANDING_WINDOW_MS) landing.push(e);
+              if (i === last && Math.abs(seg.endAt - loopStart) < LANDING_WINDOW_MS) landing.push(e);
             }
           }
         }
@@ -307,7 +348,7 @@ class SpotifyTestRunner {
     // 4. Landed: Spotify off, its volume back, pad holds.
     if (!live()) return;
     await this.cmd({ op: 'volume', volume: 0 });
-    await sleep(endAt - Date.now());
+    await sleep(segments[last].stopAt - Date.now());
     await this.cmd({ op: 'pause' });
     await this.cmd({ op: 'volume', volume: this.originalVolume });
     const landingErrorMs = landing.length ? Math.round(median(landing)) : null;
@@ -316,7 +357,7 @@ class SpotifyTestRunner {
       landingErrorMs,
       message: landingErrorMs === null
         ? 'Landed. Not enough readings near the end to measure how close.'
-        : `Last song ended ${(Math.abs(landingErrorMs) / 1000).toFixed(2)}s ${landingErrorMs >= 0 ? 'late' : 'early'}.`,
+        : `Last song landed ${(Math.abs(landingErrorMs) / 1000).toFixed(2)}s ${landingErrorMs >= 0 ? 'late' : 'early'}.`,
     });
   }
 

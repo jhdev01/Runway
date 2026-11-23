@@ -56,6 +56,7 @@ export function SpotifyTestRunPanel({ playlist }: { playlist: SpotifyPlaylistRes
       padFilePath: pad?.filePath ?? null,
       padLeadInSec: defaults.padLeadInSec,
       audio,
+      edits: useAppStore.getState().config.spotify?.trackEdits ?? {},
     });
   };
 
@@ -103,7 +104,7 @@ export function SpotifyTestRunPanel({ playlist }: { playlist: SpotifyPlaylistRes
             </div>
           )}
           {run.segments.map((s, i) => {
-            const playedFor = (s.endAt - s.startAt) / 1000;
+            const playedFor = (s.stopAt - s.startAt) / 1000;
             const isCurrent = running && i === run.currentIndex;
             return (
               <div key={`${s.uri}-${i}`} style={{ display: 'flex', gap: 8, color: isCurrent ? 'var(--accent-bright)' : undefined }}>
@@ -111,6 +112,7 @@ export function SpotifyTestRunPanel({ playlist }: { playlist: SpotifyPlaylistRes
                 <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {s.title}{s.artist ? ` — ${s.artist}` : ''}
                   {s.startPosSec > 0 ? ` (from ${formatDuration(s.startPosSec)})` : ''}
+                  {s.endPosSec < s.songDurSec - 0.05 && i < run.segments.length - 1 ? ` (to ${formatDuration(s.endPosSec)})` : ''}
                 </span>
                 <span>{formatDuration(playedFor)}</span>
               </div>

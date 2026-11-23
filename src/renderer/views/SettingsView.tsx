@@ -12,6 +12,7 @@ import { runPcoKeySync, type PcoServiceType } from '../lib/planningCenterClient'
 import { RotaryKnob } from '../components/RotaryKnob';
 import { Toggle } from '../components/Toggle';
 import { SpotifyTestRunPanel } from '../components/SpotifyTestRunPanel';
+import { SpotifySongList } from '../components/SpotifySongList';
 import runwayIconUrl from '../assets/runway-icon.png';
 
 type SettingsTab = 'audio' | 'midi' | 'propresenter' | 'planningcenter' | 'pads' | 'remote' | 'engine' | 'display' | 'about';
@@ -2010,17 +2011,7 @@ function SpotifyAccountSection() {
             <strong>{playlist.name}</strong> — {playlist.tracks.length} songs, {formatDuration(totalSec)} total
             {playlist.skipped ? ` (${playlist.skipped} skipped: podcasts or local files)` : ''}
           </div>
-          <div style={{ maxHeight: 260, overflowY: 'auto', marginTop: 6 }}>
-            {playlist.tracks.map((t, i) => (
-              <div key={`${t.uri}-${i}`} style={{ display: 'flex', gap: 8 }}>
-                <span style={{ width: 24, textAlign: 'right', opacity: 0.6 }}>{i + 1}</span>
-                <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {t.title}{t.artist ? ` — ${t.artist}` : ''}
-                </span>
-                <span>{formatDuration(t.durationMs / 1000)}</span>
-              </div>
-            ))}
-          </div>
+          <SpotifySongList tracks={playlist.tracks} />
         </div>
       )}
       {playlist?.ok && playlist.tracks && playlist.tracks.length > 0 && (

@@ -708,6 +708,9 @@ export interface AppConfig {
   spotify?: {
     clientId?: string;
     clientSecret?: string;
+    // Per-song edits for Spotify songs, keyed by spotify:track: URI. Used
+    // by the Spotify test run. Optional so old configs upgrade cleanly.
+    trackEdits?: Record<string, SpotifyTrackEdit>;
   };
   // GetSongBPM API key — free tier (5k/day, attribution required)
   // returns tempo + key for searched songs. The realistic working
@@ -1030,6 +1033,19 @@ export interface SpotifyPlaylistTrack {
   durationMs: number;
   albumArtUrl?: string;
 }
+/**
+ * Trim / fade / landing edits for one Spotify song, like the Editor's
+ * fields for imported tracks. All in seconds of the song; all optional.
+ */
+export interface SpotifyTrackEdit {
+  trimStartSec?: number;
+  trimEndSec?: number;
+  fadeInSec?: number;
+  fadeOutSec?: number;
+  /** When this song is last, the countdown hits 0:00 here and the song plays on to its trim end. */
+  landSec?: number;
+}
+
 /** One command to the Spotify desktop app (macOS, experimental). */
 export type SpotifyPlayerCommand =
   | { op: 'check' }
