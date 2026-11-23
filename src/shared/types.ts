@@ -114,6 +114,11 @@ export interface ServiceInstance {
   date: string;             // ISO date (YYYY-MM-DD)
   startTime: string;        // 'HH:MM' 24h
   preServicePlaylistId?: string;
+  // Spotify playlist as the pre-service music source (experimental, macOS).
+  // When set it wins over preServicePlaylistId. Optional: old configs load
+  // unchanged and keep using their Runway playlist.
+  spotifyPlaylistId?: string;
+  spotifyPlaylistName?: string;
   postServicePlaylistId?: string;
   // The headliner: where the playlist must land. `undefined` means inherit
   // from the first service of this date (use resolveServiceFirstSongKey).
@@ -408,6 +413,11 @@ export interface WeeklyPatternEntry {
   dayOfWeek: number;        // 0=Sun, 6=Sat
   startTime: string;        // 'HH:MM' 24h
   preServicePlaylistId?: string;
+  // Spotify playlist as the pre-service music source (experimental, macOS).
+  // When set it wins over preServicePlaylistId. Optional: old configs load
+  // unchanged and keep using their Runway playlist.
+  spotifyPlaylistId?: string;
+  spotifyPlaylistName?: string;
   postServicePlaylistId?: string;
   // Action sequence overrides carried into every service materialized
   // from this pattern. Same semantics as
@@ -715,6 +725,9 @@ export interface AppConfig {
     // leaving Settings or restarting. Refreshed by "Read playlist".
     lastPlaylistLink?: string;
     lastPlaylist?: SpotifyPlaylistResult;
+    // Every playlist read, by playlist id: lets a service arm from the
+    // saved song list if Spotify's web API is unreachable at arm time.
+    playlistCache?: Record<string, SpotifyPlaylistResult>;
   };
   // GetSongBPM API key — free tier (5k/day, attribution required)
   // returns tempo + key for searched songs. The realistic working
@@ -1021,6 +1034,8 @@ export const IPC = {
   SPOTIFY_PLAYLIST_READ: 'spotify:playlistRead',
   // Experimental: one remote-control command to the Spotify desktop app.
   SPOTIFY_PLAYER: 'spotify:player',
+  // Experimental: list the signed-in user's own/collaborative playlists.
+  SPOTIFY_PLAYLISTS_LIST: 'spotify:playlistsList',
   MULTITRACKS_LOOKUP: 'track:multitracks',
 } as const;
 
@@ -1046,8 +1061,10 @@ export interface SpotifyTrackEdit {
   trimEndSec?: number;
   fadeInSec?: number;
   fadeOutSec?: number;
-  /** When this song is last, the countdown hits 0:00 here and the song plays on to its trim end. */
+  /** When this song is last, the countdown hits 0:00 here (see songBounds). */
   landSec?: number;
+  /** Song key, set by the operator or looked up. Spotify no longer gives keys to apps. */
+  key?: KeyName;
 }
 
 /** One command to the Spotify desktop app (macOS, experimental). */
@@ -1072,6 +1089,17 @@ export interface SpotifyPlayerReply {
   volume?: number;
 }
 
+export interface SpotifyPlaylistSummary {
+  id: string;
+  name: string;
+  imageUrl?: string;
+  songCount?: number;
+}
+export interface SpotifyPlaylistList {
+  ok: boolean;
+  reason?: string;
+  playlists?: SpotifyPlaylistSummary[];
+}
 export interface SpotifyPlaylistResult {
   ok: boolean;
   reason?: string;

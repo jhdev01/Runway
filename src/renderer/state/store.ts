@@ -7,6 +7,8 @@ import {
   resolveServiceLastSongTrackId,
 } from '@shared/types';
 import { compatibleKeys } from '@shared/music';
+import type { SpotifyRunSegment } from '../lib/spotifyTestRun';
+import { arrangeSpotifyRunway } from '../lib/spotifyArrange';
 import { todayISO } from '../lib/format';
 import { describeLoadError } from '../lib/audioEngine';
 
@@ -76,6 +78,16 @@ interface AppStoreState {
     crossfadeSec: number;
     padBridgeSec: number;
     padFadeOutSec: number;
+    // Set when the service's music comes from a Spotify playlist: the
+    // planned songs (trackIds is empty) that the controller hands to the
+    // Spotify runner at music start.
+    spotify?: {
+      playlistId: string;
+      playlistName: string;
+      segments: SpotifyRunSegment[];
+      lastFadeSec: number;
+      firstFadeInSec: number;
+    };
     // Seconds the anchor track will continue playing AFTER the timer hits
     // zero — set when the anchor has an editServiceLandSec marker. 0 means
     // music ends at service start (current default). UI surface only;
@@ -862,6 +874,8 @@ export const useAppStore = create<AppStoreState>((set, get) => ({
           date: dateStr,
           startTime: p.startTime,
           preServicePlaylistId: p.preServicePlaylistId,
+          spotifyPlaylistId: p.spotifyPlaylistId,
+          spotifyPlaylistName: p.spotifyPlaylistName,
           postServicePlaylistId: p.postServicePlaylistId,
           firstSongKey: undefined,
           setlist: [],
@@ -937,6 +951,97 @@ export const useAppStore = create<AppStoreState>((set, get) => ({
     const state = get();
     const service = state.config.services.find(s => s.id === serviceId);
     if (!service) return { ok: false, reason: 'Service not found' };
+
+    // Spotify playlist as the music source (experimental). Runway-playlist
+    // services never enter this branch, so their timing is untouched. An
+    // arm_playlist action's override still means "use this Runway playlist".
+    if (service.spotifyPlaylistId && !opts?.playlistOverrideId) {
+      const spId = service.spotifyPlaylistId;
+      const cache = state.config.spotify?.playlistCache ?? {};
+      let pl = cache[spId];
+      try {
+        const fresh = await window.runway?.spotify?.readPlaylist(`spotify:playlist:${spId}`);
+        if (fresh?.ok) {
+          pl = fresh;
+          const latest = get().config.spotify;
+          get().updateConfig({ spotify: { ...latest, playlistCache: { ...(latest?.playlistCache ?? {}), [spId]: fresh } } });
+        }
+      } catch { /* offline: fall back to the saved song list */ }
+      const spTracks = pl?.ok ? (pl.tracks ?? []) : [];
+      if (spTracks.length === 0) {
+        return { ok: false, reason: `Couldn’t load the Spotify playlist “${service.spotifyPlaylistName ?? 'Spotify'}”. Check that Spotify is connected in Settings → Engine.` };
+      }
+      const date = new Date(service.date + 'T00:00:00');
+      const [hh, mm] = service.startTime.split(':').map(Number);
+      date.setHours(hh, mm, 0, 0);
+      const targetMs = date.getTime();
+      if (Date.now() >= targetMs) {
+        return { ok: false, reason: 'Service start time has already passed. Pick a later service or use Quick Test.' };
+      }
+      const targetSec = opts?.leadOverrideSec ?? service.autoStartTargetSec;
+      const { value: requestedKey } = resolveServiceFirstSongKey(service, state.config.services);
+      const d = state.config.defaults;
+      const lastFadeSec = d.musicFadeToPadSec ?? 5;
+      const firstFadeInSec = d.musicFadeInSec ?? 6;
+      const arr = arrangeSpotifyRunway({
+        tracks: spTracks,
+        edits: state.config.spotify?.trackEdits ?? {},
+        requestedKey,
+        targetSec,
+        targetMs,
+        repeatToFill: opts?.repeatToFill ?? d.repeatToFill ?? true,
+        shuffle: !!opts?.shuffle,
+        lastFadeSec,
+      });
+      if (arr.segments.length === 0) return { ok: false, reason: 'Nothing to play in that Spotify playlist.' };
+      const musicStartMs = arr.segments[0].startAt;
+      // Spotify's last song plays at full volume to 0:00 and fades after it,
+      // so the pad only needs its lead-in to be fully up at service start.
+      const padStartMs = targetMs - (d.padLeadInSec ?? 5) * 1000;
+      const last = arr.segments[arr.segments.length - 1];
+      const tailSec = Math.max(0, (last.stopAt - last.endAt) / 1000);
+      const totalSec = (last.stopAt - musicStartMs) / 1000;
+      console.log('[arm] spotify timing', {
+        serviceId, playlist: pl?.name, songs: arr.segments.map(sg => sg.title), anchor: arr.anchorTitle,
+        targetMs, msUntilService: targetMs - Date.now(), musicStartMs, msUntilMusic: musicStartMs - Date.now(),
+        padStartMs, tailSec, landInKey: arr.landInKey,
+      });
+      const myArmEpoch = nextArmEpoch();
+      set(s => ({
+        currentRunway: {
+          serviceId,
+          trackIds: [],
+          totalSec,
+          landInKey: arr.landInKey,
+          plannedStartTime: new Date(musicStartMs).toISOString(),
+          startOffsetSec: 0,
+          targetMs,
+          musicStartMs,
+          padStartMs,
+          transitionMode: 'gapless',
+          crossfadeSec: 0,
+          padBridgeSec: d.padBridgeSec,
+          padFadeOutSec: d.padFadeOutSec,
+          tailSec,
+          skipPadBridge: arr.skipPadBridge || undefined,
+          phase: 'queued',
+          currentTrackIndex: 0,
+          armEpoch: myArmEpoch,
+          spotify: { playlistId: spId, playlistName: pl?.name ?? service.spotifyPlaylistName ?? 'Spotify', segments: arr.segments, lastFadeSec, firstFadeInSec },
+        },
+        config: {
+          ...s.config,
+          services: s.config.services.map(svc =>
+            svc.id === serviceId
+              ? { ...svc, status: 'queued', calculatedStartTime: new Date(musicStartMs).toISOString() }
+              : svc
+          ),
+        },
+      }));
+      void get().saveConfig();
+      return { ok: true, warning: arr.warning };
+    }
+
     // playlistOverrideId lets the arm_playlist action swap which
     // playlist arms without mutating the service's saved
     // preServicePlaylistId.

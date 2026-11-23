@@ -136,5 +136,71 @@ export function installMockState(): void {
     padArmedKey: 'D',
   });
 
+  // ?mock=1&spotify=1 — preview a service whose music comes from a Spotify
+  // playlist: Spotify runway on Live, a read playlist with keys in Settings.
+  if (new URLSearchParams(window.location.search).get('spotify') === '1') {
+    const sp = (id: string, title: string, artist: string, sec: number) =>
+      ({ uri: `spotify:track:${id}`, title, artist, durationMs: sec * 1000 });
+    const spTracks = [
+      sp('s1', 'Crown Him With Praise', 'River Valley Worship', 353),
+      sp('s2', 'He Is Faithful', 'Bryan & Katie Torwalt', 283),
+      sp('s3', '10,000 Reasons (Bless The Lord) - Live', 'Matt Redman', 342),
+      sp('s4', 'Great Are You Lord', 'All Sons & Daughters', 292),
+      sp('s5', 'To Be Like Christ - Live', 'River Valley Worship', 357),
+    ];
+    const playlist = { ok: true, playlistId: 'mockpl', name: 'LCC Setlist 9/27', tracks: spTracks, skipped: 0 };
+    const target = now + 22 * 60 * 1000;
+    const segs = [
+      { ...spTracks[3], startPosSec: 40, endPosSec: 292 },
+      { ...spTracks[4], startPosSec: 0, endPosSec: 303 },
+    ];
+    let cursor = target;
+    const segments = segs.reverse().map((x, i) => {
+      const endAt = cursor;
+      const startAt = endAt - (x.endPosSec - x.startPosSec) * 1000;
+      cursor = startAt;
+      return {
+        uri: x.uri, title: x.title, artist: x.artist, songDurSec: x.durationMs / 1000,
+        startPosSec: x.startPosSec, endPosSec: x.endPosSec, startAt, endAt,
+        stopAt: i === 0 ? endAt + 5000 : endAt, trimmedEnd: i === 0,
+      };
+    }).reverse();
+    const st = useAppStore.getState();
+    useAppStore.setState({
+      config: {
+        ...st.config,
+        spotify: {
+          lastPlaylist: playlist,
+          lastPlaylistLink: 'spotify:playlist:mockpl',
+          playlistCache: { mockpl: playlist },
+          trackEdits: {
+            'spotify:track:s1': { key: 'G' },
+            'spotify:track:s2': { key: 'D' },
+            'spotify:track:s4': { key: 'B' },
+            'spotify:track:s5': { key: 'A', landSec: 303 },
+          },
+        },
+        services: st.config.services.map((svc, i) => i === 0
+          ? { ...svc, spotifyPlaylistId: 'mockpl', spotifyPlaylistName: 'LCC Setlist 9/27' } : svc),
+      },
+      musicPlayback: { ...st.musicPlayback, isPlaying: false, trackId: undefined, positionSec: 0, durationSec: 0 },
+      currentRunway: {
+        ...st.currentRunway!,
+        trackIds: [],
+        totalSec: (segments[segments.length - 1].stopAt - segments[0].startAt) / 1000,
+        landInKey: 'A',
+        targetMs: target,
+        musicStartMs: segments[0].startAt,
+        padStartMs: target - 5000,
+        transitionMode: 'gapless',
+        crossfadeSec: 0,
+        tailSec: 5,
+        currentTrackIndex: 0,
+        sourcePlaylistId: undefined,
+        spotify: { playlistId: 'mockpl', playlistName: 'LCC Setlist 9/27', segments, lastFadeSec: 5, firstFadeInSec: 6 },
+      },
+    });
+  }
+
   console.log('[mock] Live preview state installed. ?mock=1');
 }

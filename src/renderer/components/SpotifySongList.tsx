@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { useAppStore } from '../state/store';
-import type { SpotifyPlaylistTrack, SpotifyTrackEdit } from '@shared/types';
+import type { KeyName, SpotifyPlaylistTrack, SpotifyTrackEdit } from '@shared/types';
 import { formatDuration } from '../lib/format';
 import { songBounds } from '../lib/spotifyTestRun';
+import { KeyPickerModal } from './KeyPickerModal';
+import { keyColor, displayKey } from '@shared/music';
 
 type Field = 'trimStartSec' | 'trimEndSec' | 'landSec' | 'fadeInSec' | 'fadeOutSec';
 
@@ -90,7 +92,7 @@ function SongEditor({ track, edit, onChange }: {
         <button className="btn-secondary" onClick={() => void window.runway.spotify.player({ op: 'play', uri: track.uri })}>
           Play in Spotify
         </button>
-        <button className="btn-secondary" onClick={() => { setDrafts({}); setNote(null); onChange({}); }}>Clear edits</button>
+        <button className="btn-secondary" onClick={() => { setDrafts({}); setNote(null); onChange({ key: edit.key }); }}>Clear edits</button>
         <span className="settings-field-sub">
           Plays {fmtPos(b.start)} to {fmtPos(b.end)} ({formatDuration(b.end - b.start)})
           {edit.landSec !== undefined
@@ -106,46 +108,115 @@ function SongEditor({ track, edit, onChange }: {
 }
 
 /**
- * The songs of a Spotify playlist, each with optional trims, fades and a
- * landing marker (saved per song, so they apply in every playlist).
+ * The songs of a Spotify playlist with album art, a key per song, and
+ * optional trims, fades and a landing marker. Keys and edits are saved per
+ * song, so they apply in every playlist (and in services using Spotify).
  */
 export function SpotifySongList({ tracks }: { tracks: SpotifyPlaylistTrack[] }) {
   const config = useAppStore(s => s.config);
   const updateConfig = useAppStore(s => s.updateConfig);
+  const keyMode = config.defaults.keyDisplayMode ?? 'sharp';
   const edits = config.spotify?.trackEdits ?? {};
   const [open, setOpen] = useState<string | null>(null);
+  const [keyFor, setKeyFor] = useState<string | null>(null);
+  const [lookup, setLookup] = useState<{ busy: boolean; done: number; total: number; note: string | null }>(
+    { busy: false, done: 0, total: 0, note: null },
+  );
 
+  const saveAll = (next: Record<string, SpotifyTrackEdit>) => {
+    const latest = useAppStore.getState().config.spotify;
+    updateConfig({ spotify: { ...latest, trackEdits: next } });
+  };
   const save = (uri: string, e: SpotifyTrackEdit) => {
     const clean = Object.fromEntries(Object.entries(e).filter(([, v]) => v !== undefined)) as SpotifyTrackEdit;
-    const next = { ...edits };
+    const next = { ...(useAppStore.getState().config.spotify?.trackEdits ?? {}) };
     if (Object.keys(clean).length) next[uri] = clean; else delete next[uri];
-    updateConfig({ spotify: { ...config.spotify, trackEdits: next } });
+    saveAll(next);
   };
 
+  // Fills in keys for songs that don't have one, from the same MultiTracks
+  // catalog the Library uses. Only a single clear match is applied; songs
+  // the catalog lists in more than one key are left for the operator.
+  const lookUpKeys = async () => {
+    const targets = tracks.filter(t => !edits[t.uri]?.key);
+    setLookup({ busy: true, done: 0, total: targets.length, note: null });
+    let set = 0, unsure = 0, missing = 0, done = 0;
+    for (const t of targets) {
+      try {
+        const res = await window.runway.files.multitracksLookup(t.artist, t.title, t.durationMs / 1000);
+        const best = res?.best?.key as KeyName | undefined;
+        if (best && (res?.alternates?.length ?? 0) === 0) {
+          const cur = useAppStore.getState().config.spotify?.trackEdits ?? {};
+          saveAll({ ...cur, [t.uri]: { ...(cur[t.uri] ?? {}), key: best } });
+          set++;
+        } else if (best) unsure++;
+        else missing++;
+      } catch { missing++; }
+      done++;
+      setLookup(l => ({ ...l, done }));
+    }
+    const parts = [`Set ${set} key${set === 1 ? '' : 's'}`];
+    if (unsure) parts.push(`${unsure} listed in more than one key (set those yourself)`);
+    if (missing) parts.push(`${missing} not found`);
+    setLookup({ busy: false, done, total: targets.length, note: targets.length ? parts.join(', ') + '.' : 'Every song already has a key.' });
+  };
+
+  const keyTrack = keyFor ? tracks.find(t => t.uri === keyFor) : undefined;
   return (
-    <div style={{ maxHeight: 420, overflowY: 'auto', marginTop: 6 }}>
-      {tracks.map((t, i) => {
-        const e = edits[t.uri] ?? {};
-        const edited = Object.keys(e).length > 0;
-        const b = songBounds(t.durationMs / 1000, e);
-        const rowKey = `${t.uri}-${i}`;
-        return (
-          <div key={rowKey}>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <span style={{ width: 24, textAlign: 'right', opacity: 0.6 }}>{i + 1}</span>
-              <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {t.title}{t.artist ? ` — ${t.artist}` : ''}
-              </span>
-              {edited && <span className="pp-status ok" title="This song has trims or fades">edited</span>}
-              <span>{formatDuration(b.end - b.start)}</span>
-              <button className="btn-secondary" onClick={() => setOpen(open === rowKey ? null : rowKey)}>
-                {open === rowKey ? 'Done' : 'Edit'}
-              </button>
+    <div style={{ marginTop: 6 }}>
+      <div className="pp-actions" style={{ marginBottom: 6 }}>
+        <button className="btn-secondary" onClick={() => void lookUpKeys()} disabled={lookup.busy}>
+          {lookup.busy ? `Looking up keys… ${lookup.done}/${lookup.total}` : 'Look up keys'}
+        </button>
+        {lookup.note && <span className="settings-field-sub">{lookup.note}</span>}
+      </div>
+      <div style={{ maxHeight: 460, overflowY: 'auto' }}>
+        {tracks.map((t, i) => {
+          const e = edits[t.uri] ?? {};
+          const { key, ...trimEdits } = e;
+          const edited = Object.keys(trimEdits).length > 0;
+          const b = songBounds(t.durationMs / 1000, e);
+          const rowKey = `${t.uri}-${i}`;
+          const kc = keyColor(key);
+          return (
+            <div key={rowKey}>
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '3px 0' }}>
+                <span style={{ width: 20, textAlign: 'right', opacity: 0.6 }}>{i + 1}</span>
+                {t.albumArtUrl
+                  ? <img src={t.albumArtUrl} alt="" loading="lazy" style={{ width: 36, height: 36, borderRadius: 4, objectFit: 'cover', flex: 'none' }} />
+                  : <div aria-hidden style={{ width: 36, height: 36, borderRadius: 4, background: 'var(--bg-elev-2)', display: 'grid', placeItems: 'center', flex: 'none' }}>♪</div>}
+                <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {t.title}{t.artist ? <span style={{ opacity: 0.6 }}> — {t.artist}</span> : null}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setKeyFor(t.uri)}
+                  title={key ? 'Change key' : 'Set key'}
+                  style={{
+                    minWidth: 44, padding: '3px 8px', borderRadius: 4, cursor: 'pointer',
+                    fontFamily: 'IBM Plex Mono, monospace', fontWeight: 600, fontSize: 12,
+                    background: kc.bg, color: kc.fg, border: key ? '1px solid transparent' : '1px dashed var(--border-bright)',
+                  }}
+                >
+                  {key ? displayKey(key, keyMode) : 'Key'}
+                </button>
+                {edited && <span className="pp-status ok" title="This song has trims or fades">edited</span>}
+                <span style={{ width: 40, textAlign: 'right' }}>{formatDuration(b.end - b.start)}</span>
+                <button className="btn-secondary" onClick={() => setOpen(open === rowKey ? null : rowKey)}>
+                  {open === rowKey ? 'Done' : 'Edit'}
+                </button>
+              </div>
+              {open === rowKey && <SongEditor track={t} edit={e} onChange={ne => save(t.uri, ne)} />}
             </div>
-            {open === rowKey && <SongEditor track={t} edit={e} onChange={ne => save(t.uri, ne)} />}
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
+      <KeyPickerModal
+        open={!!keyTrack}
+        selected={keyTrack ? edits[keyTrack.uri]?.key : undefined}
+        onSelect={k => { if (keyTrack) save(keyTrack.uri, { ...(edits[keyTrack.uri] ?? {}), key: k ?? undefined }); }}
+        onClose={() => setKeyFor(null)}
+      />
     </div>
   );
 }

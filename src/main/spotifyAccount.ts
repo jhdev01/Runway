@@ -15,7 +15,7 @@ import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as http from 'http';
 import * as path from 'path';
-import type { SpotifyPlaylistResult, SpotifyPlaylistTrack, SpotifyStatus } from '../shared/types';
+import type { SpotifyPlaylistSummary, SpotifyPlaylistList, SpotifyPlaylistResult, SpotifyPlaylistTrack, SpotifyStatus } from '../shared/types';
 
 // Must match the Redirect URI registered on the Spotify developer app.
 // Spotify requires a loopback IP literal ("localhost" is not allowed).
@@ -232,13 +232,61 @@ export async function spotifyReadPlaylist(link: string): Promise<SpotifyPlaylist
           title: t.name ?? 'Untitled',
           artist: (t.artists ?? []).map(a => a.name).filter(Boolean).join(', '),
           durationMs: Number(t.duration_ms),
-          albumArtUrl: t.album?.images?.[t.album.images.length - 1]?.url,
+          // Spotify lists album images largest first (640, 300, 64 px);
+          // the middle one is sharp at row size without being heavy.
+          albumArtUrl: t.album?.images?.[1]?.url ?? t.album?.images?.[0]?.url,
         });
       }
       if (!body.next || items.length === 0) break;
     }
     if (tracks.length === 0 && skipped === 0) return { ok: false, reason: notYours };
     return { ok: true, playlistId: id, name: meta.name ?? 'Spotify playlist', tracks, skipped };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { ok: false, reason: msg === 'NOT_CONNECTED' ? 'Connect Spotify first.' : msg };
+  }
+}
+
+
+interface RawPlaylist {
+  id?: string; name?: string; collaborative?: boolean;
+  owner?: { id?: string };
+  images?: Array<{ url?: string }> | null;
+  // Spotify renamed tracks → items in Feb 2026; accept both.
+  tracks?: { total?: number }; items?: { total?: number };
+}
+
+/**
+ * Lists the signed-in user's playlists that Runway can read: ones they own
+ * or collaborate on. (Spotify doesn't let apps read songs in playlists the
+ * user merely follows, so those are left out instead of failing later.)
+ */
+export async function spotifyListPlaylists(): Promise<SpotifyPlaylistList> {
+  try {
+    const meRes = await api('/me');
+    if (meRes.status === 401) return { ok: false, reason: 'Spotify sign-in expired. Disconnect and connect again.' };
+    if (!meRes.ok) return { ok: false, reason: `Spotify returned an error (${meRes.status}).` };
+    const me = (await meRes.json()) as { id?: string };
+    const out: SpotifyPlaylistSummary[] = [];
+    for (let offset = 0; offset < 1000; offset += 50) {
+      const res = await api(`/me/playlists?limit=50&offset=${offset}`);
+      if (!res.ok) return { ok: false, reason: `Spotify returned an error (${res.status}) listing playlists.` };
+      const body = (await res.json()) as { items?: Array<RawPlaylist | null>; next?: string | null };
+      const items = body.items ?? [];
+      for (const p of items) {
+        if (!p?.id) continue;
+        if (p.owner?.id !== me.id && !p.collaborative) continue;
+        out.push({
+          id: p.id,
+          name: p.name ?? 'Untitled playlist',
+          imageUrl: p.images?.[p.images.length > 1 ? 1 : 0]?.url,
+          songCount: p.items?.total ?? p.tracks?.total,
+        });
+      }
+      if (!body.next || items.length === 0) break;
+    }
+    out.sort((a, b) => a.name.localeCompare(b.name));
+    return { ok: true, playlists: out };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     return { ok: false, reason: msg === 'NOT_CONNECTED' ? 'Connect Spotify first.' : msg };

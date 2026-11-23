@@ -53,6 +53,7 @@ const IPC = {
   SPOTIFY_DISCONNECT: 'spotify:disconnect',
   SPOTIFY_PLAYLIST_READ: 'spotify:playlistRead',
   SPOTIFY_PLAYER: 'spotify:player',
+  SPOTIFY_PLAYLISTS_LIST: 'spotify:playlistsList',
   // MultiTracks.com song lookup — returns the published original master
   // key for worship songs, plus alternates when the catalog disagrees.
   MULTITRACKS_LOOKUP: 'track:multitracks',
@@ -140,6 +141,7 @@ contextBridge.exposeInMainWorld('runway', {
     disconnect: () => ipcRenderer.invoke(IPC.SPOTIFY_DISCONNECT),
     readPlaylist: (link: string) => ipcRenderer.invoke(IPC.SPOTIFY_PLAYLIST_READ, link),
     player: (cmd: unknown) => ipcRenderer.invoke(IPC.SPOTIFY_PLAYER, cmd),
+    listPlaylists: () => ipcRenderer.invoke(IPC.SPOTIFY_PLAYLISTS_LIST),
   },
   planningCenter: {
     request: (req: unknown) => ipcRenderer.invoke(IPC.PCO_REQUEST, req),

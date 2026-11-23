@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { SpotifyRunwayList } from '../components/SpotifyRunwayList';
 import { useAppStore } from '../state/store';
 import { useEngines } from '../state/engines';
 import { CountdownClock } from '../components/CountdownClock';
@@ -1109,7 +1110,7 @@ export function LiveView() {
               </>
             ) : (
               <>
-                <div><strong>{isArmed ? 'Armed' : 'Idle'}</strong> <span>· {isArmed ? `${currentRunway?.trackIds.length} tracks loaded` : 'no music playing'}</span></div>
+                <div><strong>{isArmed ? 'Armed' : 'Idle'}</strong> <span>· {isArmed ? (currentRunway?.spotify ? `${currentRunway.spotify.segments.length} Spotify songs planned` : `${currentRunway?.trackIds.length} tracks loaded`) : 'no music playing'}</span></div>
                 <div className="auto-start-detail">
                   {isArmed && currentRunway
                     ? `Fires at ${new Date(currentRunway.musicStartMs).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
@@ -1142,7 +1143,7 @@ export function LiveView() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
               <div className="runway-title">
                 {currentRunway
-                  ? `${currentRunway.isPostService ? 'Post-Service' : 'Runway'} · ${queueTracks.length} tracks · ${formatDuration(runwayTruncation?.effectiveTotalSec ?? currentRunway.totalSec)}`
+                  ? `${currentRunway.isPostService ? 'Post-Service' : 'Runway'} · ${currentRunway.spotify ? `${currentRunway.spotify.segments.length} Spotify songs` : `${queueTracks.length} tracks`} · ${formatDuration(runwayTruncation?.effectiveTotalSec ?? currentRunway.totalSec)}`
                   : 'Runway · empty'}
               </div>
               {runwayTruncation && (
@@ -1219,6 +1220,9 @@ export function LiveView() {
             // fallback was removed: the row IS the runway, and a single
             // visual model is easier to reason about across services.
             void displayedCount; // (kept for the "displayed" derivation upstream)
+            if (currentRunway?.spotify) {
+              return <SpotifyRunwayList playlistName={currentRunway.spotify.playlistName} segments={currentRunway.spotify.segments} />;
+            }
             if (queueTracks.length === 0) {
               return (
                 <div className="runway-list">

@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useAppStore, generateId } from '../state/store';
 import { useEngines } from '../state/engines';
 import { ALL_KEYS, MAJOR_KEYS, MINOR_KEYS, keyColor, displayKey } from '@shared/music';
-import type { RelinkReport, LibraryBundlePreview, LibraryImportMode, AudioBusConfig, MidiAction, MidiBinding, KeyName, PadFile, ProPresenterSyncConfig, MidiDevicePref, SpotifyStatus, SpotifyPlaylistResult } from '@shared/types';
+import type { RelinkReport, LibraryBundlePreview, LibraryImportMode, AudioBusConfig, MidiAction, MidiBinding, KeyName, PadFile, ProPresenterSyncConfig, MidiDevicePref, SpotifyStatus, SpotifyPlaylistResult, SpotifyPlaylistList } from '@shared/types';
 import { DEFAULT_CONFIG } from '@shared/types';
 import { formatDuration } from '../lib/format';
 import type { MidiDeviceSnapshot } from '../lib/midiEngine';
@@ -1941,17 +1941,39 @@ function SpotifyAccountSection() {
   const disconnect = async () => {
     setStatus(await window.runway.spotify.disconnect());
   };
-  const read = async () => {
+  const [mine, setMine] = useState<SpotifyPlaylistList | null>(null);
+  const loadMine = async () => {
+    setMine(null);
+    setMine(await window.runway.spotify.listPlaylists());
+  };
+  useEffect(() => { if (status.connected) void loadMine(); }, [status.connected]);
+
+  const readLink = async (target: string) => {
     setBusy('read');
     try {
-      const result = await window.runway.spotify.readPlaylist(link);
+      const result = await window.runway.spotify.readPlaylist(target);
       setPlaylist(result);
       if (result.ok) {
-        // Keep it (and the link) so it survives leaving Settings or a restart.
+        // Keep it (and the link) so it survives leaving Settings or a restart,
+        // and cache it by id so services can arm from it.
         const latest = useAppStore.getState().config.spotify;
-        updateConfig({ spotify: { ...latest, lastPlaylistLink: link.trim(), lastPlaylist: result } });
+        updateConfig({ spotify: {
+          ...latest,
+          lastPlaylistLink: target.trim(),
+          lastPlaylist: result,
+          playlistCache: result.playlistId
+            ? { ...(latest?.playlistCache ?? {}), [result.playlistId]: result }
+            : latest?.playlistCache,
+        } });
       }
     } finally { setBusy(null); }
+  };
+  const read = () => readLink(link);
+  const pick = (id: string) => {
+    if (!id) return;
+    const target = `spotify:playlist:${id}`;
+    setLink(target);
+    void readLink(target);
   };
   const totalSec = (playlist?.tracks ?? []).reduce((s, t) => s + t.durationMs, 0) / 1000;
 
@@ -1995,19 +2017,46 @@ function SpotifyAccountSection() {
       {!status.connected && status.reason && <div className="pp-status err">{status.reason}</div>}
 
       {status.connected && (
-        <div className="pp-actions" style={{ marginTop: 10 }}>
-          <input
-            type="text"
-            value={link}
-            onChange={e => setLink(e.target.value)}
-            placeholder="Paste a Spotify playlist link"
-            style={{ flex: 1, minWidth: 260 }}
-            disabled={busy !== null}
-          />
-          <button className="btn-secondary" onClick={read} disabled={busy !== null || !link.trim()}>
-            {busy === 'read' ? 'Reading…' : 'Read playlist'}
-          </button>
-        </div>
+        <>
+          <div className="pp-actions" style={{ marginTop: 10 }}>
+            <label className="settings-field-sub" htmlFor="sp-my-playlists">Playlist</label>
+            <select
+              id="sp-my-playlists"
+              value={playlist?.ok && playlist.playlistId ? playlist.playlistId : ''}
+              onChange={e => pick(e.target.value)}
+              disabled={busy !== null || !mine?.ok}
+              style={{ flex: 1, minWidth: 260 }}
+            >
+              <option value="">{mine === null ? 'Loading your playlists…' : mine.ok ? 'Choose a playlist' : 'Couldn’t load playlists'}</option>
+              {mine?.playlists?.map(p => (
+                <option key={p.id} value={p.id}>
+                  {p.name}{p.songCount !== undefined ? ` (${p.songCount} songs)` : ''}
+                </option>
+              ))}
+            </select>
+            <button className="btn-secondary" onClick={() => void loadMine()} disabled={busy !== null}>Refresh list</button>
+            {playlist?.ok && (
+              <button className="btn-secondary" onClick={read} disabled={busy !== null || !link.trim()}>
+                {busy === 'read' ? 'Reading…' : 'Reload songs'}
+              </button>
+            )}
+          </div>
+          {mine && !mine.ok && <div className="pp-status err">{mine.reason}</div>}
+          <div className="pp-actions" style={{ marginTop: 6 }}>
+            <input
+              type="text"
+              value={link.startsWith('spotify:playlist:') ? '' : link}
+              onChange={e => setLink(e.target.value)}
+              placeholder="Or paste a playlist link"
+              style={{ flex: 1, minWidth: 260 }}
+              disabled={busy !== null}
+            />
+            <button className="btn-secondary" onClick={read} disabled={busy !== null || !link.trim() || link.startsWith('spotify:playlist:')}>
+              {busy === 'read' ? 'Reading…' : 'Read link'}
+            </button>
+          </div>
+          <div className="settings-field-sub">Shows playlists you made or collaborate on; Spotify doesn’t let Runway read ones you only follow.</div>
+        </>
       )}
       {playlist && !playlist.ok && <div className="pp-status err">{playlist.reason}</div>}
       {playlist?.ok && playlist.tracks && (

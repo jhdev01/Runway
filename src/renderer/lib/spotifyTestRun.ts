@@ -170,13 +170,20 @@ const median = (xs: number[]) => {
   return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2;
 };
 
-class SpotifyTestRunner {
+export class SpotifyTestRunner {
   private state: SpotifyRunState = IDLE;
   private listeners = new Set<(s: SpotifyRunState) => void>();
   private runId = 0;
   private originalVolume = 70;
   private audio: AudioEngine | null = null;
   private lastFadeSec = 5;
+  private firstFadeInSec = FIRST_FADE_IN_SEC;
+  // Operator's Fade to Pad: 0 = Spotify pulled down, 1 = normal. Multiplies
+  // the planned envelope so the song keeps its position underneath.
+  private manualGain = 1;
+  private lastSentVolume = 0;
+  // Set while stop() is fading Spotify out; a new start waits for it.
+  private stopping: Promise<void> | null = null;
 
   getState(): SpotifyRunState { return this.state; }
   subscribe(fn: (s: SpotifyRunState) => void): () => void {
@@ -204,10 +211,12 @@ class SpotifyTestRunner {
     audio: AudioEngine;
     edits?: Record<string, SpotifyTrackEdit>;
   }): Promise<void> {
+    if (this.stopping) await this.stopping;
     if (this.isActive()) return;
     const id = ++this.runId;
     this.audio = opts.audio;
     this.lastFadeSec = opts.lastFadeSec;
+    this.firstFadeInSec = FIRST_FADE_IN_SEC;
     const check = await this.cmd({ op: 'check' });
     if (!check.ok) { this.set({ ...IDLE, status: 'error', message: check.reason ?? 'Spotify isn’t available.' }); return; }
     this.originalVolume = check.volume && check.volume > 0 ? check.volume : 70;
@@ -231,12 +240,45 @@ class SpotifyTestRunner {
     }
   }
 
-  private envelope(seg: SpotifyRunSegment, idx: number, last: number, now: number): number {
-    const fadeIn = seg.fadeInSec ?? (idx === 0 ? FIRST_FADE_IN_SEC : TRANSITION_FADE_IN_SEC);
-    let g = fadeIn > 0 ? Math.min(1, Math.max(0, (now - seg.startAt) / 1000 / fadeIn)) : (now >= seg.startAt ? 1 : 0);
+  /**
+   * Runs an already-planned set of songs (a service's Spotify runway): the
+   * last one lands at `endAt` (the service start). No pad here — the
+   * service controller brings the pad in as it does for any service.
+   * Joins late if called after the first song's start: songs already over
+   * are skipped and the current one is placed where it should be by now.
+   */
+  async startPlanned(opts: {
+    segments: SpotifyRunSegment[];
+    endAt: number;
+    lastFadeSec: number;
+    firstFadeInSec: number;
+  }): Promise<void> {
+    if (this.stopping) await this.stopping;
+    if (this.isActive() || opts.segments.length === 0) return;
+    const id = ++this.runId;
+    this.lastFadeSec = opts.lastFadeSec;
+    this.firstFadeInSec = opts.firstFadeInSec;
+    const check = await this.cmd({ op: 'check' });
+    if (!check.ok) { this.set({ ...IDLE, status: 'error', message: check.reason ?? 'Spotify isn’t available.' }); return; }
+    this.originalVolume = check.volume && check.volume > 0 ? check.volume : 70;
+    await this.cmd({ op: 'volume', volume: 0 });
+    this.manualGain = 1;
+    this.set({ ...IDLE, status: 'running', segments: opts.segments, endAt: opts.endAt });
+    try {
+      await this.run(id, opts.segments, opts.endAt, { padFilePath: null, padLeadInSec: 0 });
+    } catch (e) {
+      if (id !== this.runId) return;
+      await this.silence();
+      this.set({ status: 'error', message: e instanceof Error ? e.message : String(e) });
+    }
+  }
+
+  private envelope(seg: SpotifyRunSegment, isFirst: boolean, isLast: boolean, now: number, fadeFrom = seg.startAt): number {
+    const fadeIn = seg.fadeInSec ?? (isFirst ? this.firstFadeInSec : TRANSITION_FADE_IN_SEC);
+    let g = fadeIn > 0 ? Math.min(1, Math.max(0, (now - fadeFrom) / 1000 / fadeIn)) : (now >= fadeFrom ? 1 : 0);
     let fadeOut = 0;
     let fadeOutEnd = seg.stopAt;
-    if (idx < last) {
+    if (!isLast) {
       fadeOut = seg.fadeOutSec ?? TRANSITION_FADE_OUT_SEC;
       fadeOutEnd = seg.endAt - LOAD_LEAD_MS;
     } else if (seg.fadeOutSec !== undefined || seg.trimmedEnd || seg.stopAt > seg.endAt) {
@@ -248,7 +290,7 @@ class SpotifyTestRunner {
       if (seg.stopAt > seg.endAt) fadeOut = Math.min(fadeOut, (fadeOutEnd - seg.endAt) / 1000);
     }
     if (fadeOut > 0) g = Math.min(g, Math.max(0, (fadeOutEnd - now) / 1000 / fadeOut));
-    return Math.round(this.originalVolume * g);
+    return Math.round(this.originalVolume * g * this.manualGain);
   }
 
   private async run(
@@ -272,8 +314,13 @@ class SpotifyTestRunner {
     const padAt = endAt - (opts.padLeadInSec + lastFade) * 1000;
 
     let aim = SEEK_AIM_AHEAD_SEC;
+    let firstPlayed = true;
     for (let i = 0; i <= last; i++) {
       const seg = segments[i];
+      // Joining late (a service armed after its music should have started):
+      // skip songs that are already over, or nearly so.
+      if (i < last && seg.endAt - LOAD_LEAD_MS < Date.now() + 2000) continue;
+      const joiningLate = Date.now() > seg.startAt;
       const lead = i === 0 && seg.startPosSec > 0 ? FIRST_SONG_LEAD_MS : LOAD_LEAD_MS;
       await sleep(seg.startAt - lead - Date.now());
       if (!live()) return;
@@ -317,6 +364,11 @@ class SpotifyTestRunner {
       };
       let lastSeekAt = await jump();
 
+      // Joined mid-song: fade in from now rather than snapping to full volume.
+      const fadeFrom = joiningLate && firstPlayed ? Date.now() : seg.startAt;
+      const isFirst = firstPlayed;
+      firstPlayed = false;
+
       // 2. First song only: there's silent time before its fade-in, so check
       // where the jump landed and redo it until it's close.
       if (i === 0 && seg.startPosSec > 0) {
@@ -353,7 +405,8 @@ class SpotifyTestRunner {
           this.set({ padPlaying: true });
         }
 
-        const vol = this.envelope(seg, i, last, loopStart);
+        const vol = this.envelope(seg, isFirst, i === last, loopStart, fadeFrom);
+        this.lastSentVolume = this.manualGain > 0 ? Math.round(vol / this.manualGain) : this.lastSentVolume;
         if (vol !== sentVolume) {
           const r = await this.cmd({ op: 'volume', volume: vol });
           if (!r.ok) throw new Error(r.reason ?? 'Lost contact with Spotify.');
@@ -410,19 +463,41 @@ class SpotifyTestRunner {
 
   /** Stops the run: Spotify fades out and pauses, the pad fades out. */
   async stop(): Promise<void> {
+    if (this.stopping) return this.stopping;
     const wasRunning = this.isActive();
     this.runId++;
-    if (wasRunning) {
-      const v = this.originalVolume;
-      for (const f of [0.6, 0.3, 0]) {
-        await this.cmd({ op: 'volume', volume: Math.round(v * f) });
-        await sleep(200);
+    this.stopping = (async () => {
+      if (wasRunning) {
+        // Fade from wherever Spotify is now (it may already be pulled down
+        // by Fade to Pad), never back up from full.
+        const v = Math.round(this.lastSentVolume * this.manualGain);
+        for (const f of [0.6, 0.3, 0]) {
+          await this.cmd({ op: 'volume', volume: Math.round(v * f) });
+          await sleep(200);
+        }
+        await this.silence();
       }
-      await this.silence();
+      if (this.state.padPlaying) this.audio?.fadeOutPad(2);
+      this.set({ status: wasRunning ? 'stopped' : this.state.status, padPlaying: false,
+        message: wasRunning ? 'Stopped.' : this.state.message });
+    })();
+    try { await this.stopping; } finally { this.stopping = null; }
+  }
+
+  /**
+   * Fade to Pad for a Spotify runway: ramps Spotify down (gain 0) or back
+   * up (gain 1) over `fadeSec`, without moving the song. The planned fades
+   * keep running underneath, so bringing it back lands where the plan is.
+   */
+  async setManualGain(gain: number, fadeSec: number): Promise<void> {
+    if (!this.isActive()) { this.manualGain = gain; return; }
+    const from = this.manualGain;
+    const steps = Math.max(1, Math.round(fadeSec / 0.25));
+    for (let k = 1; k <= steps; k++) {
+      this.manualGain = from + (gain - from) * (k / steps);
+      await this.cmd({ op: 'volume', volume: Math.round(this.lastSentVolume * this.manualGain) });
+      await sleep(fadeSec * 1000 / steps);
     }
-    if (this.state.padPlaying) this.audio?.fadeOutPad(2);
-    this.set({ status: wasRunning ? 'stopped' : this.state.status, padPlaying: false,
-      message: wasRunning ? 'Stopped.' : this.state.message });
   }
 
   /** Fades out the pad that holds after a landing. */
@@ -433,3 +508,5 @@ class SpotifyTestRunner {
 }
 
 export const spotifyTestRun = new SpotifyTestRunner();
+/** Separate runner for services, so a test run and a service never share state. */
+export const spotifyServiceRun = new SpotifyTestRunner();

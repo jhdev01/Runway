@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { PreServicePlaylistSelect } from '../components/PreServicePlaylistSelect';
 import { useAppStore, generateId } from '../state/store';
 import { useEngines } from '../state/engines';
 import { KeyPickerModal } from '../components/KeyPickerModal';
@@ -536,16 +537,10 @@ export function ScheduleView() {
               <div className="service-card-body settings-modal-body">
                 <div className="service-field">
                   <span className="service-field-label">Pre-service playlist</span>
-                  <select
-                    className="select"
-                    value={row.preServicePlaylistId || ''}
-                    onChange={e => onUpdatePatternRow(row.id, { preServicePlaylistId: e.target.value || undefined })}
-                  >
-                    <option value="">— none —</option>
-                    {playlists.filter(pl => pl.kind === 'pre').map(pl => (
-                      <option key={pl.id} value={pl.id}>{pl.name}</option>
-                    ))}
-                  </select>
+                  <PreServicePlaylistSelect
+                    value={row}
+                    onChange={patch => onUpdatePatternRow(row.id, patch)}
+                  />
                 </div>
                 <div className="service-field">
                   <span className="service-field-label">Post-service playlist</span>
@@ -792,16 +787,7 @@ function ServiceCard({ service, onEditKey, onUpdate, onDelete }: {
             Row 5: ProPresenter (full width) */}
         <div className="service-field">
           <span className="service-field-label">Pre-service playlist</span>
-          <select
-            className="select"
-            value={service.preServicePlaylistId || ''}
-            onChange={e => onUpdate({ preServicePlaylistId: e.target.value || undefined })}
-          >
-            <option value="">— none —</option>
-            {playlists.filter(p => p.kind === 'pre').map(p => (
-              <option key={p.id} value={p.id}>{p.name}</option>
-            ))}
-          </select>
+          <PreServicePlaylistSelect value={service} onChange={patch => onUpdate(patch)} />
         </div>
 
         <div className="service-field">

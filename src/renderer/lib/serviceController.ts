@@ -24,6 +24,7 @@ import { compatibleKeys } from '@shared/music';
 import type { Action, ActionPayload, ActionSequence, KeyName, PadFile, Track } from '@shared/types';
 import { effectiveDuration } from '@shared/types';
 import { resolveActionFireMs } from './actionMeta';
+import { spotifyServiceRun, spotifyTestRun } from './spotifyTestRun';
 
 type Store = typeof useAppStore;
 
@@ -64,6 +65,12 @@ export class ServiceController {
   private padFailsafeTimer: number | null = null;
   private serviceStartFailsafeTimer: number | null = null;
   private installedFailsafeKey: string = '';
+  // Spotify runways (service music from a Spotify playlist): which arm the
+  // Spotify runner is playing for, and that runway's service start.
+  private spotifyEpoch: number | null = null;
+  private spotifyEndAt = 0;
+  // Spotify needs a few silent seconds before the first song to place it.
+  private static readonly SPOTIFY_PRESTART_MS = 4000;
   // Filled by the EnginesProvider after construction.
   private engines: ControllerEngineRefs = {};
 
@@ -239,6 +246,7 @@ export class ServiceController {
     const state = this.store.getState();
     const runway = state.currentRunway;
     if (!runway || runway.phase !== 'music') return;
+    if (runway.spotify) { this.stopSpotify(); void this.beginPad(); return; }
     const isLast = runway.currentTrackIndex >= runway.trackIds.length - 1;
     if (isLast) {
       void this.beginPad();
@@ -259,6 +267,7 @@ export class ServiceController {
     const state = this.store.getState();
     const runway = state.currentRunway;
     if (!runway || runway.phase !== 'music') return;
+    if (runway.spotify) return; // Spotify runways can't be stepped back yet
     const prevIndex = Math.max(0, runway.currentTrackIndex - 1);
     state.patchCurrentRunway({ currentTrackIndex: prevIndex });
     this.reanchorMusicStart(prevIndex, 0);
@@ -316,6 +325,7 @@ export class ServiceController {
     const state = this.store.getState();
     const runway = state.currentRunway;
     if (!runway || runway.phase !== 'music') return;
+    if (runway.spotify) this.stopSpotify();
     if (runway.serviceId === null) {
       void this.beginQuickPlayPad();
     } else {
@@ -1048,6 +1058,7 @@ export class ServiceController {
     // playing silently this whole time, so position is correct.
     if (state.fadeToPadActive) {
       this.audio.restoreMusicLevel(fade);
+      if (spotifyServiceRun.isActive()) void spotifyServiceRun.setManualGain(1, fade);
       this.audio.fadeOutPad(fade);
       state.setFadeToPadActive(false);
       return;
@@ -1056,6 +1067,7 @@ export class ServiceController {
     // advances and the operator can bring it back up by clicking the
     // button again.
     this.audio.fadeMusicToSilence(fade);
+    if (spotifyServiceRun.isActive()) void spotifyServiceRun.setManualGain(0, fade);
     // Pick the pad to fire. Priority chain:
     //   1. Currently-armed key's pad (set by auto-track or the picker)
     //   2. The currently-playing track's key
@@ -1093,6 +1105,7 @@ export class ServiceController {
   panic() {
     const state = this.store.getState();
     const runway = state.currentRunway;
+    if (spotifyServiceRun.isActive()) this.stopSpotify();
     if (!runway && !state.musicPlayback.isPlaying) return;
     this.audio.panicFadeAll(state.config.defaults.panicFadeSec);
     state.setFadeToPadActive(false);
@@ -1325,6 +1338,14 @@ export class ServiceController {
     // timers and clears stale ones. Idempotent on no-change ticks.
     this.installFailsafes(state);
 
+    // A Spotify runway whose service was disarmed or replaced before its
+    // 0:00 stops Spotify. After 0:00 the runner finishes its own fade-out,
+    // even though the service has already completed and been cleared.
+    if (this.spotifyEpoch !== null && spotifyServiceRun.isActive()) {
+      const ours = !!runway?.spotify && runway.armEpoch === this.spotifyEpoch;
+      if (!ours && Date.now() < this.spotifyEndAt) this.stopSpotify();
+    }
+
     if (!runway) return;
 
     const now = Date.now();
@@ -1345,6 +1366,20 @@ export class ServiceController {
 
     switch (runway.phase) {
       case 'queued':
+        if (runway.spotify) {
+          // Spotify runway: the runner starts a few silent seconds early to
+          // place the first song, and lands the last one at targetMs. The pad
+          // and service completion run through the normal music/pad phases.
+          if (this.spotifyEpoch !== (runway.armEpoch ?? 0)
+            && now >= runway.musicStartMs - ServiceController.SPOTIFY_PRESTART_MS) {
+            this.beginSpotifyMusic();
+          }
+          if (now >= runway.musicStartMs) {
+            state.patchCurrentRunway({ phase: 'music' });
+            if (runway.serviceId) state.setServiceStatus(runway.serviceId, 'live');
+          }
+          break;
+        }
         if (now >= runway.musicStartMs) {
           this.beginMusic();
         }
@@ -1953,6 +1988,41 @@ export class ServiceController {
     const idx = runway.trackIds.indexOf(trackId);
     if (idx < 0) return;
     void this.clickTimeline(idx, 0);
+  }
+
+  /** Hands a Spotify runway's planned songs to the Spotify runner. */
+  private beginSpotifyMusic(): void {
+    const runway = this.store.getState().currentRunway;
+    if (!runway?.spotify) return;
+    this.spotifyEpoch = runway.armEpoch ?? 0;
+    this.spotifyEndAt = runway.targetMs;
+    const sp = runway.spotify;
+    console.log('[spotify] runway starting', {
+      serviceId: runway.serviceId,
+      playlist: sp.playlistName,
+      songs: sp.segments.length,
+      msUntilMusic: runway.musicStartMs - Date.now(),
+      msUntilService: runway.targetMs - Date.now(),
+    });
+    // A service always wins over a Spotify test run: both drive the same app.
+    if (spotifyTestRun.isActive()) void spotifyTestRun.stop();
+    const unsub = spotifyServiceRun.subscribe(st => {
+      if (st.status === 'landed' || st.status === 'error') {
+        console.log(`[spotify] runway ${st.status}`, { message: st.message, landingErrorMs: st.landingErrorMs });
+        unsub();
+      }
+    });
+    void spotifyServiceRun.startPlanned({
+      segments: sp.segments,
+      endAt: runway.targetMs,
+      lastFadeSec: sp.lastFadeSec,
+      firstFadeInSec: sp.firstFadeInSec,
+    });
+  }
+
+  private stopSpotify(): void {
+    this.spotifyEpoch = null;
+    void spotifyServiceRun.stop();
   }
 
   private async beginMusic() {
