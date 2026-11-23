@@ -63,6 +63,12 @@ export function EnginesProvider({ children }: { children: React.ReactNode }) {
     const pullPcoKeyForService = async (serviceId: string) => {
       const cfg = useAppStore.getState().config.pcoSync;
       if (!cfg?.enabled || !cfg.serviceTypeId) return;
+      // A key the operator picked by hand in Schedule wins over the plan.
+      const svc = useAppStore.getState().config.services.find(s => s.id === serviceId);
+      if (svc?.firstSongKeyManual && svc.firstSongKey) {
+        console.log('[pco] skipped: key set by hand', { serviceId, key: svc.firstSongKey });
+        return;
+      }
       const outcome = await runPcoKeySync(pco, cfg, (key) =>
         useAppStore.getState().setServiceFirstSongKey(serviceId, key),
       );

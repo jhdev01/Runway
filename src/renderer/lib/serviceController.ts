@@ -2661,6 +2661,10 @@ export class ServiceController {
         const anchorHasOwnFade = (anchorTrack?.editFadeOutSec ?? 0) > 0;
         const skipControllerFade = (runway.tailSec ?? 0) > 0 || anchorHasOwnFade;
         await this.audio.playPad(padFile.filePath, { fadeInSec: padLeadSec, loop: true });
+        // Keep the Pad Player panel on the key that's actually playing. Runway
+        // tracks already set it as each song plays; Spotify songs don't go
+        // through the audio engine, so without this it showed a stale key.
+        if (padFile.key) this.store.getState().setPadArmedKey(padFile.key);
         if (!skipControllerFade) {
           window.setTimeout(() => {
             if (this.store.getState().currentRunway?.serviceId !== serviceId) return;

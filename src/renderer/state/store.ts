@@ -940,9 +940,10 @@ export const useAppStore = create<AppStoreState>((set, get) => ({
         ...state.config,
         services: state.config.services.map(s => {
           if (s.id !== serviceId) return s;
-          if (s.firstSongKey === key) return s; // already correct — no-op
+          if (s.firstSongKey === key && !s.firstSongKeyManual) return s; // already correct — no-op
           changed = true;
-          return { ...s, firstSongKey: key };
+          // Planning Center set it, so it's no longer a hand-picked key.
+          return { ...s, firstSongKey: key, firstSongKeyManual: undefined };
         }),
       },
     }));

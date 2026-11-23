@@ -124,6 +124,9 @@ export interface ServiceInstance {
   // from the first service of this date (use resolveServiceFirstSongKey).
   // For the first service of the day, undefined just means "no key set".
   firstSongKey?: KeyName;
+  // True when the operator picked firstSongKey by hand in Schedule. The
+  // scheduled Planning Center pull leaves these services alone.
+  firstSongKeyManual?: boolean;
   // Optional per-service override for how many seconds before start the
   // Planning Center key auto-pull fires for THIS service. `undefined`
   // inherits the global default (pcoSync.pullLeadSec).

@@ -6,6 +6,7 @@
  */
 
 import type { SpotifyPlayerCommand, SpotifyPlayerReply } from '@shared/types';
+import { glideSpotifyVolume } from './spotifyTestRun';
 
 const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, Math.max(0, ms)));
 const LOAD_TIMEOUT_MS = 6000;
@@ -82,12 +83,7 @@ class SpotifyFreePlayer {
     }
     this.set({ active: true, label: opts.label, error: null });
     this.startPolling(id);
-    const steps = Math.max(1, Math.round(opts.fadeInSec / 0.25));
-    for (let k = 1; k <= steps; k++) {
-      if (id !== this.runId) break;
-      await this.cmd({ op: 'volume', volume: Math.round(this.volume * k / steps) });
-      await sleep(opts.fadeInSec * 1000 / steps);
-    }
+    await glideSpotifyVolume(v => this.cmd({ op: 'volume', volume: v }), 0, this.volume, opts.fadeInSec, () => id === this.runId);
     return { ok: true };
   }
 
@@ -122,11 +118,7 @@ class SpotifyFreePlayer {
     this.stopping = (async () => {
       const cur = await this.cmd({ op: 'state' });
       const from = cur.ok && cur.volume !== undefined ? cur.volume : this.volume;
-      const steps = Math.max(1, Math.round(fadeSec / 0.25));
-      for (let k = steps - 1; k >= 0; k--) {
-        await this.cmd({ op: 'volume', volume: Math.round(from * k / steps) });
-        await sleep(fadeSec * 1000 / steps);
-      }
+      await glideSpotifyVolume(v => this.cmd({ op: 'volume', volume: v }), from, 0, fadeSec);
       await this.cmd({ op: 'pause' });
       await this.cmd({ op: 'volume', volume: this.volume });
       this.set({ active: false, now: null });

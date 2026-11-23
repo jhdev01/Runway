@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { formatDuration } from '../lib/format';
-import { keyColor, displayKey } from '@shared/music';
+import { keyColor, displayKey, compatibleKeys } from '@shared/music';
+import { useAppStore } from '../state/store';
 import type { KeyName } from '@shared/types';
 import { spotifyServiceRun, spotifyNowPlaying, type SpotifyRunSegment, type SpotifyRunState } from '../lib/spotifyTestRun';
 
@@ -17,6 +18,15 @@ export function SpotifyRunwayList({ segments, landInKey, showPad, padPlaying, ke
   keyMode: 'sharp' | 'flat';
   showPlayed: boolean;
 }) {
+  // The pad that will actually play: same pick as the pad bridge (exact
+  // key, else a compatible one, else the first pad loaded).
+  const pads = useAppStore(st => st.config.pads);
+  const padKey: KeyName | undefined = (() => {
+    if (!landInKey) return undefined;
+    if (pads.some(p => p.key === landInKey)) return landInKey;
+    for (const k of compatibleKeys(landInKey)) if (pads.some(p => p.key === k)) return k;
+    return pads[0]?.key;
+  })();
   const [run, setRun] = useState<SpotifyRunState>(spotifyServiceRun.getState());
   const [now, setNow] = useState(Date.now());
   useEffect(() => spotifyServiceRun.subscribe(setRun), []);
@@ -75,10 +85,15 @@ export function SpotifyRunwayList({ segments, landInKey, showPad, padPlaying, ke
           <div className={`timeline-segment pad-segment ${padPlaying ? 'current' : ''}`} style={{ flex: '1 0 140px' }}>
             <div className="tl-seg-top" title="Pad bridge">
               <div className="tl-seg-name">Pad</div>
-              <div className="tl-seg-meta">{padPlaying ? 'rolling' : 'on deck'}</div>
-              {landInKey && (() => {
-                const c = keyColor(landInKey);
-                return <div className={`tl-seg-key ${padPlaying ? 'match' : ''}`} style={{ background: c.bg, color: c.fg, borderColor: c.fg }}>{displayKey(landInKey, keyMode)}</div>;
+              <div className="tl-seg-meta" title={padKey && landInKey && padKey !== landInKey ? `No ${displayKey(landInKey, keyMode)} pad is loaded, so Runway plays the closest one it has (${displayKey(padKey, keyMode)}). Add a ${displayKey(landInKey, keyMode)} pad in Settings to land on it.` : undefined}>
+                {padPlaying ? 'rolling' : 'on deck'}
+                {padKey && landInKey && padKey !== landInKey && (
+                  <span style={{ color: 'var(--warn, #f5a524)' }}> · no {displayKey(landInKey, keyMode)} pad, plays {displayKey(padKey, keyMode)}</span>
+                )}
+              </div>
+              {padKey && (() => {
+                const c = keyColor(padKey);
+                return <div className={`tl-seg-key ${padPlaying ? 'match' : ''}`} style={{ background: c.bg, color: c.fg, borderColor: c.fg }}>{displayKey(padKey, keyMode)}</div>;
               })()}
             </div>
             <div className="tl-seg-scrub" />

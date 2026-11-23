@@ -32,7 +32,10 @@ const AIM_MIN_SEC = 0;
 const AIM_MAX_SEC = 0.25;
 const FIRST_SONG_LEAD_MS = 2600;  // first song starts this early, silent, to check its placement
 const PLACE_TOLERANCE_MS = 40;    // re-place the first song (still silent) if further off than this
-const STEP_MS = 250;              // volume step / playhead reading interval
+const STEP_MS = 250;              // playhead reading interval while the volume holds
+// While a fade is moving, Spotify's volume is updated this often (each
+// update is one quick AppleScript call), so fades glide instead of stepping.
+export const FADE_STEP_MS = 80;
 const FIRST_FADE_IN_SEC = 4;
 // Song changes are back to back, like Spotify's own playback: a song that
 // starts at its beginning only gets a click-free ramp (its intro does the
@@ -193,6 +196,40 @@ function learnAim(aim: number, offMs: number): number {
 }
 
 const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, Math.max(0, ms)));
+
+/**
+ * Fade shape: eases in and out of every fade (no sudden start, and the last
+ * part of a fade-out tails off gently instead of dropping off a cliff).
+ * Only shapes how the volume moves between the fade's start and end; it
+ * never moves when a fade starts or ends.
+ */
+export function fadeShape(x: number): number {
+  const t = Math.min(1, Math.max(0, x));
+  return t * t * (3 - 2 * t);
+}
+
+/**
+ * Glides Spotify's volume from `from` to `to` over `sec`, updating every
+ * FADE_STEP_MS by the clock (so a slow AppleScript reply doesn't stretch
+ * the fade). `live()` false stops it early.
+ */
+export async function glideSpotifyVolume(
+  send: (volume: number) => Promise<unknown>,
+  from: number, to: number, sec: number,
+  live: () => boolean = () => true,
+): Promise<void> {
+  const t0 = Date.now();
+  const ms = Math.max(0, sec * 1000);
+  let last = -1;
+  for (;;) {
+    if (!live()) return;
+    const k = ms > 0 ? Math.min(1, (Date.now() - t0) / ms) : 1;
+    const v = Math.round(from + (to - from) * fadeShape(k));
+    if (v !== last) { await send(v); last = v; }
+    if (k >= 1) return;
+    await sleep(FADE_STEP_MS - ((Date.now() - t0) % FADE_STEP_MS));
+  }
+}
 const median = (xs: number[]) => {
   const a = [...xs].sort((x, y) => x - y);
   const m = Math.floor(a.length / 2);
@@ -312,7 +349,7 @@ export class SpotifyTestRunner {
     const fadeIn = seg.fadeInSec ?? (isFirst
       ? this.firstFadeInSec
       : seg.startPosSec < 0.5 ? NATURAL_START_RAMP_SEC : TRANSITION_FADE_IN_SEC);
-    let g = fadeIn > 0 ? Math.min(1, Math.max(0, (now - fadeFrom) / 1000 / fadeIn)) : (now >= fadeFrom ? 1 : 0);
+    let g = fadeIn > 0 ? fadeShape((now - fadeFrom) / 1000 / fadeIn) : (now >= fadeFrom ? 1 : 0);
     let fadeOut = 0;
     let fadeOutEnd = seg.stopAt;
     if (!isLast) {
@@ -327,7 +364,7 @@ export class SpotifyTestRunner {
       fadeOut = seg.fadeOutSec ?? this.lastFadeSec;
       if (seg.stopAt > seg.endAt) fadeOut = Math.min(fadeOut, (fadeOutEnd - seg.endAt) / 1000);
     }
-    if (fadeOut > 0) g = Math.min(g, Math.max(0, (fadeOutEnd - now) / 1000 / fadeOut));
+    if (fadeOut > 0) g = Math.min(g, fadeShape((fadeOutEnd - now) / 1000 / fadeOut));
     return Math.round(this.originalVolume * g * this.manualGain);
   }
 
@@ -455,12 +492,15 @@ export class SpotifyTestRunner {
 
         let vol = this.envelope(seg, isFirst, i === last, loopStart, fadeFrom);
         // Just put back after an accidental pause: fade in rather than snap.
-        if (resumedAt !== null) vol = Math.round(vol * Math.min(1, (loopStart - resumedAt) / RECOVER_FADE_MS));
+        if (resumedAt !== null) vol = Math.round(vol * fadeShape((loopStart - resumedAt) / RECOVER_FADE_MS));
         this.lastSentVolume = this.manualGain > 0 ? Math.round(vol / this.manualGain) : this.lastSentVolume;
         if (vol !== sentVolume) {
           const r = await this.cmd({ op: 'volume', volume: vol });
           if (!r.ok) throw new Error(r.reason ?? 'Lost contact with Spotify.');
           sentVolume = vol;
+          // Mid-fade: come back soon for the next small step.
+          await sleep(FADE_STEP_MS - (Date.now() - loopStart));
+          continue;
         } else {
           const e = await readErr();
           if (e === null) {
@@ -546,8 +586,8 @@ export class SpotifyTestRunner {
     } catch { /* best effort */ }
   }
 
-  /** Stops the run: Spotify fades out and pauses, the pad fades out. */
-  async stop(): Promise<void> {
+  /** Stops the run: Spotify fades out over `fadeSec` and pauses, the pad fades out. */
+  async stop(fadeSec = 1.5): Promise<void> {
     if (this.stopping) return this.stopping;
     const wasRunning = this.isActive();
     this.runId++;
@@ -556,10 +596,7 @@ export class SpotifyTestRunner {
         // Fade from wherever Spotify is now (it may already be pulled down
         // by Fade to Pad), never back up from full.
         const v = Math.round(this.lastSentVolume * this.manualGain);
-        for (const f of [0.6, 0.3, 0]) {
-          await this.cmd({ op: 'volume', volume: Math.round(v * f) });
-          await sleep(200);
-        }
+        await glideSpotifyVolume(vol => this.cmd({ op: 'volume', volume: vol }), v, 0, fadeSec);
         await this.silence();
       }
       if (this.state.padPlaying) this.audio?.fadeOutPad(2);
@@ -577,11 +614,14 @@ export class SpotifyTestRunner {
   async setManualGain(gain: number, fadeSec: number): Promise<void> {
     if (!this.isActive()) { this.manualGain = gain; return; }
     const from = this.manualGain;
-    const steps = Math.max(1, Math.round(fadeSec / 0.25));
-    for (let k = 1; k <= steps; k++) {
-      this.manualGain = from + (gain - from) * (k / steps);
+    const t0 = Date.now();
+    const ms = Math.max(0, fadeSec * 1000);
+    for (;;) {
+      const k = ms > 0 ? Math.min(1, (Date.now() - t0) / ms) : 1;
+      this.manualGain = from + (gain - from) * fadeShape(k);
       await this.cmd({ op: 'volume', volume: Math.round(this.lastSentVolume * this.manualGain) });
-      await sleep(fadeSec * 1000 / steps);
+      if (k >= 1) break;
+      await sleep(FADE_STEP_MS);
     }
   }
 

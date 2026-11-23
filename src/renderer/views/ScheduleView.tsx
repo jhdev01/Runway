@@ -619,7 +619,7 @@ export function ScheduleView() {
         open={keyEditingServiceId !== null}
         selected={editingService?.firstSongKey}
         onSelect={(k) => {
-          if (editingService) upsertService({ ...editingService, firstSongKey: k ?? undefined });
+          if (editingService) upsertService({ ...editingService, firstSongKey: k ?? undefined, firstSongKeyManual: k ? true : undefined });
         }}
         onClose={() => setKeyEditingServiceId(null)}
       />
