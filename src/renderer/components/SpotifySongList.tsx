@@ -162,6 +162,21 @@ export function SpotifySongList({ tracks }: { tracks: SpotifyPlaylistTrack[] }) 
     setLookup({ busy: false, done, total: targets.length, note: targets.length ? parts.join(', ') + '.' : 'Every song already has a key.' });
   };
 
+  // Audition a song in Spotify (no fades, no timing — just play / pause).
+  const [playingUri, setPlayingUri] = useState<string | null>(null);
+  const togglePlay = async (uri: string) => {
+    if (playingUri === uri) {
+      await window.runway.spotify.player({ op: 'pause' });
+      setPlayingUri(null);
+      return;
+    }
+    const r = await window.runway.spotify.player({ op: 'play', uri });
+    if (r.ok) {
+      setPlayingUri(uri);
+      if (!r.wasFrontmost) window.setTimeout(() => { void window.runway.spotify.player({ op: 'background' }); }, 800);
+    } else setLookup(l => ({ ...l, note: r.reason ?? 'Couldn’t play in Spotify.' }));
+  };
+
   const keyTrack = keyFor ? tracks.find(t => t.uri === keyFor) : undefined;
   return (
     <div style={{ marginTop: 6 }}>
@@ -183,6 +198,15 @@ export function SpotifySongList({ tracks }: { tracks: SpotifyPlaylistTrack[] }) 
             <div key={rowKey}>
               <div style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '3px 0' }}>
                 <span style={{ width: 20, textAlign: 'right', opacity: 0.6 }}>{i + 1}</span>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => void togglePlay(t.uri)}
+                  title={playingUri === t.uri ? 'Pause in Spotify' : 'Play in Spotify (e.g. to find its key with the pad player)'}
+                  style={{ width: 30, height: 30, padding: 0, borderRadius: 999, flex: 'none' }}
+                >
+                  {playingUri === t.uri ? '❚❚' : '▶'}
+                </button>
                 {(artCache[t.uri] ?? t.albumArtUrl)
                   ? <img src={artCache[t.uri] ?? t.albumArtUrl} alt="" loading="lazy" style={{ width: 36, height: 36, borderRadius: 4, objectFit: 'cover', flex: 'none' }} />
                   : <div aria-hidden style={{ width: 36, height: 36, borderRadius: 4, background: 'var(--bg-elev-2)', display: 'grid', placeItems: 'center', flex: 'none' }}>♪</div>}

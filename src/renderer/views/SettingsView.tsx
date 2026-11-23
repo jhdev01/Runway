@@ -2019,7 +2019,7 @@ function SpotifyAccountSection() {
       {status.connected && (
         <div className="pp-actions" style={{ marginTop: 10 }}>
           <span className="settings-field-sub">Import playlists, set keys and download artwork in</span>
-          <button className="btn-secondary" onClick={() => useAppStore.getState().setView('library')}>Library › Spotify</button>
+          <button className="btn-secondary" onClick={() => useAppStore.getState().setView('playlists')}>Playlists › Spotify</button>
         </div>
       )}
     </section>

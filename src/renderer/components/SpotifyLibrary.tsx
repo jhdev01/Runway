@@ -3,8 +3,8 @@ import { useAppStore } from '../state/store';
 import type { SpotifyPlaylistResult, SpotifyPlaylistSummary, SpotifyPlaylistTrack, SpotifyStatus } from '@shared/types';
 import { formatDuration } from '../lib/format';
 import { SpotifySongList } from './SpotifySongList';
-import { SpotifyTestRunPanel } from './SpotifyTestRunPanel';
 import { SpotifyBadge } from './SpotifyBadge';
+import { KeyTesterPiano } from './KeyTesterPiano';
 
 /**
  * Library › Spotify: import Spotify playlists, then work on their songs the
@@ -29,6 +29,7 @@ export function SpotifyLibrary() {
   const [note, setNote] = useState<string | null>(null);
   const [filter, setFilter] = useState<string>('all');
   const [artProgress, setArtProgress] = useState<{ done: number; total: number } | null>(null);
+  const [padOpen, setPadOpen] = useState(false);
 
   useEffect(() => { void window.runway?.spotify?.status().then(setStatus); }, []);
   const loadMine = async () => {
@@ -104,8 +105,7 @@ export function SpotifyLibrary() {
       : `Downloaded artwork for ${done - failed} song${done - failed === 1 ? '' : 's'}${failed ? ` (${failed} failed)` : ''}.`);
   };
 
-  const shown = filter !== 'all' ? cache[filter] : null;
-  const totalSec = songs.reduce((a, t) => a + t.durationMs / 1000, 0);
+    const totalSec = songs.reduce((a, t) => a + t.durationMs / 1000, 0);
   const importable = (mine ?? []).filter(p => !cache[p.id]);
 
   if (status && !status.connected) {
@@ -153,6 +153,13 @@ export function SpotifyLibrary() {
           title="Pick up songs added or removed in Spotify">
           {busy === 'all' ? 'Reloading…' : '↻ Reload from Spotify'}
         </button>
+        <button
+          className={`library-refresh ${padOpen ? 'active' : ''}`}
+          onClick={() => setPadOpen(o => !o)}
+          title={padOpen ? 'Close the pad player' : 'Play pads in different keys against a Spotify song to find its key by ear'}
+        >
+          {padOpen ? 'Close pad player' : 'Pad player'}
+        </button>
         <button className="library-refresh" onClick={() => void downloadArt()} disabled={artProgress !== null || songs.length === 0}
           title="Save album art in Runway so it shows without internet">
           {artProgress ? `Artwork ${artProgress.done}/${artProgress.total}` : '⤓ Download artwork'}
@@ -171,9 +178,7 @@ export function SpotifyLibrary() {
                 style={filter === id ? { borderColor: '#1ed760' } : undefined}>
                 <span style={{ color: '#1ed760' }}>●</span> {pl.name} <span style={{ opacity: 0.6 }}>({pl.tracks?.length ?? 0})</span>
               </button>
-              <button className="btn-secondary" title={`Remove “${pl.name}” from Runway (it stays in Spotify)`}
-                onClick={() => { saveCache(id, null); if (filter === id) setFilter('all'); }}
-                style={{ padding: '2px 8px' }}>×</button>
+
             </span>
           ))}
         </div>
@@ -186,11 +191,13 @@ export function SpotifyLibrary() {
         ) : (
           <>
             <SpotifySongList tracks={songs} />
-            {shown?.ok && shown.tracks && shown.tracks.length > 0 && <SpotifyTestRunPanel playlist={shown} />}
-            {!shown && <div className="settings-field-sub" style={{ marginTop: 10 }}>Pick one playlist above to try a test run with it.</div>}
+            <div className="settings-field-sub" style={{ marginTop: 10 }}>
+              Manage these playlists and try a test run in <strong>Playlists › Spotify</strong>.
+            </div>
           </>
         )}
       </div>
+      {padOpen && <KeyTesterPiano onClose={() => setPadOpen(false)} />}
     </div>
   );
 }

@@ -1,4 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { SpotifyPlaylistPanel, SpotifyImportButton } from '../components/SpotifyPlaylistPanel';
+import { SpotifyBadge } from '../components/SpotifyBadge';
 import { useAppStore, generateId } from '../state/store';
 import { formatDuration, formatTrackTech } from '../lib/format';
 import { KeyPickerModal } from '../components/KeyPickerModal';
@@ -13,7 +15,15 @@ export function PlaylistsView() {
   const setSelectedId = useAppStore(s => s.setSelectedPlaylistId);
   const createPlaylist = useAppStore(s => s.createPlaylist);
 
-  const selected = playlists.find(p => p.id === selectedId) ?? playlists[0];
+  const spotifyCache = useAppStore(s => s.config.spotify?.playlistCache);
+  const spotifyLists = useMemo(
+    () => Object.entries(spotifyCache ?? {}).filter(([, pl]) => pl.ok)
+      .sort((a, b) => (a[1].name ?? '').localeCompare(b[1].name ?? '')),
+    [spotifyCache],
+  );
+  // Spotify playlists are selected as "spotify:<id>".
+  const selectedSpotifyId = selectedId?.startsWith('spotify:') ? selectedId.slice(8) : null;
+  const selected = selectedSpotifyId ? undefined : (playlists.find(p => p.id === selectedId) ?? playlists[0]);
 
   const grouped = useMemo(() => {
     return {
@@ -47,6 +57,25 @@ export function PlaylistsView() {
           <PlaylistGroup label="Pre-Service" items={grouped.pre} selectedId={selected?.id} onSelect={setSelectedId} tracks={tracks} />
           <PlaylistGroup label="Post-Service" items={grouped.post} selectedId={selected?.id} onSelect={setSelectedId} tracks={tracks} />
           <PlaylistGroup label="Special" items={grouped.special} selectedId={selected?.id} onSelect={setSelectedId} tracks={tracks} />
+          <div className="pl-group-label">Spotify</div>
+          {spotifyLists.map(([id, pl]) => (
+            <button
+              key={id}
+              className={`pl-item ${selectedSpotifyId === id ? 'active' : ''}`}
+              onClick={() => setSelectedId(`spotify:${id}`)}
+              style={{ background: 'none', border: 'none', width: '100%', textAlign: 'left' }}
+              title="Spotify playlist — plays through the Spotify app"
+            >
+              <div className="pl-item-icon" style={{ background: '#1ed760' }} />
+              <div className="pl-item-info">
+                <div className="pl-item-name">{pl.name} <SpotifyBadge /></div>
+                <div className="pl-item-meta">
+                  {pl.tracks?.length ?? 0} tracks · {formatDuration((pl.tracks ?? []).reduce((a, t) => a + t.durationMs / 1000, 0))}
+                </div>
+              </div>
+            </button>
+          ))}
+          <SpotifyImportButton onImported={id => setSelectedId(`spotify:${id}`)} />
           {playlists.length === 0 && (
             <div style={{ padding: 20, color: 'var(--text-faint)', fontSize: 13 }}>
               No playlists yet. Click + to create one.
@@ -55,7 +84,9 @@ export function PlaylistsView() {
         </div>
       </aside>
 
-      {selected ? (
+      {selectedSpotifyId ? (
+        <SpotifyPlaylistPanel playlistId={selectedSpotifyId} onRemoved={() => setSelectedId(null)} />
+      ) : selected ? (
         <PlaylistEditor playlist={selected} />
       ) : (
         <div className="empty-state">
