@@ -43,8 +43,6 @@ const LANDING_WINDOW_MS = 8000;   // landing error = readings in the last 8 s
 // into whatever it would play next before the pause arrives. The song's
 // own ending covers it.
 const END_MUTE_MS = 300;
-// Last song with a trimmed end or landing marker but no fade-out set: fade over this.
-const LAST_TRIM_FADE_SEC = 2;
 
 export interface SpotifyRunSegment {
   uri: string;
@@ -64,8 +62,11 @@ export interface SpotifyRunSegment {
 /** Playable range of a song after the operator's trims, clamped to sane values. */
 export function songBounds(durSec: number, e: SpotifyTrackEdit | undefined) {
   const start = Math.min(Math.max(0, e?.trimStartSec ?? 0), Math.max(0, durSec - 1));
-  const end = Math.min(durSec, Math.max(start + 1, e?.trimEndSec ?? durSec));
-  const land = e?.landSec !== undefined && e.landSec > start && e.landSec <= end ? e.landSec : end;
+  // A 0:00 marker with no End means "the song is done by 0:00": it ends at
+  // the marker. With an End after the marker, it plays on to that End.
+  const landIn = e?.landSec !== undefined && e.landSec > start && e.landSec <= durSec ? e.landSec : undefined;
+  const end = Math.min(durSec, Math.max(start + 1, e?.trimEndSec ?? landIn ?? durSec));
+  const land = landIn !== undefined && landIn <= end ? landIn : end;
   return { start, end, land };
 }
 
@@ -153,6 +154,7 @@ class SpotifyTestRunner {
   private runId = 0;
   private originalVolume = 70;
   private audio: AudioEngine | null = null;
+  private lastFadeSec = 5;
 
   getState(): SpotifyRunState { return this.state; }
   subscribe(fn: (s: SpotifyRunState) => void): () => void {
@@ -175,12 +177,15 @@ class SpotifyTestRunner {
     padKey: KeyName | null;
     padFilePath: string | null;
     padLeadInSec: number;
+    /** Fade for a last song that stops before its natural end (Runway's Music fade). */
+    lastFadeSec: number;
     audio: AudioEngine;
     edits?: Record<string, SpotifyTrackEdit>;
   }): Promise<void> {
     if (this.isActive()) return;
     const id = ++this.runId;
     this.audio = opts.audio;
+    this.lastFadeSec = opts.lastFadeSec;
     const check = await this.cmd({ op: 'check' });
     if (!check.ok) { this.set({ ...IDLE, status: 'error', message: check.reason ?? 'Spotify isn’t available.' }); return; }
     this.originalVolume = check.volume && check.volume > 0 ? check.volume : 70;
@@ -214,7 +219,7 @@ class SpotifyTestRunner {
       fadeOutEnd = seg.endAt - LOAD_LEAD_MS;
     } else if (seg.fadeOutSec !== undefined || seg.trimmedEnd || seg.stopAt > seg.endAt) {
       // Last song stopping before its natural end: fade so it doesn't cut off.
-      fadeOut = seg.fadeOutSec ?? LAST_TRIM_FADE_SEC;
+      fadeOut = seg.fadeOutSec ?? this.lastFadeSec;
       fadeOutEnd = seg.stopAt - END_MUTE_MS;
     }
     if (fadeOut > 0) g = Math.min(g, Math.max(0, (fadeOutEnd - now) / 1000 / fadeOut));
@@ -231,6 +236,13 @@ class SpotifyTestRunner {
     const last = segments.length - 1;
     const cmdTimes: number[] = [];
     const landing: number[] = [];
+    // Like Runway's own runway: the pad fades in over its lead-in so it's up
+    // before the last song starts fading out by 0:00.
+    const lastSeg = segments[last];
+    const fadesByZero = lastSeg.stopAt <= lastSeg.endAt
+      && (lastSeg.trimmedEnd || lastSeg.fadeOutSec !== undefined);
+    const lastFade = fadesByZero ? (lastSeg.fadeOutSec ?? this.lastFadeSec) : 0;
+    const padAt = endAt - (opts.padLeadInSec + lastFade) * 1000;
 
     let aim = SEEK_AIM_AHEAD_SEC;
     for (let i = 0; i <= last; i++) {
@@ -309,7 +321,7 @@ class SpotifyTestRunner {
         if (!live()) return;
         const loopStart = Date.now();
 
-        if (opts.padFilePath && !this.state.padPlaying && loopStart >= endAt - opts.padLeadInSec * 1000) {
+        if (opts.padFilePath && !this.state.padPlaying && loopStart >= padAt) {
           void this.audio?.playPad(opts.padFilePath, { fadeInSec: opts.padLeadInSec, loop: true });
           this.set({ padPlaying: true });
         }

@@ -26,9 +26,9 @@ function parsePos(text: string): number | undefined | null {
 const FIELDS: Array<{ key: Field; label: string; kind: 'pos' | 'fade'; mark: boolean; hint: string }> = [
   { key: 'trimStartSec', label: 'Start', kind: 'pos', mark: true, hint: 'Song starts here.' },
   { key: 'trimEndSec', label: 'End', kind: 'pos', mark: true, hint: 'Song stops here.' },
-  { key: 'landSec', label: '0:00 at', kind: 'pos', mark: true, hint: 'When this song is last, the countdown hits 0:00 here and the song plays on to its end. Blank = at the end.' },
+  { key: 'landSec', label: '0:00 at', kind: 'pos', mark: true, hint: 'When this song is last, the countdown hits 0:00 here and the song has faded out by then. Set an End later than this to let it play on under the pad.' },
   { key: 'fadeInSec', label: 'Fade in', kind: 'fade', mark: false, hint: 'Seconds. Blank = Runway’s default.' },
-  { key: 'fadeOutSec', label: 'Fade out', kind: 'fade', mark: false, hint: 'Seconds. Blank = Runway’s default.' },
+  { key: 'fadeOutSec', label: 'Fade out', kind: 'fade', mark: false, hint: 'Seconds. Blank = Runway’s default (Music fade, for the last song).' },
 ];
 
 function SongEditor({ track, edit, onChange }: {
@@ -93,7 +93,11 @@ function SongEditor({ track, edit, onChange }: {
         <button className="btn-secondary" onClick={() => { setDrafts({}); setNote(null); onChange({}); }}>Clear edits</button>
         <span className="settings-field-sub">
           Plays {fmtPos(b.start)} to {fmtPos(b.end)} ({formatDuration(b.end - b.start)})
-          {b.land < b.end ? `, 0:00 at ${fmtPos(b.land)} when last` : ''}
+          {edit.landSec !== undefined
+            ? (b.land < b.end
+              ? `. When last: 0:00 at ${fmtPos(b.land)}, plays on to ${fmtPos(b.end)}`
+              : `. When last: fades out by 0:00 at ${fmtPos(b.land)}`)
+            : ''}
         </span>
       </div>
       {note && <div className="pp-status err">{note}</div>}

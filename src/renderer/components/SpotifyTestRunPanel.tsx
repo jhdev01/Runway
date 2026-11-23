@@ -55,6 +55,7 @@ export function SpotifyTestRunPanel({ playlist }: { playlist: SpotifyPlaylistRes
       padKey: padKey || null,
       padFilePath: pad?.filePath ?? null,
       padLeadInSec: defaults.padLeadInSec,
+      lastFadeSec: defaults.musicFadeToPadSec ?? 5,
       audio,
       edits: useAppStore.getState().config.spotify?.trackEdits ?? {},
     });
