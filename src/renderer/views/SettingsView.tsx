@@ -1929,8 +1929,8 @@ function SpotifyAccountSection() {
   const clientId = config.spotify?.clientId ?? '';
   const [status, setStatus] = useState<SpotifyStatus>({ connected: false });
   const [busy, setBusy] = useState<null | 'connect' | 'read'>(null);
-  const [link, setLink] = useState('');
-  const [playlist, setPlaylist] = useState<SpotifyPlaylistResult | null>(null);
+  const [link, setLink] = useState(config.spotify?.lastPlaylistLink ?? '');
+  const [playlist, setPlaylist] = useState<SpotifyPlaylistResult | null>(config.spotify?.lastPlaylist ?? null);
   useEffect(() => { void window.runway?.spotify?.status().then(setStatus); }, []);
 
   const connect = async () => {
@@ -1940,13 +1940,18 @@ function SpotifyAccountSection() {
   };
   const disconnect = async () => {
     setStatus(await window.runway.spotify.disconnect());
-    setPlaylist(null);
   };
   const read = async () => {
     setBusy('read');
-    setPlaylist(null);
-    try { setPlaylist(await window.runway.spotify.readPlaylist(link)); }
-    finally { setBusy(null); }
+    try {
+      const result = await window.runway.spotify.readPlaylist(link);
+      setPlaylist(result);
+      if (result.ok) {
+        // Keep it (and the link) so it survives leaving Settings or a restart.
+        const latest = useAppStore.getState().config.spotify;
+        updateConfig({ spotify: { ...latest, lastPlaylistLink: link.trim(), lastPlaylist: result } });
+      }
+    } finally { setBusy(null); }
   };
   const totalSec = (playlist?.tracks ?? []).reduce((s, t) => s + t.durationMs, 0) / 1000;
 
