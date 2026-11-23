@@ -24,7 +24,7 @@ import { compatibleKeys } from '@shared/music';
 import type { Action, ActionPayload, ActionSequence, KeyName, PadFile, Track } from '@shared/types';
 import { effectiveDuration } from '@shared/types';
 import { resolveActionFireMs } from './actionMeta';
-import { spotifyServiceRun, spotifyTestRun } from './spotifyTestRun';
+import { spotifyServiceRun, spotifyTestRun, planSpotifyRun, songBounds, spotifyNowPlaying } from './spotifyTestRun';
 import { spotifyFreePlay } from './spotifyPost';
 
 type Store = typeof useAppStore;
@@ -72,6 +72,7 @@ export class ServiceController {
   private spotifyEndAt = 0;
   // Arm epoch of the Spotify post-service runway, once Spotify is playing it.
   private spotifyPostEpoch: number | null = null;
+  private lastSpotifyPadIdx = -1;
   // Spotify needs a few silent seconds before the first song to place it.
   private static readonly SPOTIFY_PRESTART_MS = 4000;
   // Filled by the EnginesProvider after construction.
@@ -689,7 +690,8 @@ export class ServiceController {
     const runway = state.currentRunway;
     if (!runway || !runway.isPostService) return;
     this.audio.fadeOutMusic(fadeSec);
-    if (runway.spotifyPost) void spotifyFreePlay.stop(fadeSec);
+    if (runway.spotify) { this.spotifyEpoch = null; void spotifyServiceRun.stop(fadeSec); }
+    else if (runway.spotifyPost) void spotifyFreePlay.stop(fadeSec);
     state.setCurrentRunway(null);
   }
 
@@ -711,16 +713,44 @@ export class ServiceController {
     if (state.currentRunway?.isPostService) this.stopPostService(1);
     const cached = state.config.spotify?.playlistCache?.[spotifyPlaylistId];
     const name = cached?.name ?? 'Spotify playlist';
-    const totalSec = (cached?.tracks ?? []).reduce((a, t) => a + t.durationMs / 1000, 0);
-    state.setCurrentRunway({
+    const artCache = state.config.spotify?.artCache ?? {};
+    const tracks = (cached?.tracks ?? []).map(t => (artCache[t.uri] ? { ...t, albumArtUrl: artCache[t.uri] } : t));
+    if (tracks.length === 0) return { ok: false, reason: `Couldn’t load the Spotify playlist “${name}”. Import it in Playlists › Spotify.` };
+
+    // Played song by song like a Runway post-service playlist: each song's
+    // Start / End / fades apply, the chip strip and Now Playing follow it,
+    // Fade to Pad and Shuffle remaining work. Post-service doesn't land, so
+    // songs' 0:00 markers are ignored here.
+    const edits = Object.fromEntries(Object.entries(state.config.spotify?.trackEdits ?? {})
+      .map(([k, v]) => [k, { ...v, landSec: undefined }]));
+    const lastFadeSec = state.config.defaults.musicFadeToPadSec ?? 5;
+    const totalSec = tracks.reduce((a, t) => {
+      const b = songBounds(t.durationMs / 1000, edits[t.uri]);
+      return a + (b.end - b.start);
+    }, 0);
+    // A few seconds for Spotify to load the first song silently.
+    const startAt = Date.now() + 3200;
+    const endAt = startAt + totalSec * 1000;
+    const segments = planSpotifyRun(tracks, null, endAt, edits, lastFadeSec);
+    if (segments.length === 0) return { ok: false, reason: 'Nothing to play in that Spotify playlist.' };
+
+    // Spotify plays one thing at a time: let anything else on it stop first.
+    if (spotifyServiceRun.isActive()) await spotifyServiceRun.stop(1);
+    if (spotifyTestRun.isActive()) await spotifyTestRun.stop();
+    if (spotifyFreePlay.isActive()) await spotifyFreePlay.stop(1);
+
+    const epoch = Date.now();
+    const firstFadeInSec = state.config.defaults.postServiceFadeInSec ?? 4;
+    const spotify = { playlistId: spotifyPlaylistId, playlistName: name, segments, lastFadeSec, firstFadeInSec };
+    this.store.getState().setCurrentRunway({
       serviceId: null,
       trackIds: [],
       totalSec,
       landInKey: undefined,
-      plannedStartTime: undefined,
+      plannedStartTime: new Date(segments[0].startAt).toISOString(),
       startOffsetSec: 0,
-      targetMs: 0,
-      musicStartMs: Date.now(),
+      targetMs: endAt,
+      musicStartMs: segments[0].startAt,
       padStartMs: 0,
       transitionMode: 'gapless',
       crossfadeSec: 0,
@@ -731,17 +761,25 @@ export class ServiceController {
       currentTrackIndex: 0,
       isPostService: true,
       originServiceId,
+      armEpoch: epoch,
+      spotify,
       spotifyPost: { playlistId: spotifyPlaylistId, playlistName: name },
     });
-    const res = await spotifyFreePlay.play({
-      uri: `spotify:playlist:${spotifyPlaylistId}`,
-      label: name,
-      fadeInSec: state.config.defaults.postServiceFadeInSec ?? 4,
+    this.spotifyEpoch = epoch;
+    this.spotifyEndAt = endAt;
+    console.log('[spotify] post-service starting', { playlist: name, songs: segments.length, totalSec: Math.round(totalSec) });
+    // When the last song finishes, the post-service ends (like a Runway one).
+    const unsub = spotifyServiceRun.subscribe(st => {
+      if (st.status === 'running') return;
+      unsub();
+      const cur = this.store.getState().currentRunway;
+      if (cur?.armEpoch === epoch && cur.isPostService) {
+        if (st.status === 'landed') console.log('[spotify] post-service finished', { playlist: name });
+        this.spotifyEpoch = null;
+        this.store.getState().setCurrentRunway(null);
+      }
     });
-    if (!res.ok) {
-      if (this.store.getState().currentRunway?.spotifyPost) this.store.getState().setCurrentRunway(null);
-      return { ok: false, reason: res.reason ?? 'Spotify didn’t start.' };
-    }
+    void spotifyServiceRun.startPlanned({ segments, endAt, lastFadeSec, firstFadeInSec, playlistId: spotifyPlaylistId });
     return { ok: true };
   }
 
@@ -786,6 +824,7 @@ export class ServiceController {
     if (!runway || !runway.isPostService) {
       return { ok: false, reason: 'No post-service playback running' };
     }
+    if (runway.spotify) return this.shuffleSpotifyPost();
     const idx = runway.currentTrackIndex;
     const past = runway.trackIds.slice(0, idx + 1);  // includes currently-playing
     const future = runway.trackIds.slice(idx + 1);
@@ -798,6 +837,41 @@ export class ServiceController {
       [next[i], next[j]] = [next[j], next[i]];
     }
     state.patchCurrentRunway({ trackIds: [...past, ...next] });
+    return { ok: true };
+  }
+
+  /**
+   * Shuffle remaining for a Spotify post-service: the song playing now
+   * carries on; the ones after it are put in a new random order, starting
+   * when the current one ends.
+   */
+  private shuffleSpotifyPost(): { ok: boolean; reason?: string } {
+    const state = this.store.getState();
+    const runway = state.currentRunway;
+    if (!runway?.spotify) return { ok: false, reason: 'No Spotify post-service playing' };
+    const run = spotifyServiceRun.getState();
+    const idx = Math.max(0, run.currentIndex);
+    const cur = run.segments[idx];
+    const rest = run.segments.slice(idx + 1);
+    if (!cur || rest.length < 2) return { ok: false, reason: 'Nothing left to shuffle' };
+    const cache = state.config.spotify?.playlistCache?.[runway.spotify.playlistId];
+    const byUri = new Map((cache?.tracks ?? []).map(t => [t.uri, t]));
+    const tracks = rest.map(sg => byUri.get(sg.uri)).filter((t): t is NonNullable<typeof t> => !!t);
+    for (let i = tracks.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [tracks[i], tracks[j]] = [tracks[j], tracks[i]];
+    }
+    const edits = Object.fromEntries(Object.entries(state.config.spotify?.trackEdits ?? {})
+      .map(([k, v]) => [k, { ...v, landSec: undefined }]));
+    const totalSec = tracks.reduce((a, t) => {
+      const b = songBounds(t.durationMs / 1000, edits[t.uri]);
+      return a + (b.end - b.start);
+    }, 0);
+    const newRest = planSpotifyRun(tracks, null, cur.endAt + totalSec * 1000, edits, runway.spotify.lastFadeSec);
+    if (!spotifyServiceRun.replaceUpcoming(newRest)) return { ok: false, reason: 'Spotify post-service isn’t running' };
+    const segments = [...run.segments.slice(0, idx + 1), ...newRest];
+    state.patchCurrentRunway({ spotify: { ...runway.spotify, segments } });
+    console.log('[spotify] post-service shuffled', { songs: newRest.length });
     return { ok: true };
   }
 
@@ -1416,6 +1490,19 @@ export class ServiceController {
       }
     } else if (runway?.spotifyPost && spotifyFreePlay.isActive()) {
       this.spotifyPostEpoch = runway.armEpoch ?? 0;
+    }
+
+    // Pad follows the Spotify song that's playing (as it does for Runway
+    // tracks), so Fade to Pad and the Pad player land in the song's key.
+    if (runway?.spotify && spotifyServiceRun.isActive()) {
+      const np = spotifyNowPlaying(runway.spotify.segments, Date.now());
+      if (np && np.index !== this.lastSpotifyPadIdx) {
+        this.lastSpotifyPadIdx = np.index;
+        const k = np.seg.key as KeyName | undefined;
+        if (k && state.padArmedKey !== k && runway.phase !== 'pad') state.setPadArmedKey(k);
+      }
+    } else {
+      this.lastSpotifyPadIdx = -1;
     }
 
     if (!runway) return;

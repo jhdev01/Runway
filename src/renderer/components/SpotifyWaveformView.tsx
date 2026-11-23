@@ -6,7 +6,7 @@ import { waveformScanner, useWaveformScan, scanEdgesSec, logSpotifyOperator } fr
 import { DragHandle, ServiceLandHandle, formatPreciseTime } from '../views/EditorView';
 import { effectiveGuess } from '../lib/keyLearning';
 import { fadeShape, FADE_STEP_MS } from '../lib/spotifyTestRun';
-import { NoteMapStrip } from './KeyAnalysis';
+import { NoteMapStrip, ZeroCountdown } from './KeyAnalysis';
 
 const HEIGHT = 150;
 const ZOOM_MAX_X = 64;
@@ -431,6 +431,9 @@ export function SpotifyWaveformView({ track, edit, onChange, full = false, showN
           <div className="editor-timecode">
             {formatPreciseTime(Math.max(0, playhead - d.start))} / {formatPreciseTime(trimLen)}
           </div>
+        )}
+        {playhead !== null && (isPlaying || previewing) && (
+          <ZeroCountdown playheadSec={playhead} zeroSec={d.land ?? d.end} hasMarker={d.land !== null} />
         )}
         {(!wave || coverage === 0) && (
           <div className="editor-empty" style={{ pointerEvents: 'none' }}>

@@ -64,6 +64,8 @@ export function LiveView() {
             positionSec: freePlay.now.positionSec ?? 0, durationSec: freePlay.now.durationSec ?? 0,
           }
         : null;
+  // Music is playing: Runway's own player, or a Spotify runway / post-service.
+  const anyMusicPlaying = musicPlayback.isPlaying || !!spotifyRunwayNow;
   const setAutoArmEnabled = useAppStore(s => s.setAutoArmEnabled);
   const showPlayedTracks = useAppStore(s => s.config.ui?.showPlayedTracks ?? false);
   const updateConfig = useAppStore(s => s.updateConfig);
@@ -292,6 +294,8 @@ export function LiveView() {
     if (!currentRunway?.isPostService) return 0;
     // Spotify post-service: the Spotify app plays the playlist in order, so
     // the end is its start plus the playlist's length (an hour if unknown).
+    // Spotify post-service played song by song: it ends when its plan ends.
+    if (currentRunway.spotify) return currentRunway.targetMs;
     if (currentRunway.spotifyPost) {
       return currentRunway.musicStartMs + (currentRunway.totalSec > 0 ? currentRunway.totalSec : 3600) * 1000;
     }
@@ -1159,14 +1163,14 @@ export function LiveView() {
 
         {/* Auto-start status */}
         <section className="auto-start">
-          <div className={`auto-start-indicator ${musicPlayback.isPlaying ? '' : 'idle'}`} />
+          <div className={`auto-start-indicator ${anyMusicPlaying ? '' : 'idle'}`} />
           <div className="auto-start-text">
-            {musicPlayback.isPlaying ? (
+            {anyMusicPlaying ? (
               <>
-                <div><strong>Music playing</strong> <span>· {playlistInUse ? playlistInUse.name : ''}</span></div>
+                <div><strong>Music playing</strong> <span>· {currentRunway?.spotify ? currentRunway.spotify.playlistName : playlistInUse ? playlistInUse.name : ''}</span></div>
                 <div className="auto-start-detail">
                   {currentRunway
-                    ? `${queueTracks.length} tracks · ${formatDuration(currentRunway.totalSec)} runway`
+                    ? `${currentRunway.spotify ? currentRunway.spotify.segments.length : queueTracks.length} ${currentRunway.spotify ? 'songs' : 'tracks'} · ${formatDuration(currentRunway.totalSec)} runway`
                     : 'manual playback'}
                 </div>
               </>
@@ -1249,7 +1253,9 @@ export function LiveView() {
               {/* Shuffle is only meaningful while a post-service runway is
                   rolling — the existing pre-service Shuffle lives in the
                   hero block since it re-arms the whole arrangement. */}
-              {isPostServiceRolling && queueTracks.length - (currentRunway?.currentTrackIndex ?? 0) > 1 && (
+              {isPostServiceRolling && (currentRunway?.spotify
+                ? (spotifyRunwayNow ? currentRunway.spotify.segments.length - spotifyRunwayNow.index - 1 > 1 : false)
+                : queueTracks.length - (currentRunway?.currentTrackIndex ?? 0) > 1) && (
                 <button
                   className="btn-secondary"
                   onClick={() => {
@@ -1283,7 +1289,7 @@ export function LiveView() {
             // fallback was removed: the row IS the runway, and a single
             // visual model is easier to reason about across services.
             void displayedCount; // (kept for the "displayed" derivation upstream)
-            if (currentRunway?.spotifyPost) {
+            if (currentRunway?.spotifyPost && !currentRunway.spotify) {
               return (
                 <div className="runway-list">
                   <div className="timeline-empty">
@@ -1749,7 +1755,7 @@ export function LiveView() {
             // the engaged state, and clicking again reverses — music
             // back to unity, pad fades out.
             const fadeActive = fadeToPadActive;
-            const padDisabled = (!musicPlayback.isPlaying && !fadeActive) || (useAppStore.getState().config.pads.length === 0);
+            const padDisabled = (!anyMusicPlaying && !fadeActive) || (useAppStore.getState().config.pads.length === 0);
             return (
               <button
                 className={`action-btn fade-to-pad ${fadeActive ? 'engaged' : ''}`}
@@ -1781,7 +1787,7 @@ export function LiveView() {
                     {fadeActive
                       ? 'Holding on pad · click to recover'
                       : padDisabled
-                        ? (musicPlayback.isPlaying ? 'No pads mapped' : 'Nothing playing')
+                        ? (anyMusicPlaying ? 'No pads mapped' : 'Nothing playing')
                         : 'Fade music · hold on pad'}
                   </div>
                 </div>

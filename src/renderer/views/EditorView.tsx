@@ -5,7 +5,7 @@ import { formatDuration } from '../lib/format';
 import { filePathToUrl } from '../lib/audioEngine';
 import type { Track } from '@shared/types';
 import { SpotifyEditorPage } from '../components/SpotifyEditorPage';
-import { KeyAnalysisPanel, NoteMapStrip } from '../components/KeyAnalysis';
+import { KeyAnalysisPanel, NoteMapStrip, ZeroCountdown } from '../components/KeyAnalysis';
 import { analyzeTrackNotes } from '../lib/keyAnalysis';
 import { profileOf } from '@shared/keyLearn';
 import type { KeyDetectResult } from '@shared/keyDetect';
@@ -698,6 +698,9 @@ export function EditorView() {
                 <div className="editor-timecode">
                   {formatPreciseTime(playheadSec - startSec)} / {formatPreciseTime(endSec - startSec)}
                 </div>
+              )}
+              {previewing && (
+                <ZeroCountdown playheadSec={playheadSec} zeroSec={landSec ?? endSec} hasMarker={landSec !== null} />
               )}
             </>
           )}

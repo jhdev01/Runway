@@ -402,3 +402,32 @@ export function KeyAnalysisPanel({ currentKey, heard, onSetKey, lookupMultitrack
     </div>
   );
 }
+
+/**
+ * Editor preview countdown to the song's 0:00 point, i.e. where the service
+ * countdown would hit 0:00 if this song were last: the 0:00 marker when one
+ * is set, otherwise the End. Counts up (+) once past it. Display only.
+ */
+export function ZeroCountdown({ playheadSec, zeroSec, hasMarker }: { playheadSec: number; zeroSec: number; hasMarker: boolean }) {
+  const left = zeroSec - playheadSec;
+  const a = Math.abs(left);
+  const m = Math.floor(a / 60);
+  const s = a - m * 60;
+  const txt = `${left < 0 ? '+' : ''}${m}:${s.toFixed(1).padStart(4, '0')}`;
+  const near = left >= 0 && left <= 10;
+  return (
+    <div
+      className="editor-marker"
+      title={hasMarker ? 'Time until this song’s 0:00 marker (where the service countdown hits 0:00 when it’s the last song)' : 'Time until the End (with no 0:00 marker, that’s where the service countdown hits 0:00 when it’s the last song)'}
+      style={{
+        position: 'absolute', top: 56, left: '50%', transform: 'translateX(-50%)',
+        padding: '4px 12px', borderRadius: 6, background: 'rgba(0,0,0,0.65)', pointerEvents: 'none', zIndex: 7,
+        fontFamily: 'IBM Plex Mono, monospace', fontWeight: 700, fontSize: 22, letterSpacing: 0.5,
+        color: left < 0 ? 'rgba(255,255,255,0.55)' : near ? '#f5a524' : '#c084fc', textAlign: 'center',
+      }}
+    >
+      <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: 1, opacity: 0.8 }}>{left >= 0 ? 'TO 0:00' : 'PAST 0:00'}</div>
+      {txt}
+    </div>
+  );
+}

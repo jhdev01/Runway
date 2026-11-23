@@ -237,6 +237,20 @@ const median = (xs: number[]) => {
 };
 
 export class SpotifyTestRunner {
+  private plan: SpotifyRunSegment[] = [];
+
+  /**
+   * Replaces the songs after the one playing now (Shuffle remaining). The
+   * playing song is untouched; returns false when nothing is running.
+   */
+  replaceUpcoming(rest: SpotifyRunSegment[]): boolean {
+    if (!this.isActive() || rest.length === 0) return false;
+    const idx = Math.max(0, this.state.currentIndex);
+    this.plan = [...this.plan.slice(0, idx + 1), ...rest];
+    this.set({ segments: this.plan, endAt: rest[rest.length - 1].endAt });
+    return true;
+  }
+
   /** 'runway' (services) or 'test run', for timing.log. */
   constructor(readonly name: string = 'runway') {}
   private state: SpotifyRunState = IDLE;
@@ -377,6 +391,9 @@ export class SpotifyTestRunner {
     opts: { padFilePath: string | null; padLeadInSec: number },
   ): Promise<void> {
     const live = () => id === this.runId;
+    // The plan can have its upcoming songs swapped mid-run (Shuffle
+    // remaining); the loop reads this.plan, never the songs already playing.
+    this.plan = segments;
     const last = segments.length - 1;
     const cmdTimes: number[] = [];
     const landing: number[] = [];
@@ -392,8 +409,9 @@ export class SpotifyTestRunner {
 
     let aim = SEEK_AIM_AHEAD_SEC;
     let firstPlayed = true;
-    for (let i = 0; i <= last; i++) {
-      const seg = segments[i];
+    for (let i = 0; i < this.plan.length; i++) {
+      const last = this.plan.length - 1;
+      const seg = this.plan[i];
       // Joining late (a service armed after its music should have started):
       // skip songs that are already over, or nearly so.
       if (i < last && seg.endAt - LOAD_LEAD_MS < Date.now() + 2000) continue;
@@ -569,7 +587,7 @@ export class SpotifyTestRunner {
     // 4. Landed: Spotify off, its volume back, pad holds.
     if (!live()) return;
     await this.cmd({ op: 'volume', volume: 0 });
-    await sleep(segments[last].stopAt - Date.now());
+    await sleep(this.plan[this.plan.length - 1].stopAt - Date.now());
     await this.cmd({ op: 'pause' });
     await this.cmd({ op: 'volume', volume: this.originalVolume });
     const landingErrorMs = landing.length ? Math.round(median(landing)) : null;
