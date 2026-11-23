@@ -711,6 +711,10 @@ export interface AppConfig {
     // Per-song edits for Spotify songs, keyed by spotify:track: URI. Used
     // by the Spotify test run. Optional so old configs upgrade cleanly.
     trackEdits?: Record<string, SpotifyTrackEdit>;
+    // Last playlist read in Settings, kept so it's still there after
+    // leaving Settings or restarting. Refreshed by "Read playlist".
+    lastPlaylistLink?: string;
+    lastPlaylist?: SpotifyPlaylistResult;
   };
   // GetSongBPM API key — free tier (5k/day, attribution required)
   // returns tempo + key for searched songs. The realistic working
