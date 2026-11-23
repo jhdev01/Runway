@@ -29,7 +29,7 @@ const LOAD_TIMEOUT_MS = 5000;
 const RESTART_MAX_SEC = 5;        // "loaded" = playing near the top of the song
 const SEEK_AIM_AHEAD_SEC = 0.1;   // starting aim: jumps landed ~0.07–0.13 s late in testing
 const AIM_MIN_SEC = 0;
-const AIM_MAX_SEC = 0.35;
+const AIM_MAX_SEC = 0.25;
 const FIRST_SONG_LEAD_MS = 2600;  // first song starts this early, silent, to check its placement
 const PLACE_TOLERANCE_MS = 40;    // re-place the first song (still silent) if further off than this
 const STEP_MS = 250;              // volume step / playhead reading interval
@@ -43,6 +43,13 @@ const TRANSITION_FADE_IN_SEC = 1.5;   // song starting mid-way (trimmed / joined
 const TRANSITION_FADE_OUT_SEC = 2.5;  // song cut before its natural ending
 const NATURAL_START_RAMP_SEC = 0.3;   // song starting at 0:00
 const SETTLE_AFTER_SEEK_MS = 600; // ignore readings right after a jump
+// Right after a jump Spotify can still report the old position for a
+// moment. The first-song check waits longer, and only readings that agree
+// with each other and are plausibly small tune the aim; a big but steady
+// offset is fixed by jumping again, without moving the aim.
+const VERIFY_SETTLE_MS = 900;
+const AIM_TRUST_MS = 300;         // offsets bigger than this don't teach the aim
+const AIM_STEP_MAX_SEC = 0.08;    // most the aim may move per lesson
 const MIN_FIRST_SEGMENT_SEC = 8;  // drop a first song that would only play a few seconds
 const LANDING_WINDOW_MS = 8000;   // landing error = readings in the last 8 s
 // Spotify paused or switched songs by accident: after this long, Runway
@@ -177,6 +184,12 @@ export function planSpotifyRun(
     cursor = startAt;
   }
   return segs;
+}
+
+/** Moves the jump aim by a learned offset (ms), in small capped steps. */
+function learnAim(aim: number, offMs: number): number {
+  const step = Math.max(-AIM_STEP_MAX_SEC, Math.min(AIM_STEP_MAX_SEC, offMs / 1000));
+  return Math.min(AIM_MAX_SEC, Math.max(AIM_MIN_SEC, aim + step));
 }
 
 const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, Math.max(0, ms)));
@@ -404,7 +417,7 @@ export class SpotifyTestRunner {
       if (i === 0 && seg.startPosSec > 0) {
         let tries = 0;
         while (live() && tries < 3 && Date.now() < seg.startAt - 700) {
-          await sleep(lastSeekAt + SETTLE_AFTER_SEEK_MS - Date.now());
+          await sleep(lastSeekAt + VERIFY_SETTLE_MS - Date.now());
           const reads: number[] = [];
           for (let k = 0; k < 3; k++) {
             const e = await readErr();
@@ -412,7 +425,10 @@ export class SpotifyTestRunner {
           }
           if (reads.length === 0) break;
           const off = median(reads);
-          aim = Math.min(AIM_MAX_SEC, Math.max(AIM_MIN_SEC, aim + off / 1000));
+          const steady = Math.max(...reads) - Math.min(...reads) < 80;
+          if (steady && Math.abs(off) < AIM_TRUST_MS) aim = learnAim(aim, off * 0.7);
+          console.log('[spotify] first-song check', { off: Math.round(off), steady, aim: +aim.toFixed(3) });
+          if (!steady && tries < 2) { tries++; lastSeekAt = Date.now() - VERIFY_SETTLE_MS + 300; continue; }
           if (Math.abs(off) <= PLACE_TOLERANCE_MS || Date.now() > seg.startAt - 400) break;
           lastSeekAt = await jump();
           tries++;
@@ -494,9 +510,12 @@ export class SpotifyTestRunner {
         await sleep(STEP_MS - (Date.now() - loopStart));
       }
       // Learn from this song: aim the next jump by however far this one was off.
-      if (songErrs.length >= 4) {
-        aim = Math.min(AIM_MAX_SEC, Math.max(AIM_MIN_SEC, aim + median(songErrs) / 1000));
-      }
+      const songOff = songErrs.length >= 4 ? median(songErrs) : null;
+      if (songOff !== null && Math.abs(songOff) < AIM_TRUST_MS) aim = learnAim(aim, songOff * 0.5);
+      console.log('[spotify] song', {
+        index: i, title: seg.title, offMs: songOff === null ? null : Math.round(songOff),
+        readings: songErrs.length, nextAim: +aim.toFixed(3),
+      });
       // The fade's last step lands up to STEP_MS early; make sure Spotify is
       // fully silent before the next song is started.
       if (i < last) await this.cmd({ op: 'volume', volume: 0 });
@@ -509,6 +528,7 @@ export class SpotifyTestRunner {
     await this.cmd({ op: 'pause' });
     await this.cmd({ op: 'volume', volume: this.originalVolume });
     const landingErrorMs = landing.length ? Math.round(median(landing)) : null;
+    console.log('[spotify] landed', { landingErrorMs, readings: landing.length });
     this.set({
       status: 'landed',
       landingErrorMs,

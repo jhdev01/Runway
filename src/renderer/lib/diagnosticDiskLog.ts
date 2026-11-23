@@ -19,6 +19,7 @@
 // is deliberately excluded so the file stays readable for an operator.
 const TIMING_TAGS = [
   '[arm]',
+  '[spotify]',
   '[beginMusic]',
   '[scheduleRunway]',
   '[beginPad]',
