@@ -709,7 +709,7 @@ export function EditorView() {
  * mistake it for a trim edge. Both elements carry the `editor-handle`
  * class so the canvas's click-to-preview ignores them.
  */
-function ServiceLandHandle({ pct, container, pxToSec, trimStart, trimEnd, onChange, label }: {
+export function ServiceLandHandle({ pct, container, pxToSec, trimStart, trimEnd, onChange, label }: {
   pct: number;
   container: React.RefObject<HTMLDivElement>;
   pxToSec: (px: number, canvasWidth: number) => number;
@@ -812,7 +812,7 @@ function ServiceLandHandle({ pct, container, pxToSec, trimStart, trimEnd, onChan
   );
 }
 
-function DragHandle({ side, pct, container, pxToSec, trimStart, trimEnd, fadeSec, onTrimChange, onFadeChange, label }: {
+export function DragHandle({ side, pct, container, pxToSec, trimStart, trimEnd, fadeSec, onTrimChange, onFadeChange, label }: {
   side: 'left' | 'right';
   pct: number;
   container: React.RefObject<HTMLDivElement>;
@@ -870,7 +870,7 @@ function DragHandle({ side, pct, container, pxToSec, trimStart, trimEnd, fadeSec
   );
 }
 
-function formatPreciseTime(sec: number): string {
+export function formatPreciseTime(sec: number): string {
   if (!isFinite(sec) || sec < 0) sec = 0;
   const m = Math.floor(sec / 60);
   const s = Math.floor(sec % 60);

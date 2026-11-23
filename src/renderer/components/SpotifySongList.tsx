@@ -256,7 +256,7 @@ export function SpotifySongList({ tracks }: { tracks: SpotifyPlaylistTrack[] }) 
         {lookup.note && <span className="settings-field-sub">{lookup.note}</span>}
         {scan.note && <span className="settings-field-sub">{scan.note}</span>}
       </div>
-      <div style={{ maxHeight: 460, overflowY: 'auto' }}>
+      <div style={open ? undefined : { maxHeight: 460, overflowY: 'auto' }}>
         {tracks.map((t, i) => {
           const e = edits[t.uri] ?? {};
           const { key, ...trimEdits } = e;
