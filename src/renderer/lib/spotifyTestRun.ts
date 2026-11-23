@@ -10,9 +10,14 @@
  * Method (measured with the Spotify timing test, ~0.06 s worst case):
  *   - start each song silent a little early (Spotify takes ~0.45 s to
  *     load), wait until it reports playing, then jump to where it should
- *     be right now, aiming slightly ahead because jumps land ~0.1 s late;
- *   - keep reading the playhead while stepping the volume for fades, and
- *     jump again whenever it drifts more than CORRECT_THRESHOLD_MS.
+ *     be, aiming slightly ahead because jumps land ~0.1 s late;
+ *   - Runway only ever jumps while Spotify is silent. A jump is a small
+ *     audible skip, so there are no corrections mid-song. The first song
+ *     starts silent well early so its placement can be checked and redone
+ *     before the fade-in;
+ *   - while each song plays, the playhead is only read (volume is sent
+ *     only when a fade changes it), and how far that song landed from plan
+ *     tunes the aim for the next song's jump.
  */
 
 import type { AudioEngine } from './audioEngine';
@@ -22,14 +27,16 @@ const PREROLL_MS = 4000;          // gap between pressing Start and the first so
 const LOAD_LEAD_MS = 700;         // start each song this early, silent
 const LOAD_TIMEOUT_MS = 5000;
 const RESTART_MAX_SEC = 5;        // "loaded" = playing near the top of the song
-const SEEK_AIM_AHEAD_SEC = 0.1;   // jumps landed ~0.07–0.13 s late in testing
+const SEEK_AIM_AHEAD_SEC = 0.1;   // starting aim: jumps landed ~0.07–0.13 s late in testing
+const AIM_MIN_SEC = 0;
+const AIM_MAX_SEC = 0.35;
+const FIRST_SONG_LEAD_MS = 2600;  // first song starts this early, silent, to check its placement
+const PLACE_TOLERANCE_MS = 40;    // re-place the first song (still silent) if further off than this
 const STEP_MS = 250;              // volume step / playhead reading interval
 const FIRST_FADE_IN_SEC = 4;
 const TRANSITION_FADE_IN_SEC = 1.5;
 const TRANSITION_FADE_OUT_SEC = 2.5;
-const SETTLE_AFTER_SEEK_MS = 1200; // ignore readings right after a jump
-const CORRECT_THRESHOLD_MS = 60;
-const CORRECT_MIN_GAP_MS = 4000;
+const SETTLE_AFTER_SEEK_MS = 600; // ignore readings right after a jump
 const MIN_FIRST_SEGMENT_SEC = 8;  // drop a first song that would only play a few seconds
 const LANDING_WINDOW_MS = 8000;   // landing error = readings in the last 8 s
 // Silence Spotify this long before the last song's end, so it can't roll
@@ -56,7 +63,7 @@ export interface SpotifyRunState {
   currentIndex: number;          // -1 before the first song
   message: string | null;        // latest warning / error / result line
   landingErrorMs: number | null; // + = last song ended late
-  corrections: number;
+  corrections: number;           // silent re-placements of the first song
   padKey: KeyName | null;
   padPlaying: boolean;
 }
@@ -184,9 +191,11 @@ class SpotifyTestRunner {
     const cmdTimes: number[] = [];
     const landing: number[] = [];
 
+    let aim = SEEK_AIM_AHEAD_SEC;
     for (let i = 0; i <= last; i++) {
       const seg = segments[i];
-      await sleep(seg.startAt - LOAD_LEAD_MS - Date.now());
+      const lead = i === 0 && seg.startPosSec > 0 ? FIRST_SONG_LEAD_MS : LOAD_LEAD_MS;
+      await sleep(seg.startAt - lead - Date.now());
       if (!live()) return;
       this.set({ currentIndex: i });
 
@@ -207,19 +216,53 @@ class SpotifyTestRunner {
       // Where the song should be at wall-clock time t.
       const targetPos = (t: number) => seg.startPosSec + (t - seg.startAt) / 1000;
       const halfCmd = () => (cmdTimes.length ? median(cmdTimes) : 120) / 2;
+      // + = Spotify is behind the plan = the song would end late. Only
+      // pure reads are used: a read that also sets the volume answers late.
+      const readErr = async (): Promise<number | null> => {
+        const r = await this.cmd({ op: 'state' });
+        if (!r.ok) throw new Error(r.reason ?? 'Lost contact with Spotify.');
+        if (!r.sentAt || !r.answeredAt) return null;
+        cmdTimes.push(r.answeredAt - r.sentAt);
+        if (cmdTimes.length > 20) cmdTimes.shift();
+        if (r.playerState !== 'playing' || r.trackUri !== seg.uri || r.positionSec === undefined) return null;
+        return (targetPos((r.sentAt + r.answeredAt) / 2) - r.positionSec) * 1000;
+      };
 
       // If the song loaded before its start time, let it sit silent until then.
       if (Date.now() < seg.startAt && seg.startPosSec === 0) await sleep(seg.startAt - Date.now());
       const jump = async () => {
         const at = Date.now() + halfCmd();
-        await this.cmd({ op: 'seek', positionSec: Math.max(0, targetPos(at) + SEEK_AIM_AHEAD_SEC) });
+        await this.cmd({ op: 'seek', positionSec: Math.max(0, targetPos(at) + aim) });
         return Date.now();
       };
       let lastSeekAt = await jump();
 
-      // 2. Step the volume and watch the playhead until this song's turn ends.
+      // 2. First song only: there's silent time before its fade-in, so check
+      // where the jump landed and redo it until it's close.
+      if (i === 0 && seg.startPosSec > 0) {
+        let tries = 0;
+        while (live() && tries < 3 && Date.now() < seg.startAt - 700) {
+          await sleep(lastSeekAt + SETTLE_AFTER_SEEK_MS - Date.now());
+          const reads: number[] = [];
+          for (let k = 0; k < 3; k++) {
+            const e = await readErr();
+            if (e !== null) reads.push(e);
+          }
+          if (reads.length === 0) break;
+          const off = median(reads);
+          aim = Math.min(AIM_MAX_SEC, Math.max(AIM_MIN_SEC, aim + off / 1000));
+          if (Math.abs(off) <= PLACE_TOLERANCE_MS || Date.now() > seg.startAt - 400) break;
+          lastSeekAt = await jump();
+          tries++;
+          this.set({ corrections: this.state.corrections + 1 });
+        }
+      }
+
+      // 3. Play it through: step the volume only when a fade changes it,
+      // otherwise just read the playhead. No jumps while it's audible.
       const stopAt = i < last ? seg.endAt - LOAD_LEAD_MS : seg.endAt - END_MUTE_MS;
-      let errs: number[] = [];
+      const songErrs: number[] = [];
+      let sentVolume = -1;
       let notPlayingSince: number | null = null;
       while (Date.now() < stopAt) {
         if (!live()) return;
@@ -230,41 +273,38 @@ class SpotifyTestRunner {
           this.set({ padPlaying: true });
         }
 
-        const r = await this.cmd({ op: 'volumeAndState', volume: this.envelope(seg, i, last, loopStart) });
-        if (!r.ok) throw new Error(r.reason ?? 'Lost contact with Spotify.');
-        if (r.sentAt && r.answeredAt) cmdTimes.push(r.answeredAt - r.sentAt);
-        if (cmdTimes.length > 20) cmdTimes.shift();
-
-        if (r.playerState !== 'playing' || r.trackUri !== seg.uri) {
-          notPlayingSince ??= loopStart;
-          if (loopStart - notPlayingSince > 2000) {
-            this.set({ message: 'Spotify stopped or switched songs (an ad, or someone touched it). The landing may be off.' });
-          }
-        } else if (r.positionSec !== undefined && r.sentAt && r.answeredAt) {
-          notPlayingSince = null;
-          const mid = (r.sentAt + r.answeredAt) / 2;
-          // + = Spotify is behind the plan = the song would end late.
-          const err = (targetPos(mid) - r.positionSec) * 1000;
-          if (mid - lastSeekAt > SETTLE_AFTER_SEEK_MS) {
-            errs.push(err);
-            if (errs.length > 6) errs.shift();
-            if (i === last && seg.endAt - mid < LANDING_WINDOW_MS) landing.push(err);
-            if (errs.length >= 4 && Math.abs(median(errs)) > CORRECT_THRESHOLD_MS
-              && mid - lastSeekAt > CORRECT_MIN_GAP_MS) {
-              lastSeekAt = await jump();
-              errs = [];
-              this.set({ corrections: this.state.corrections + 1 });
+        const vol = this.envelope(seg, i, last, loopStart);
+        if (vol !== sentVolume) {
+          const r = await this.cmd({ op: 'volume', volume: vol });
+          if (!r.ok) throw new Error(r.reason ?? 'Lost contact with Spotify.');
+          sentVolume = vol;
+        } else {
+          const e = await readErr();
+          if (e === null) {
+            notPlayingSince ??= loopStart;
+            if (loopStart - notPlayingSince > 2000) {
+              this.set({ message: 'Spotify stopped or switched songs (an ad, or someone touched it). The landing may be off.' });
+            }
+          } else {
+            notPlayingSince = null;
+            if (loopStart - lastSeekAt > SETTLE_AFTER_SEEK_MS) {
+              songErrs.push(e);
+              if (i === last && seg.endAt - loopStart < LANDING_WINDOW_MS) landing.push(e);
             }
           }
         }
         await sleep(STEP_MS - (Date.now() - loopStart));
+      }
+      // Learn from this song: aim the next jump by however far this one was off.
+      if (songErrs.length >= 4) {
+        aim = Math.min(AIM_MAX_SEC, Math.max(AIM_MIN_SEC, aim + median(songErrs) / 1000));
       }
       // The fade's last step lands up to STEP_MS early; make sure Spotify is
       // fully silent before the next song is started.
       if (i < last) await this.cmd({ op: 'volume', volume: 0 });
     }
 
-    // 3. Landed: Spotify off, its volume back, pad holds.
+    // 4. Landed: Spotify off, its volume back, pad holds.
     if (!live()) return;
     await this.cmd({ op: 'volume', volume: 0 });
     await sleep(endAt - Date.now());

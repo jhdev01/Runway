@@ -119,7 +119,7 @@ export function SpotifyTestRunPanel({ playlist }: { playlist: SpotifyPlaylistRes
           {run.message && (
             <div className={`pp-status ${run.status === 'error' ? 'err' : 'ok'}`} style={{ marginTop: 8 }}>
               {run.message}
-              {run.status === 'landed' && run.corrections > 0 ? ` Runway nudged Spotify ${run.corrections} time${run.corrections === 1 ? '' : 's'} along the way.` : ''}
+              {run.status === 'landed' && run.corrections > 0 ? ` The first song was re-placed ${run.corrections} time${run.corrections === 1 ? '' : 's'} before it faded in.` : ''}
             </div>
           )}
         </div>
