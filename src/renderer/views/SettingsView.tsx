@@ -2050,7 +2050,36 @@ function SpotifyAccountSection() {
       </div>
       {!status.connected && status.reason && <div className="pp-status err">{status.reason}</div>}
 
-      <SpotifyWindowPermission />
+      {status.connected && (
+        <div style={{ marginTop: 12 }}>
+          <label style={{ display: 'flex', gap: 8, alignItems: 'center', cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={!!status.quietStart}
+              onChange={async e => {
+                const on = e.target.checked;
+                await window.runway.spotify.player({ op: 'quietStart', on });
+                setStatus(await window.runway.spotify.status());
+              }}
+            />
+            <span>Start songs without showing Spotify (Spotify Premium)</span>
+          </label>
+          <div className="settings-section-sub" style={{ marginTop: 4 }}>
+            Runway starts each song through Spotify’s own remote control (like your phone does), so the Spotify
+            window never comes forward. Volume, jumps and timing work the same. If it can’t reach Spotify that
+            way, Runway starts the song the usual way instead.
+          </div>
+          {status.quietStart && !status.canControl && (
+            <div className="pp-actions">
+              <span className="pp-status err">Sign in to Spotify again once so Runway is allowed to start songs this way.</span>
+              <button className="btn-secondary" onClick={connect} disabled={busy !== null || !clientId}>
+                {busy === 'connect' ? 'Waiting for sign-in…' : 'Sign in again'}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+      {!(status.quietStart && status.canControl) && <SpotifyWindowPermission />}
       {status.connected && (
         <div className="pp-actions" style={{ marginTop: 10 }}>
           <span className="settings-field-sub">Import playlists, set keys and download artwork in</span>

@@ -8,22 +8,33 @@
 // available. The token is deliberately NOT stored in config.json so it
 // never travels with config exports / backups.
 //
-// Read-only: the only scopes requested are for reading playlists.
+// Scopes: reading playlists, plus (since quiet start) starting playback on
+// this Mac's Spotify app through Spotify Connect. Starting a song that way
+// doesn't bring the Spotify window forward, which AppleScript always does.
 
 import { app, safeStorage, shell } from 'electron';
 import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as http from 'http';
 import * as path from 'path';
+import * as os from 'os';
+import { execFileSync } from 'child_process';
 import type { SpotifyPlaylistSummary, SpotifyPlaylistList, SpotifyPlaylistResult, SpotifyPlaylistTrack, SpotifyStatus } from '../shared/types';
 
 // Must match the Redirect URI registered on the Spotify developer app.
 // Spotify requires a loopback IP literal ("localhost" is not allowed).
 export const SPOTIFY_REDIRECT_PORT = 7813;
 export const SPOTIFY_REDIRECT_URI = `http://127.0.0.1:${SPOTIFY_REDIRECT_PORT}/callback`;
-const SCOPES = 'playlist-read-private playlist-read-collaborative';
+const SCOPES = 'playlist-read-private playlist-read-collaborative user-modify-playback-state user-read-playback-state';
+const CONTROL_SCOPE = 'user-modify-playback-state';
 
-interface StoredAuth { clientId: string; refreshToken: string; displayName?: string }
+interface StoredAuth {
+  clientId: string; refreshToken: string; displayName?: string;
+  /** Scopes Spotify granted at sign-in (older sign-ins: unknown = playlists only). */
+  scopes?: string;
+  /** Operator's choice: start songs through Spotify Connect (no window flash). */
+  quietStart?: boolean;
+}
 
 let access: { token: string; expiresAt: number } | null = null;
 let pendingServer: http.Server | null = null;
@@ -52,7 +63,7 @@ function saveAuth(auth: StoredAuth): void {
 const b64url = (b: Buffer) => b.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 
 async function tokenRequest(params: Record<string, string>): Promise<{
-  access_token: string; expires_in: number; refresh_token?: string;
+  access_token: string; expires_in: number; refresh_token?: string; scope?: string;
 }> {
   const res = await fetch('https://accounts.spotify.com/api/token', {
     method: 'POST',
@@ -61,7 +72,7 @@ async function tokenRequest(params: Record<string, string>): Promise<{
     signal: AbortSignal.timeout(10_000),
   });
   if (!res.ok) throw new Error(`Spotify sign-in failed (${res.status}): ${await res.text().catch(() => '')}`);
-  return res.json() as Promise<{ access_token: string; expires_in: number; refresh_token?: string }>;
+  return res.json() as Promise<{ access_token: string; expires_in: number; refresh_token?: string; scope?: string }>;
 }
 
 async function getAccessToken(): Promise<string | null> {
@@ -160,8 +171,10 @@ export async function spotifyConnect(clientIdRaw: string): Promise<SpotifyStatus
       const me = await api('/me');
       if (me.ok) displayName = ((await me.json()) as { display_name?: string }).display_name || undefined;
     } catch { /* name is cosmetic */ }
-    saveAuth({ clientId, refreshToken: json.refresh_token, displayName });
-    return { connected: true, displayName };
+    const prev = loadAuth();
+    saveAuth({ clientId, refreshToken: json.refresh_token, displayName, scopes: json.scope ?? SCOPES, quietStart: prev?.quietStart });
+    deviceId = null;
+    return spotifyStatus();
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     return {
@@ -173,13 +186,96 @@ export async function spotifyConnect(clientIdRaw: string): Promise<SpotifyStatus
   }
 }
 
+const canControl = (auth: StoredAuth | null) => !!auth?.scopes?.split(/\s+/).includes(CONTROL_SCOPE);
+
 export function spotifyStatus(): SpotifyStatus {
   const auth = loadAuth();
-  return auth ? { connected: true, displayName: auth.displayName } : { connected: false };
+  return auth
+    ? { connected: true, displayName: auth.displayName, canControl: canControl(auth), quietStart: !!auth.quietStart }
+    : { connected: false };
+}
+
+/** Saves the quiet-start choice with the Spotify sign-in (not in config.json). */
+export function spotifySetQuietStart(on: boolean): SpotifyStatus {
+  const auth = loadAuth();
+  if (auth) saveAuth({ ...auth, quietStart: on });
+  return spotifyStatus();
+}
+
+/** Quiet start is on and the sign-in allows it. */
+export function spotifyQuietStartReady(): boolean {
+  const auth = loadAuth();
+  return !!auth?.quietStart && canControl(auth);
+}
+
+// ── Quiet start (Spotify Connect) ────────────────────────────────────
+// Runway only ever starts songs on THIS computer's Spotify app. It finds it
+// by the Mac's name (what Spotify shows in its device list); if the name
+// doesn't match and there's more than one computer, it won't guess, and
+// the caller falls back to starting the song the usual way.
+
+let deviceId: string | null = null;
+let computerName: string | null = null;
+function thisComputerName(): string {
+  if (computerName !== null) return computerName;
+  try {
+    computerName = process.platform === 'darwin'
+      ? execFileSync('scutil', ['--get', 'ComputerName'], { timeout: 2000 }).toString().trim()
+      : os.hostname();
+  } catch { computerName = os.hostname(); }
+  return computerName;
+}
+
+async function findThisDevice(): Promise<string | null> {
+  const token = await getAccessToken();
+  if (!token) return null;
+  const res = await fetch('https://api.spotify.com/v1/me/player/devices', {
+    headers: { Authorization: `Bearer ${token}` },
+    signal: AbortSignal.timeout(5000),
+  });
+  if (!res.ok) return null;
+  const json = await res.json() as { devices?: Array<{ id: string | null; name?: string; type?: string; is_restricted?: boolean }> };
+  const computers = (json.devices ?? []).filter(d => d.id && !d.is_restricted && d.type === 'Computer');
+  const name = thisComputerName().toLowerCase();
+  const named = computers.find(d => (d.name ?? '').toLowerCase() === name);
+  if (named) return named.id;
+  return computers.length === 1 ? computers[0].id : null;
+}
+
+/**
+ * Starts `uri` (inside the playlist `contextUri` when given) from its
+ * beginning on this computer's Spotify app via Spotify Connect.
+ */
+export async function spotifyConnectPlay(uri: string, contextUri?: string): Promise<{ ok: boolean; reason?: string }> {
+  try {
+    const token = await getAccessToken();
+    if (!token) return { ok: false, reason: 'Not signed in to Spotify.' };
+    for (let attempt = 0; attempt < 2; attempt++) {
+      deviceId ??= await findThisDevice();
+      if (!deviceId) return { ok: false, reason: 'Couldn’t find this computer in Spotify’s device list.' };
+      const body = contextUri
+        ? { context_uri: contextUri, offset: { uri }, position_ms: 0 }
+        : { uris: [uri], position_ms: 0 };
+      const res = await fetch(`https://api.spotify.com/v1/me/player/play?device_id=${encodeURIComponent(deviceId)}`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(5000),
+      });
+      if (res.ok) return { ok: true };
+      // Device went away (Spotify restarted): look it up again once.
+      if (res.status === 404 && attempt === 0) { deviceId = null; continue; }
+      return { ok: false, reason: `Spotify said ${res.status}: ${(await res.text().catch(() => '')).slice(0, 200)}` };
+    }
+    return { ok: false, reason: 'Spotify didn’t accept the song.' };
+  } catch (e) {
+    return { ok: false, reason: e instanceof Error ? e.message : String(e) };
+  }
 }
 
 export function spotifyDisconnect(): SpotifyStatus {
   access = null;
+  deviceId = null;
   try { fs.unlinkSync(authFile()); } catch { /* already gone */ }
   return { connected: false };
 }

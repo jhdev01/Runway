@@ -1070,6 +1070,10 @@ export interface SpotifyStatus {
   connected: boolean;
   displayName?: string;
   reason?: string;
+  /** The sign-in allows starting songs through Spotify Connect. */
+  canControl?: boolean;
+  /** Quiet start is switched on (songs start without showing Spotify). */
+  quietStart?: boolean;
 }
 export interface SpotifyPlaylistTrack {
   uri: string;             // spotify:track:…
@@ -1106,11 +1110,14 @@ export type SpotifyPlayerCommand =
   | { op: 'tuck' }
   | { op: 'accessibility'; prompt?: boolean }
   | { op: 'state' }
-  | { op: 'volumeAndState'; volume: number };
+  | { op: 'volumeAndState'; volume: number }
+  | { op: 'quietStart'; on: boolean };
 
 export interface SpotifyPlayerReply {
   ok: boolean;
   reason?: string;
+  /** play: started through Spotify Connect (Spotify stayed in the background). */
+  quiet?: boolean;
   /** Date.now() when the command was sent / when Spotify answered. */
   sentAt?: number;
   answeredAt?: number;

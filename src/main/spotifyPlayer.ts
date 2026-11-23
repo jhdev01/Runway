@@ -9,6 +9,7 @@
 import { systemPreferences } from 'electron';
 import { osa, tell, num, lit, friendly } from './spotifyTimingTest';
 import type { SpotifyPlayerCommand, SpotifyPlayerReply } from '../shared/types';
+import { spotifyConnectPlay, spotifyQuietStartReady, spotifySetQuietStart } from './spotifyAccount';
 
 const URI_RE = /^spotify:(track|playlist):[A-Za-z0-9]+$/;
 const CONTEXT_RE = /^spotify:playlist:[A-Za-z0-9]+$/;
@@ -89,6 +90,9 @@ export async function spotifyPlayer(cmd: SpotifyPlayerCommand): Promise<SpotifyP
         out = await osa(tell('return "|" & (player state as text) & "||" & (sound volume as text)'));
         break;
       }
+      case 'quietStart':
+        spotifySetQuietStart(!!cmd.on);
+        return { ok: true, sentAt, answeredAt: Date.now() };
       case 'tuck':
         return { ok: true, sentAt, answeredAt: Date.now(), accessibilityAllowed: await tuckSpotifyWindows() };
       case 'accessibility':
@@ -96,6 +100,15 @@ export async function spotifyPlayer(cmd: SpotifyPlayerCommand): Promise<SpotifyP
         return { ok: true, sentAt, answeredAt: Date.now(), accessibilityAllowed: accessibilityAllowed(!!cmd.prompt) };
       case 'play': {
         if (!URI_RE.test(cmd.uri)) return { ok: false, reason: 'Not a Spotify song or playlist.' };
+        // Quiet start: through Spotify Connect, which doesn't bring Spotify
+        // forward. If it can't (offline, device not found), fall through to
+        // the usual AppleScript start so the song still plays.
+        if (spotifyQuietStartReady() && cmd.uri.startsWith('spotify:track:')) {
+          const ctx = cmd.contextUri && CONTEXT_RE.test(cmd.contextUri) ? cmd.contextUri : undefined;
+          const q = await spotifyConnectPlay(cmd.uri, ctx);
+          if (q.ok) return { ok: true, sentAt, answeredAt: Date.now(), wasFrontmost: true, quiet: true };
+          console.warn('[spotify] quiet start failed; starting the usual way:', q.reason);
+        }
         // No window, nothing to flash when the new song pulls Spotify forward.
         // Runs alongside the play command (it finishes before the song has
         // loaded and Spotify comes forward), so song timing isn't delayed.
