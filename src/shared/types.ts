@@ -1132,8 +1132,16 @@ export interface SpotifyKeyGuess {
   /** Note map: per second of the song, 12 note strengths 0–99 (C first); null = not heard. Display only. */
   noteMap?: Array<number[] | null>;
 }
+/** Why a Spotify song has a waveform but no key reading yet. */
+export interface SpotifyKeyMiss {
+  at: number;
+  heardSec: number;
+  /** no-sound: loudness came through but no sound to listen to; too-short: under 15 s heard. */
+  why: 'no-sound' | 'too-short';
+}
 export interface SpotifyWaveform {
   key?: SpotifyKeyGuess;
+  keyMiss?: SpotifyKeyMiss;
   binSec: number;          // seconds per column
   durationSec: number;
   peaks: number[];         // 0…1 per column; -1 = that part hasn't been heard yet

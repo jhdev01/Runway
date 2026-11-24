@@ -1,5 +1,6 @@
 import React from 'react';
-import { MAJOR_KEYS, MINOR_KEYS } from '@shared/music';
+import { MAJOR_KEYS, MINOR_KEYS, altKeyName, displayKey } from '@shared/music';
+import { useAppStore } from '../state/store';
 import type { KeyName } from '@shared/types';
 
 interface Props {
@@ -10,7 +11,12 @@ interface Props {
 }
 
 export function KeyPickerModal({ open, selected, onSelect, onClose }: Props) {
+  const keyMode = useAppStore(s => s.config.defaults.keyDisplayMode ?? 'sharp');
   if (!open) return null;
+  const name = (k: KeyName) => {
+    const alt = altKeyName(k, keyMode);
+    return <>{displayKey(k, keyMode)}{alt && <span className="key-modal-key-alt">{alt}</span>}</>;
+  };
   return (
     <div className="key-modal-backdrop" onClick={onClose}>
       <div className="key-modal" onClick={e => e.stopPropagation()}>
@@ -23,7 +29,7 @@ export function KeyPickerModal({ open, selected, onSelect, onClose }: Props) {
               className={`key-modal-key ${selected === k ? 'selected' : ''}`}
               onClick={() => { onSelect(k); onClose(); }}
             >
-              {k}
+              {name(k)}
             </button>
           ))}
         </div>
@@ -35,7 +41,7 @@ export function KeyPickerModal({ open, selected, onSelect, onClose }: Props) {
               className={`key-modal-key ${selected === k ? 'selected' : ''}`}
               onClick={() => { onSelect(k); onClose(); }}
             >
-              {k}
+              {name(k)}
             </button>
           ))}
         </div>

@@ -46,6 +46,34 @@ export function displayKey(key: KeyName | undefined, mode: 'sharp' | 'flat' = 's
   return key;
 }
 
+/** Other spellings of the same key (Bb ↔ A#, F# ↔ Gb, C#m ↔ Dbm …). */
+const OTHER_SPELLING: Record<string, string> = {
+  'Db': 'C#', 'Eb': 'D#', 'F#': 'Gb', 'Ab': 'G#', 'Bb': 'A#',
+  'C#m': 'Dbm', 'D#m': 'Ebm', 'F#m': 'Gbm', 'G#m': 'Abm', 'Bbm': 'A#m',
+};
+
+/** The key's other name as shown next to `displayKey(key, mode)`, or null if it has only one. */
+export function altKeyName(key: KeyName | undefined, mode: 'sharp' | 'flat' = 'sharp'): string | null {
+  if (!key) return null;
+  const shown = displayKey(key, mode);
+  const other = OTHER_SPELLING[key];
+  if (!other) return null;
+  return other === shown ? key : other;
+}
+
+/** "A# / Bb" for keys with two names, else just the name. */
+export function displayKeyBoth(key: KeyName | undefined, mode: 'sharp' | 'flat' = 'sharp'): string {
+  const alt = altKeyName(key, mode);
+  return alt ? `${displayKey(key, mode)} / ${alt}` : displayKey(key, mode);
+}
+
+/** The major key with the same notes as `key` (itself when already major). */
+export function relativeMajor(key: KeyName): KeyName {
+  if (MAJOR_KEYS.includes(key)) return key;
+  const num = CAMELOT[key]?.replace('A', '');
+  return MAJOR_KEYS.find(k => CAMELOT[k] === `${num}B`) ?? key;
+}
+
 /** Round-trip a possibly-sharp display label back to the canonical KeyName. */
 export function canonicalKey(label: string): KeyName | undefined {
   if (label in CAMELOT) return label as KeyName;

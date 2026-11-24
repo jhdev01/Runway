@@ -3,7 +3,7 @@ import { spotifyServiceRun } from '../lib/spotifyTestRun';
 import { spotifyFreePlay } from '../lib/spotifyPost';
 import { useAppStore } from '../state/store';
 import { useEngines } from '../state/engines';
-import { MAJOR_KEYS, keyColor } from '@shared/music';
+import { MAJOR_KEYS, altKeyName, displayKey, keyColor, relativeMajor } from '@shared/music';
 import type { KeyName } from '@shared/types';
 import { InfoTip } from './InfoTip';
 
@@ -26,9 +26,15 @@ interface Props {
   onClose: () => void;
   /** Library › Spotify: the Music side of the slider also sets Spotify's volume. */
   controlSpotify?: boolean;
+  /**
+   * Key set for the song being edited. Its pad is marked "song key", and
+   * when the key changes it's selected (and swapped in if a pad is
+   * already playing). Minor keys use the major pad with the same notes.
+   */
+  songKey?: KeyName;
 }
 
-export function KeyTesterPiano({ onClose, controlSpotify = false }: Props) {
+export function KeyTesterPiano({ onClose, controlSpotify = false, songKey }: Props) {
   const { audio } = useEngines();
   const pads = useAppStore(s => s.config.pads);
   const padArmedKey = useAppStore(s => s.padArmedKey);
@@ -118,6 +124,25 @@ export function KeyTesterPiano({ onClose, controlSpotify = false }: Props) {
     void audio.playPad(padFile.filePath, { fadeInSec: 1.5, loop: true });
   };
 
+  // Follow the song's key: select its pad, and swap to it if a pad is
+  // already ringing. Hands off while a service's music or pad is playing.
+  const keyMode = useAppStore(s => s.config.defaults.keyDisplayMode ?? 'sharp');
+  const songPad = songKey ? relativeMajor(songKey) : undefined;
+  const lastSongPad = React.useRef<KeyName | undefined>(undefined);
+  useEffect(() => {
+    if (!songPad || songPad === lastSongPad.current) { lastSongPad.current = songPad; return; }
+    lastSongPad.current = songPad;
+    const r = useAppStore.getState().currentRunway;
+    if (r && (r.phase === 'music' || r.phase === 'pad')) return;
+    const padFile = pads.find(p => p.key === songPad);
+    if (!padFile) return;
+    setPadArmedKey(songPad);
+    if (useAppStore.getState().padPlayback?.isPlaying) {
+      void audio.playPad(padFile.filePath, { fadeInSec: 1.5, loop: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [songPad]);
+
   const onStop = () => {
     audio.fadeOutPad(1.5);
   };
@@ -163,19 +188,24 @@ export function KeyTesterPiano({ onClose, controlSpotify = false }: Props) {
           const has = mapped.has(k);
           const isArmed = padArmedKey === k;
           const isCurrent = isArmed && isPlaying;
+          const isSong = songPad === k;
+          const alt = altKeyName(k, keyMode);
           return (
             <button
               key={k}
               type="button"
-              className={`key-tester-pad ${isCurrent ? 'playing' : ''} ${isArmed ? 'armed' : ''}`}
+              className={`key-tester-pad ${isCurrent ? 'playing' : ''} ${isArmed ? 'armed' : ''} ${isSong ? 'song-key' : ''}`}
               style={has ? { background: c.bg, color: c.fg, borderColor: c.fg } : undefined}
               onClick={() => onPadClick(k)}
               disabled={!has}
-              title={has ? `Play ${k} pad` : `No pad for ${k}. Assign one in Settings → Pad Library.`}
+              title={has ? `Play ${displayKey(k, keyMode)}${alt ? ` (${alt})` : ''} pad` : `No pad for ${displayKey(k, keyMode)}. Assign one in Settings › Pads.`}
             >
-              <span className="key-tester-pad-letter">{k}</span>
+              <span className="key-tester-pad-letter">
+                {displayKey(k, keyMode)}
+                {alt && <span className="key-tester-pad-alt">{alt}</span>}
+              </span>
               <span className="key-tester-pad-state">
-                {!has ? 'no pad' : isCurrent ? 'playing' : 'ready'}
+                {!has ? 'no pad' : isCurrent ? 'playing' : isSong ? 'song key' : 'ready'}
               </span>
             </button>
           );

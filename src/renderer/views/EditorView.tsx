@@ -808,7 +808,7 @@ export function EditorView() {
           )}
         </div>
       )}
-      {padOpen && <KeyTesterPiano onClose={() => setPadOpen(false)} />}
+      {padOpen && <KeyTesterPiano songKey={selectedTrack?.key} onClose={() => setPadOpen(false)} />}
     </div>
   );
 }

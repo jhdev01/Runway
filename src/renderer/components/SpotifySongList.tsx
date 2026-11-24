@@ -8,7 +8,7 @@ import { songBounds } from '../lib/spotifyTestRun';
 import { KeyPickerModal } from './KeyPickerModal';
 import { saveSpotifyEdit } from '../lib/spotifyEdits';
 import { waveformScanner, useWaveformScan, scanEdgesSec, logSpotifyOperator } from '../lib/spotifyWaveformScan';
-import { keyColor, displayKey } from '@shared/music';
+import { keyColor, displayKey, displayKeyBoth } from '@shared/music';
 
 type Field = 'trimStartSec' | 'trimEndSec' | 'landSec' | 'fadeInSec' | 'fadeOutSec';
 
@@ -378,7 +378,7 @@ export function SpotifySongList({ tracks }: { tracks: SpotifyPlaylistTrack[] }) 
                     background: kc.bg, color: kc.fg, border: key ? '1px solid transparent' : '1px dashed var(--border-bright)',
                   }}
                 >
-                  {key ? displayKey(key, keyMode) : 'Key'}
+                  {key ? displayKeyBoth(key, keyMode) : 'Key'}
                 </button>
                 {!key && suggest[t.uri] && (
                   <span style={{ display: 'flex', gap: 4, alignItems: 'center' }} title="MultiTracks lists this song in more than one key. Click the one you play.">

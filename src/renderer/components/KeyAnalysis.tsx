@@ -3,7 +3,7 @@ import type { KeyName, KeyProfile, MultitracksCandidate } from '@shared/types';
 import { parseKey, keyRelation } from '@shared/keyDetect';
 import { rescoreProfile } from '@shared/keyLearn';
 import { learnedKeyParams } from '../lib/keyLearning';
-import { keyColor, displayKey, camelotOf, isMajor, MAJOR_KEYS, MINOR_KEYS } from '@shared/music';
+import { keyColor, displayKey, displayKeyBoth, camelotOf, isMajor, MAJOR_KEYS, MINOR_KEYS } from '@shared/music';
 import { useAppStore } from '../state/store';
 import { InfoTip } from './InfoTip';
 
@@ -268,8 +268,10 @@ export interface KeyHeard {
  * song's overall note profile as bars (the key's notes highlighted), and an
  * optional MultiTracks check. Setting a key here teaches key learning.
  */
-export function KeyAnalysisPanel({ currentKey, heard, onSetKey, lookupMultitracks, analysing }: {
+export function KeyAnalysisPanel({ currentKey, heard, onSetKey, lookupMultitracks, analysing, emptyNote }: {
   currentKey?: KeyName;
+  /** Shown instead of the generic "No analysis yet" (e.g. why a scanned song has no key). */
+  emptyNote?: string;
   heard?: KeyHeard | null;
   onSetKey: (k: KeyName) => void;
   lookupMultitracks?: () => Promise<{ best?: MultitracksCandidate; alternates?: MultitracksCandidate[]; reason?: string }>;
@@ -292,7 +294,7 @@ export function KeyAnalysisPanel({ currentKey, heard, onSetKey, lookupMultitrack
           background: c.bg, color: c.fg, border: active ? `2px solid ${c.fg}` : '1px dashed var(--border-bright)',
         }}
       >
-        {label}{displayKey(k, keyMode)}
+        {label}{displayKeyBoth(k, keyMode)}
       </button>
     );
   };
@@ -340,7 +342,7 @@ export function KeyAnalysisPanel({ currentKey, heard, onSetKey, lookupMultitrack
           {analysing ? 'Analysing…'
             : heard
               ? `${heard.source}: ${displayKey(heard.key, keyMode)} (${Math.round(heard.confidence * 100)}% sure${heard.heardSec ? `, from ${heard.heardSec} s` : ''})${learned ? ' · using settings learned from your songs' : ''}`
-              : 'No analysis yet. Play or scan the song (Spotify), or run Detect keys (Library).'}
+              : emptyNote ?? 'No analysis yet. Play or scan the song (Spotify), or run Detect keys (Library).'}
         </div>
         {heard && ranked.length > 0 && (
           <div style={{ marginTop: 8, display: 'grid', gridTemplateColumns: 'auto auto minmax(80px, 160px) 1fr', gap: '4px 10px', alignItems: 'center' }}>

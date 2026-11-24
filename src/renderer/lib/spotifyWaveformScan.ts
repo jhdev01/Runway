@@ -93,11 +93,15 @@ class WaveformScanner {
     const uris = [...new Set(tracks.map(t => t.uri))];
     const edges = scanEdgesSec();
     const cov = await window.runway.spotify.waveformCoverage(uris, edges);
+    // Songs drawn before Runway listened for keys (or whose listen was too
+    // short) have a waveform but no key: they're played again for the key.
+    const keys = await window.runway.spotify.waveformKeys(uris).catch(() => ({} as Record<string, unknown>));
+    const needsKey = new Set(uris.filter(u => !keys[u]));
     const todo = uris
-      .filter(u => opts?.force || (cov[u] ?? 0) < DONE_AT)
+      .filter(u => opts?.force || (cov[u] ?? 0) < DONE_AT || needsKey.has(u))
       .map(u => tracks.find(t => t.uri === u)!)
       .filter(Boolean);
-    if (todo.length === 0) { this.set({ note: 'Every song already has a waveform.' }); return; }
+    if (todo.length === 0) { this.set({ note: 'Every song already has a waveform and a key reading.' }); return; }
     logSpotifyOperator('waveform scan started', { songs: todo.length, edgesSec: edges ?? 'whole songs' });
 
     const check = await window.runway.spotify.player({ op: 'check' });
@@ -145,7 +149,9 @@ class WaveformScanner {
             jumped = true;
             continue;
           }
-          if (!opts?.force && jumped) {
+          // Waveform done early? Stop, unless the key still needs hearing:
+          // then play the end through so there's enough sound for it.
+          if (!opts?.force && jumped && !needsKey.has(t.uri)) {
             const c = await window.runway.spotify.waveformCoverage([t.uri], edges);
             if ((c[t.uri] ?? 0) >= 0.98) break;
           }
@@ -162,9 +168,14 @@ class WaveformScanner {
       }
       const after = await window.runway.spotify.waveformCoverage(todo.map(t => t.uri), edges).catch(() => ({} as Record<string, number>));
       const ok = todo.filter(t => (after[t.uri] ?? 0) >= DONE_AT).length;
+      // Key readings are saved when each song ends; give the last one a moment.
+      await sleep(1500);
+      const keysAfter = await window.runway.spotify.waveformKeys(todo.map(t => t.uri)).catch(() => ({} as Record<string, unknown>));
+      const keyed = todo.filter(t => keysAfter[t.uri]).length;
+      const keyNote = ` ${keyed} of ${todo.length} have a key reading.`;
       this.set({
         running: false, idx: 0, title: '', uri: '', posSec: 0,
-        note: `${why ? why + ' ' : ''}${ok} of ${todo.length} song${todo.length === 1 ? '' : 's'} now have a waveform.`,
+        note: `${why ? why + ' ' : ''}${ok} of ${todo.length} song${todo.length === 1 ? '' : 's'} now have a waveform.${keyNote}`,
       });
     }
   }

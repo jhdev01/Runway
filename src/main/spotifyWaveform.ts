@@ -15,7 +15,7 @@ import { spawn, type ChildProcessWithoutNullStreams } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import { osa, num } from './spotifyTimingTest';
-import type { KeyName, SpotifyKeyGuess, SpotifyWaveform, SpotifyWaveformStatus } from '../shared/types';
+import type { KeyName, SpotifyKeyGuess, SpotifyKeyMiss, SpotifyWaveform, SpotifyWaveformStatus } from '../shared/types';
 import { detectKey, extractKeyFeatures, scoreKeyFeatures } from '../shared/keyDetect';
 import { profileOf, noteMapOf } from '../shared/keyLearn';
 
@@ -28,7 +28,7 @@ const IDLE_STOP_MS = 20_000;    // stop listening after Spotify is idle this lon
 const SAVE_DEBOUNCE_MS = 3000;
 
 interface Anchor { uri: string; posSec: number; at: number; volume: number; playing: boolean; durSec: number }
-interface Wave { durationSec: number; peaks: number[]; key?: SpotifyKeyGuess } // peaks: 0…1, -1 = not heard yet
+interface Wave { durationSec: number; peaks: number[]; key?: SpotifyKeyGuess; keyMiss?: SpotifyKeyMiss } // peaks: 0…1, -1 = not heard yet
 
 // ── Key detection ─────────────────────────────────────────────────────
 // While a song plays, its sound (low-rate mono from the helper) is kept in
@@ -75,9 +75,9 @@ function loadWave(uri: string): Wave | null {
   const id = idOf(uri);
   if (!id) return null;
   try {
-    const raw = JSON.parse(fs.readFileSync(path.join(dir(), `${id}.json`), 'utf8')) as { durationSec?: number; peaks?: number[]; key?: SpotifyKeyGuess };
+    const raw = JSON.parse(fs.readFileSync(path.join(dir(), `${id}.json`), 'utf8')) as { durationSec?: number; peaks?: number[]; key?: SpotifyKeyGuess; keyMiss?: SpotifyKeyMiss };
     if (typeof raw.durationSec === 'number' && Array.isArray(raw.peaks)) {
-      const w: Wave = { durationSec: raw.durationSec, peaks: raw.peaks.map(v => (v < 0 ? -1 : v / 1000)), key: (raw as { key?: SpotifyKeyGuess }).key };
+      const w: Wave = { durationSec: raw.durationSec, peaks: raw.peaks.map(v => (v < 0 ? -1 : v / 1000)), key: raw.key, keyMiss: raw.keyMiss };
       waves.set(uri, w);
       return w;
     }
@@ -95,7 +95,7 @@ function saveSoon(): void {
       const w = waves.get(uri);
       const id = idOf(uri);
       if (!w || !id) continue;
-      const body = JSON.stringify({ v: 1, binSec: BIN_SEC, durationSec: w.durationSec, key: w.key, peaks: w.peaks.map(v => (v < 0 ? -1 : Math.round(v * 1000))) });
+      const body = JSON.stringify({ v: 1, binSec: BIN_SEC, durationSec: w.durationSec, key: w.key, keyMiss: w.keyMiss, peaks: w.peaks.map(v => (v < 0 ? -1 : Math.round(v * 1000))) });
       try { fs.writeFileSync(path.join(dir(), `${id}.json`), body); } catch { /* disk full etc.: try next time */ }
     }
     dirty.clear();
@@ -139,6 +139,12 @@ function onLevel(wallMs: number, durMs: number, peak: number): void {
   const b0 = Math.max(0, Math.floor(startSec / BIN_SEC));
   const b1 = Math.min(bins - 1, Math.floor(endSec / BIN_SEC));
   for (let b = b0; b <= b1; b++) w.peaks[b] = Math.max(w.peaks[b], level);
+  if (!keyBuf || keyBuf.uri !== a.uri) {
+    // Loudness is arriving but no sound for key listening.
+    if (!w.key && (!w.keyMiss || w.keyMiss.why !== 'no-sound')) w.keyMiss = { at: Date.now(), heardSec: 0, why: 'no-sound' };
+  } else if (w.keyMiss?.why === 'no-sound') {
+    w.keyMiss = undefined;
+  }
   dirty.add(a.uri);
   saveSoon();
 }
@@ -185,7 +191,16 @@ function finishKey(): void {
   keyBuf = null;
   if (!kb) return;
   const full = [...kb.slots.entries()].filter(([, s]) => s.filled >= kb.rate * 0.8).map(([sec]) => sec).sort((x, y) => x - y);
-  if (full.length < KEY_MIN_SEC) return;
+  if (full.length < KEY_MIN_SEC) {
+    const w = loadWave(kb.uri);
+    if (w && !w.key) {
+      w.keyMiss = { at: Date.now(), heardSec: full.length, why: kb.slots.size === 0 ? 'no-sound' : 'too-short' };
+      dirty.add(kb.uri);
+      saveSoon();
+    }
+    console.log('[spotify-key]', kb.uri, { skipped: 'too little sound', heardSec: full.length, needSec: KEY_MIN_SEC });
+    return;
+  }
   try {
     const w = loadWave(kb.uri);
     if (!w) return;
@@ -219,6 +234,7 @@ function finishKey(): void {
         profile: profileOf(allRes),
         noteMap,
       };
+      w.keyMiss = undefined;
     }
     dirty.add(kb.uri);
     saveSoon();
@@ -357,7 +373,7 @@ export function spotifyWaveformStatus(): SpotifyWaveformStatus {
 export function spotifyWaveformGet(uri: string): SpotifyWaveform | null {
   const w = loadWave(uri);
   if (!w) return null;
-  return { binSec: BIN_SEC, durationSec: w.durationSec, peaks: w.peaks, coverage: coverage(w), key: w.key };
+  return { binSec: BIN_SEC, durationSec: w.durationSec, peaks: w.peaks, coverage: coverage(w), key: w.key, keyMiss: w.keyMiss };
 }
 
 /** How much of each song has a waveform (0…1). */

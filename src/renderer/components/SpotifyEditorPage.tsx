@@ -41,13 +41,22 @@ export function SpotifyEditorPage({ uri, onPick, onExit }: {
 
   // What Runway heard (key analysis panel), refreshed while it plays.
   const [heard, setHeard] = useState<SpotifyKeyGuess | undefined>();
+  const [noKeyWhy, setNoKeyWhy] = useState<string | undefined>();
   const [padOpen, setPadOpen] = useState(false);
   useEffect(() => {
     let alive = true;
     const read = async () => {
       try {
         const w = await window.runway.spotify.waveform(uri);
-        if (alive) setHeard(effectiveGuess(w?.key));
+        if (!alive) return;
+        setHeard(effectiveGuess(w?.key));
+        // Waveform but no key: say why, so a re-scan is the obvious fix.
+        setNoKeyWhy(!w || w.key ? undefined
+          : w.keyMiss?.why === 'no-sound'
+            ? 'No key yet: Runway drew the waveform but no sound came through to listen for the key. Check Screen & System Audio Recording for Runway in System Settings, then press Re-scan this song.'
+            : w.keyMiss?.why === 'too-short'
+              ? `No key yet: Runway heard only ${w.keyMiss.heardSec} s of steady sound and needs 15 s. Press Re-scan this song.`
+              : 'No key yet: this waveform was drawn before Runway listened for keys. Press Re-scan this song, or Scan all songs in Settings › Spotify.');
       } catch { /* ignore */ }
     };
     void read();
@@ -113,12 +122,13 @@ export function SpotifyEditorPage({ uri, onPick, onExit }: {
             heardSec: heard.heardSec, profile: heard.profile, source: 'Runway heard',
           } : null}
           onSetKey={k => onChange({ ...edit, key: k })}
+          emptyNote={noKeyWhy}
           lookupMultitracks={() => window.runway.files.multitracksLookup(
             spotifyLookupArtist(track.artist), spotifyLookupTitle(track.title), track.durationMs / 1000,
           )}
         />
       </div>
-      {padOpen && <KeyTesterPiano controlSpotify onClose={() => setPadOpen(false)} />}
+      {padOpen && <KeyTesterPiano controlSpotify songKey={edit.key} onClose={() => setPadOpen(false)} />}
     </div>
   );
 }
