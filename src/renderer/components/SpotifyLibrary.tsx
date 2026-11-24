@@ -5,6 +5,7 @@ import { formatDuration } from '../lib/format';
 import { SpotifySongList } from './SpotifySongList';
 import { SpotifyBadge } from './SpotifyBadge';
 import { KeyTesterPiano } from './KeyTesterPiano';
+import { BuyListPanel } from './BuyListPanel';
 
 /**
  * Library › Spotify: import Spotify playlists, then work on their songs the
@@ -30,6 +31,7 @@ export function SpotifyLibrary() {
   const [filter, setFilter] = useState<string>('all');
   const [artProgress, setArtProgress] = useState<{ done: number; total: number } | null>(null);
   const [padOpen, setPadOpen] = useState(false);
+  const [buyOpen, setBuyOpen] = useState(false);
 
   useEffect(() => { void window.runway?.spotify?.status().then(setStatus); }, []);
   const loadMine = async () => {
@@ -113,7 +115,7 @@ export function SpotifyLibrary() {
       <div className="library-view" style={{ padding: 24 }}>
         <div className="settings-section-title">Spotify isn’t connected</div>
         <div className="settings-section-sub">Connect your Spotify account once in Settings › Spotify, then import playlists here.</div>
-        <button className="btn-secondary" onClick={() => openSettings('engine')}>Open Spotify settings</button>
+        <button className="btn-secondary" onClick={() => openSettings('spotify')}>Open Spotify settings</button>
       </div>
     );
   }
@@ -160,6 +162,14 @@ export function SpotifyLibrary() {
         >
           {padOpen ? 'Close pad player' : 'Pad player'}
         </button>
+        <button
+          className={`library-refresh ${buyOpen ? 'active' : ''}`}
+          onClick={() => setBuyOpen(o => !o)}
+          disabled={songs.length === 0}
+          title="Buy the songs you don't own yet (Qobuz / Apple) and bring them in as Library tracks"
+        >
+          Buy list
+        </button>
         <button className="library-refresh" onClick={() => void downloadArt()} disabled={artProgress !== null || songs.length === 0}
           title="Save album art in Runway so it shows without internet">
           {artProgress ? `Artwork ${artProgress.done}/${artProgress.total}` : '⤓ Download artwork'}
@@ -183,6 +193,13 @@ export function SpotifyLibrary() {
           ))}
         </div>
         {note && <div className="settings-field-sub" style={{ marginTop: 6 }}>{note}</div>}
+        {buyOpen && songs.length > 0 && (
+          <BuyListPanel
+            songs={songs}
+            title={filter === 'all' ? 'All songs' : (cache[filter]?.name ?? 'Spotify playlist')}
+            onClose={() => setBuyOpen(false)}
+          />
+        )}
         {imported.length === 0 ? (
           <div className="settings-section-sub" style={{ marginTop: 16 }}>
             No Spotify playlists yet. Press <strong>+ Import playlist</strong> to bring one in. Imported playlists show up in

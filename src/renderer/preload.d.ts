@@ -100,6 +100,10 @@ declare global {
         /** Keys Runway detected by listening, for songs it has heard. */
         waveformKeys: (uris: string[]) => Promise<Record<string, SpotifyKeyGuess>>;
       };
+      purchases: {
+        openStore: (url: string) => Promise<boolean>;
+        find: (sinceMs: number) => Promise<{ files: string[]; zips: number; reason?: string }>;
+      };
       diagnostics: {
         appendTimingLog: (line: string) => void;
         revealTimingLog: () => Promise<{ ok: boolean; path?: string; reason?: string }>;

@@ -60,6 +60,8 @@ const IPC = {
   SPOTIFY_WAVEFORM_GET: 'spotify:waveformGet',
   SPOTIFY_WAVEFORM_COVERAGE: 'spotify:waveformCoverage',
   SPOTIFY_WAVEFORM_KEYS: 'spotify:waveformKeys',
+  STORE_OPEN: 'purchases:openStore',
+  PURCHASES_FIND: 'purchases:find',
   // MultiTracks.com song lookup — returns the published original master
   // key for worship songs, plus alternates when the catalog disagrees.
   MULTITRACKS_LOOKUP: 'track:multitracks',
@@ -154,6 +156,11 @@ contextBridge.exposeInMainWorld('runway', {
     waveform: (uri: string) => ipcRenderer.invoke(IPC.SPOTIFY_WAVEFORM_GET, uri),
     waveformCoverage: (uris: string[], edgesSec?: number) => ipcRenderer.invoke(IPC.SPOTIFY_WAVEFORM_COVERAGE, uris, edgesSec),
     waveformKeys: (uris: string[]) => ipcRenderer.invoke(IPC.SPOTIFY_WAVEFORM_KEYS, uris),
+  },
+  // Buy list: open store pages; pick up bought songs from Downloads.
+  purchases: {
+    openStore: (url: string) => ipcRenderer.invoke(IPC.STORE_OPEN, url),
+    find: (sinceMs: number) => ipcRenderer.invoke(IPC.PURCHASES_FIND, sinceMs),
   },
   planningCenter: {
     request: (req: unknown) => ipcRenderer.invoke(IPC.PCO_REQUEST, req),

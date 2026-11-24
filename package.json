@@ -62,7 +62,8 @@
       "icon": "build/icon.icns",
       "extendInfo": {
         "NSMicrophoneUsageDescription": "Runway requests microphone access only to read the names of your audio output devices so they can be selected for routing. No audio is recorded.",
-        "NSAppleEventsUsageDescription": "Runway controls the Spotify app to play and time service music, and keeps Spotify in the background while it does."
+        "NSAppleEventsUsageDescription": "Runway controls the Spotify app to play and time service music, and keeps Spotify in the background while it does.",
+        "NSDownloadsFolderUsageDescription": "Runway looks in Downloads for songs you bought from its Buy list, to add them to your Library."
       },
       "extraResources": [
         {

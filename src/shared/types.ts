@@ -770,6 +770,10 @@ export interface AppConfig {
     // whole song.
     waveformScan?: 'edges' | 'whole';
     waveformScanSec?: number;   // default 30
+    // Buy list: Spotify song URI → the Library track that is its bought copy.
+    ownedLinks?: Record<string, string>;
+    // When Downloads was last checked for bought songs.
+    purchaseScanAt?: number;
   };
   // Key detector settings learned from the operator's own tagged songs
   // (see shared/keyLearn.ts). Only used when `adopted`; absent = standard.
@@ -1096,6 +1100,8 @@ export const IPC = {
   SPOTIFY_WAVEFORM_GET: 'spotify:waveformGet',
   SPOTIFY_WAVEFORM_COVERAGE: 'spotify:waveformCoverage',
   SPOTIFY_WAVEFORM_KEYS: 'spotify:waveformKeys',
+  STORE_OPEN: 'purchases:openStore',
+  PURCHASES_FIND: 'purchases:find',
   MULTITRACKS_LOOKUP: 'track:multitracks',
 } as const;
 
