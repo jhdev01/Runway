@@ -1,5 +1,6 @@
 import React from 'react';
 import { useAppStore } from '../state/store';
+import { InfoTip } from './InfoTip';
 
 /**
  * Quick-access stepper for the song-to-song crossfade time.
@@ -28,7 +29,7 @@ export function MusicCrossfadePanel() {
   return (
     <div className="panel-section">
       <div className="panel-header">
-        <div className="panel-title">Music transitions</div>
+        <div className="panel-title">Music transitions<InfoTip>Pad lead-in: the pad fades up while music still plays. Music fade: starts after the lead-in and ends at service start.</InfoTip></div>
       </div>
       <div className="music-xfade-row">
         <span className="music-xfade-label">Song crossfade</span>
@@ -54,13 +55,9 @@ export function MusicCrossfadePanel() {
           <button className="pl-stepper-btn" onClick={() => adjust('musicFadeToPadSec', 0.5)}>+</button>
         </div>
       </div>
-      <div className="music-xfade-hint">
-        Pad lead-in: pad fades up while music still plays.
-        Music fade: starts after the lead-in and ends at service start.
-      </div>
       <div
         className="music-xfade-hint"
-        style={{ marginTop: 4, color: 'var(--accent-bright)', fontWeight: 600 }}
+        style={{ marginTop: 8, color: 'var(--accent-bright)', fontWeight: 600 }}
       >
         Pad starts {(padLeadInSec + musicFadeToPadSec).toFixed(1)}s before service start.
       </div>

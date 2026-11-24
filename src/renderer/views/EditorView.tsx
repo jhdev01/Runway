@@ -10,6 +10,7 @@ import { KeyTesterPiano } from '../components/KeyTesterPiano';
 import { analyzeTrackNotes } from '../lib/keyAnalysis';
 import { profileOf } from '@shared/keyLearn';
 import type { KeyDetectResult } from '@shared/keyDetect';
+import { InfoTip } from '../components/InfoTip';
 
 /**
  * Non-destructive audio editor — pick a track, set trim points and fades,
@@ -538,9 +539,7 @@ export function EditorView() {
     <div className="editor-view">
       <div className="editor-toolbar">
         <h2 className="editor-title">Audio Editor</h2>
-        <span className="editor-subtitle">
-          Your original file is never changed. Trims and fades are saved with the track.
-        </span>
+        <InfoTip>Your original file is never changed. Trims and fades are saved with the track.</InfoTip>
         <select
           value={trackId}
           onChange={e => setTrackId(e.target.value)}

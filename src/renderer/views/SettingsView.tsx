@@ -16,6 +16,7 @@ import { Toggle } from '../components/Toggle';
 import { SpotifyTestRunPanel } from '../components/SpotifyTestRunPanel';
 import { SpotifySongList } from '../components/SpotifySongList';
 import runwayIconUrl from '../assets/runway-icon.png';
+import { InfoTip } from '../components/InfoTip';
 
 type SettingsTab = 'audio' | 'midi' | 'propresenter' | 'planningcenter' | 'pads' | 'remote' | 'spotify' | 'engine' | 'display' | 'about';
 
@@ -136,13 +137,7 @@ function AudioSettings() {
       </section>
 
       <section className="settings-section">
-        <div className="settings-section-title">Bus routing</div>
-        <div className="settings-section-sub">
-          Send each bus to its own stereo output. To use other channel pairs
-          on a multi-channel interface (e.g. MOTU outs 3-4 or 5-6), make an
-          Aggregate Device for each pair in macOS Audio MIDI Setup. Each one
-          then shows up here as its own device.
-        </div>
+        <div className="settings-section-title">Bus routing<InfoTip>Send each bus to its own stereo output. To use other channel pairs on a multi-channel interface (e.g. MOTU outs 3-4 or 5-6), make an Aggregate Device for each pair in macOS Audio MIDI Setup. Each one then shows up here as its own device.</InfoTip></div>
 
         <div className="routing-table">
           <div className="routing-row header">
@@ -359,13 +354,7 @@ function MidiSettings() {
   return (
     <>
       <section className="settings-section">
-        <div className="settings-section-title">MIDI devices</div>
-        <div className="settings-section-sub">
-          Choose which devices Runway listens to and sends to. A device with
-          input off is ignored: it won't show in the activity log or trigger
-          anything. Turn one off if it floods Runway with messages. New
-          devices start with both directions on.
-        </div>
+        <div className="settings-section-title">MIDI devices<InfoTip>Choose which devices Runway listens to and sends to. A device with input off is ignored: it won't show in the activity log or trigger anything. Turn one off if it floods Runway with messages. New devices start with both directions on.</InfoTip></div>
         {devices.length === 0 ? (
           <div className="empty-state">No MIDI devices detected.</div>
         ) : (
@@ -386,21 +375,12 @@ function MidiSettings() {
 
 
       <section className="settings-section">
-        <div className="settings-section-title">MIDI activity</div>
-        <div className="settings-section-sub">
-          Every incoming MIDI message, newest first. Use it to check that your
-          controller reaches Runway and to see which note or CC each button sends.
-        </div>
+        <div className="settings-section-title">MIDI activity<InfoTip>Every incoming MIDI message, newest first. Use it to check that your controller reaches Runway and to see which note or CC each button sends.</InfoTip></div>
         <MidiActivityLog />
       </section>
 
       <section className="settings-section">
-        <div className="settings-section-title">Quick assign</div>
-        <div className="settings-section-sub">
-          Click Learn next to an action, then press the button or key on your MIDI
-          controller. Runway will capture the channel and note (or CC) and assign
-          it to that action.
-        </div>
+        <div className="settings-section-title">Quick assign<InfoTip>Click Learn next to an action, then press the button or key on your MIDI controller. Runway will capture the channel and note (or CC) and assign it to that action.</InfoTip></div>
 
         <div className="midi-bindings-table">
           {assignable.map(item => {
@@ -446,9 +426,7 @@ function MidiSettings() {
             >
               <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-dim)' }}>
                 {showPadSetKeys ? '▾' : '▸'} Pad set key bindings ({padSetKeyAssignable.length})
-              </div>
-              <div style={{ fontSize: 11, color: 'var(--text-faint)' }}>
-                One per key that has a pad file. Sets which key the pad player is ready on.
+                <InfoTip>One per key that has a pad file. Sets which key the pad player is ready on.</InfoTip>
               </div>
             </div>
             {showPadSetKeys && (
@@ -635,13 +613,7 @@ function ProPresenterSettings() {
 
   return (
     <section className="settings-section">
-      <div className="settings-section-title">ProPresenter sync</div>
-      <div className="settings-section-sub">
-        When you arm a service, Runway sets the chosen ProPresenter timer to
-        count down to service start. The four cards below can also trigger a
-        slide or clear ProPresenter at set moments. Turn on Network in
-        ProPresenter under <em>Preferences → Network</em>.
-      </div>
+      <div className="settings-section-title">ProPresenter sync<InfoTip>When you arm a service, Runway sets the chosen ProPresenter timer to count down to service start. The four cards below can also trigger a slide or clear ProPresenter at set moments. Turn on Network in ProPresenter under <em>Preferences → Network</em>.</InfoTip></div>
 
       {/* Connection card */}
       <div className="pp-card">
@@ -1263,11 +1235,7 @@ function PadSettings() {
   return (
     <>
       <section className="settings-section">
-        <div className="settings-section-title">Pad player output</div>
-        <div className="settings-section-sub">
-          Volume sets the pad level against the music. Gain boosts quiet pad
-          files or turns down loud ones. Both apply to every pad.
-        </div>
+        <div className="settings-section-title">Pad player output<InfoTip>Volume sets the pad level against the music. Gain boosts quiet pad files or turns down loud ones. Both apply to every pad.</InfoTip></div>
         <div className="pad-level-grid">
           <div className="pad-level-field">
             <label className="pad-level-label">Volume</label>
@@ -1298,10 +1266,7 @@ function PadSettings() {
                 label="dB"
                 formatValue={v => v > 0 ? `+${v.toFixed(1)}` : v.toFixed(1)}
               />
-              <div style={{ fontSize: 11, color: 'var(--text-faint)', maxWidth: 180, lineHeight: 1.4 }}>
-                Drag up/down to turn (Shift = snap to whole dB).
-                Double-click or scroll to fine-tune. Range −24 dB to +12 dB.
-              </div>
+              <InfoTip>Drag up/down to turn (Shift = snap to whole dB). Double-click or scroll to fine-tune. Range −24 dB to +12 dB.</InfoTip>
             </div>
           </div>
         </div>
@@ -1318,20 +1283,12 @@ function PadSettings() {
               onClick={() => setKeyDisplayMode('flat')}
             >Flats (Db / Eb / Bb)</button>
           </div>
-          <div style={{ fontSize: 11, color: 'var(--text-faint)' }}>
-            Changes how keys are shown, not your files. Match how your pad files and songs are named.
-          </div>
+          <InfoTip>Changes how keys are shown, not your files. Match how your pad files and songs are named.</InfoTip>
         </div>
       </section>
 
     <section className="settings-section">
-      <div className="settings-section-title">Pad library</div>
-      <div className="settings-section-sub" style={{ maxWidth: 560 }}>
-        Assign one looping pad file per key, or use Scan to load a folder of
-        files named after their keys (A.wav, C#.wav, etc.). Scan in the Major
-        section maps plain-letter files (A.wav, B.wav) as major; Scan in Minor
-        maps them as minor. The other section is left alone.
-      </div>
+      <div className="settings-section-title">Pad library<InfoTip>Assign one looping pad file per key, or use Scan to load a folder of files named after their keys (A.wav, C#.wav, etc.). Scan in the Major section maps plain-letter files (A.wav, B.wav) as major; Scan in Minor maps them as minor. The other section is left alone.</InfoTip></div>
       <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: 12, flexWrap: 'wrap' }}>
         <button
           className="btn-secondary"
@@ -1541,13 +1498,7 @@ function EngineSettings() {
   return (
     <>
       <section className="settings-section">
-        <div className="settings-section-title">Auto-schedule services</div>
-        <div className="settings-section-sub">
-          When the weekly pattern is set to <strong>Auto rotate</strong>,
-          Runway adds services from it to the schedule. Days ahead sets how
-          far out (2 = today and tomorrow). If Runway stays open overnight,
-          it adds the next day's services at the daily check time, e.g. 03:00.
-        </div>
+        <div className="settings-section-title">Auto-schedule services<InfoTip>When the weekly pattern is set to <strong>Auto rotate</strong>, Runway adds services from it to the schedule. Days ahead sets how far out (2 = today and tomorrow). If Runway stays open overnight, it adds the next day's services at the daily check time, e.g. 03:00.</InfoTip></div>
         <div
           style={{
             display: 'grid',
@@ -1605,11 +1556,8 @@ function EngineSettings() {
           <div style={{ flex: 1, fontSize: 12, color: 'var(--text-dim)' }}>
             <div style={{ color: 'var(--text)', marginBottom: 2 }}>
               Blocked time slots: {tombstoneCount}
+              <InfoTip>When you delete an auto-scheduled service, its time slot is blocked so it doesn't come back. Unblock all if you deleted services by mistake (or pressed Clear all). They return on the next daily check.</InfoTip>
             </div>
-            When you delete an auto-scheduled service, its time slot is
-            blocked so it doesn't come back. Unblock all if you deleted
-            services by mistake (or pressed Clear all). They return on the
-            next daily check.
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flexShrink: 0 }}>
             <button
@@ -1735,11 +1683,7 @@ function EngineSettings() {
       </section>
 
       <section className="settings-section">
-        <div className="settings-section-title">Library</div>
-        <div className="settings-section-sub">
-          New imports are copied into Runway's library folder. Consolidate
-          copies in older songs that still play from their original location.
-        </div>
+        <div className="settings-section-title">Library<InfoTip>New imports are copied into Runway's library folder. Consolidate copies in older songs that still play from their original location.</InfoTip></div>
         {audioDir && (
           <div
             style={{
@@ -1813,26 +1757,16 @@ function EngineSettings() {
             ariaLabel="Tag keys on import"
           />
           <div>
-            <div style={{ fontSize: 14, color: 'var(--text)', fontWeight: 600 }}>
+            <div style={{ fontSize: 14, color: 'var(--text)', fontWeight: 600, display: 'flex', alignItems: 'center' }}>
               Tag keys on import
-            </div>
-            <div style={{ fontSize: 12, color: 'var(--text-faint)', marginTop: 2 }}>
-              Newly imported tracks that arrive without a key get looked up on
-              MultiTracks.com and tagged with the published original master key.
-              Only confident, unambiguous matches are applied — anything the
-              catalog lists in more than one key is held for you to review from
-              the Library toolbar. Tracks that already carry a key are left alone.
+              <InfoTip>Newly imported tracks that arrive without a key get looked up on MultiTracks.com and tagged with the published original master key. Only confident, unambiguous matches are applied — anything the catalog lists in more than one key is held for you to review from the Library toolbar. Tracks that already carry a key are left alone.</InfoTip>
             </div>
           </div>
         </label>
       </section>
 
       <section className="settings-section">
-        <div className="settings-section-title">Pre-service music</div>
-        <div className="settings-section-sub">
-          If the playlist is shorter than the auto-start lead time, choose how to fill the gap.
-          Either way, music ends at service start.
-        </div>
+        <div className="settings-section-title">Pre-service music<InfoTip><p>When a playlist is shorter than the auto-start lead time:</p><p><strong>Repeat to fill</strong>: songs repeat to fill the time. The song in the service key plays last.</p><p><strong>Start late</strong>: the playlist plays once and music starts later.</p><p>Either way, music ends at service start.</p></InfoTip></div>
         <div className="pl-toggle" style={{ width: 'fit-content' }}>
           <button
             className={`pl-toggle-btn ${repeatToFill ? 'active' : ''}`}
@@ -1847,18 +1781,10 @@ function EngineSettings() {
             Start late
           </button>
         </div>
-        <div className="settings-section-sub" style={{ marginTop: 8, fontSize: 11 }}>
-          {repeatToFill
-            ? 'Songs repeat to fill the lead time. The song in the service key plays last.'
-            : "Music starts later, so the playlist plays once and ends at service start."}
-        </div>
       </section>
 
       <section className="settings-section">
-        <div className="settings-section-title">Engine</div>
-        <div className="settings-section-sub">
-          Audio settings. Changes apply after you restart Runway.
-        </div>
+        <div className="settings-section-title">Engine<InfoTip>Audio settings. Changes apply after you restart Runway.</InfoTip></div>
         <div className="settings-grid">
           <div className="settings-field">
             <div className="settings-field-label">Sample rate</div>
@@ -1874,7 +1800,7 @@ function EngineSettings() {
             </div>
           </div>
           <div className="settings-field">
-            <div className="settings-field-label">Service timing log</div>
+            <div className="settings-field-label" style={{ display: 'flex', alignItems: 'center' }}>Service timing log<InfoTip>Records each service's arm, landing and pad handoff to a file you can review afterward.</InfoTip></div>
             <div className="settings-field-control">
               <button
                 className="btn-secondary"
@@ -1883,19 +1809,13 @@ function EngineSettings() {
               >
                 Open timing log
               </button>
-              <span className="settings-field-sub">
-                Records each service's arm, landing, and pad handoff to a file you can review afterward.
-              </span>
             </div>
           </div>
         </div>
       </section>
 
       <section className="settings-section">
-        <div className="settings-section-title">Default fade times</div>
-        <div className="settings-section-sub">
-          Used when creating new playlists. Existing playlists keep their own settings.
-        </div>
+        <div className="settings-section-title">Default fade times<InfoTip>Used when creating new playlists. Existing playlists keep their own settings.</InfoTip></div>
         <div className="settings-grid">
           <DefaultsField label="Crossfade" value={config.defaults.crossfadeSec}
                          onChange={v => updateDefault('crossfadeSec', v)} />
@@ -1945,8 +1865,8 @@ function SpotifyWindowPermission() {
       ) : (
         <>
           <span className="settings-field-sub">
-            To stop Spotify flashing on screen when songs change, let Runway close Spotify’s window
-            (System Settings › Privacy &amp; Security › Accessibility).
+            Spotify may flash on screen when songs change.
+            <InfoTip>Let Runway close Spotify’s window so it doesn’t flash on screen. Allow it in System Settings › Privacy &amp; Security › Accessibility.</InfoTip>
           </span>
           <button className="btn-secondary" onClick={() => void check(true)}>Allow…</button>
         </>
@@ -1970,10 +1890,11 @@ function KeyLearningStatus() {
         : `Checked against ${kl.examples} of your songs: the standard settings do as well (${kl.before}), so they’re still in use.`;
   return (
     <div style={{ marginTop: 14 }}>
-      <div className="settings-field-sub" style={{ fontWeight: 600 }}>Key learning</div>
-      <div className="settings-section-sub" style={{ marginTop: 2 }}>
-        {text} Keys you set or fix yourself teach it; it re-checks on its own and only switches when it clearly gets more right.
+      <div className="settings-field-sub" style={{ fontWeight: 600 }}>
+        Key learning
+        <InfoTip>Keys you set or fix yourself teach Runway’s key detection. It re-checks on its own and only switches when it clearly gets more right.</InfoTip>
       </div>
+      <div className="settings-section-sub" style={{ marginTop: 2 }}>{text}</div>
       <div className="pp-actions">
         <button className="btn-secondary" disabled={busy} onClick={async () => { setBusy(true); try { await relearnKeys(); } finally { setBusy(false); } }}>
           {busy ? 'Learning…' : 'Learn now'}
@@ -2024,12 +1945,8 @@ function SpotifyWaveformSetting() {
           }}
         />
         <span>Draw waveforms of Spotify songs (Mac)</span>
+        <InfoTip>Runway listens to how loud Spotify is as each song plays (never the sound itself, nothing is recorded) and draws the song’s waveform in its Edit panel. A song needs to play through once. macOS asks you to allow Runway under Screen &amp; System Audio Recording; Runway only listens to Spotify, never your screen.</InfoTip>
       </label>
-      <div className="settings-section-sub" style={{ marginTop: 4 }}>
-        Runway listens to how loud Spotify is as each song plays (never the sound itself, nothing is recorded) and
-        draws the song’s waveform in its Edit panel. A song needs to play through once. macOS asks you to allow
-        Runway under Screen &amp; System Audio Recording; Runway only listens to Spotify, never your screen.
-      </div>
       {label && <div className={`pp-status ${label.ok ? 'ok' : 'err'}`}>{label.text}</div>}
       {on && (
         <div className="pp-actions" style={{ marginTop: 8 }}>
@@ -2081,13 +1998,13 @@ function SpotifyWaveformSetting() {
               >
                 Scan all songs
               </button>
-              <span className="settings-field-sub">
+              <InfoTip>
                 {scanMode === 'edges'
                   ? `Plays the first and last ${scanSec} seconds of every imported Spotify song (about ${scanSec * 2 + 5} seconds each). `
                   : 'Plays every imported Spotify song start to finish. '}
                 Mute your Mac and walk away; it keeps going on other screens and stops by itself before a service
                 starts. Unmute when it’s done.
-              </span>
+              </InfoTip>
             </>
           )}
         </div>
@@ -2155,11 +2072,7 @@ function SpotifyAccountSection() {
 
   return (
     <section className="settings-section">
-      <div className="settings-section-title">Spotify (experimental)</div>
-      <div className="settings-section-sub">
-        Sign in so Runway can read the songs in your Spotify playlists. Spotify only lets Runway read
-        playlists you created or collaborate on.
-      </div>
+      <div className="settings-section-title">Spotify (experimental)<InfoTip>Sign in so Runway can read the songs in your Spotify playlists. Spotify only lets Runway read playlists you created or collaborate on.</InfoTip></div>
       {!status.connected && (
         <div className="settings-section-sub">
           One-time setup: at developer.spotify.com/dashboard create an app, add the Redirect URI{' '}
@@ -2205,12 +2118,8 @@ function SpotifyAccountSection() {
               }}
             />
             <span>Start songs without showing Spotify (Spotify Premium)</span>
+            <InfoTip>Runway starts each song through Spotify’s own remote control (like your phone does), so the Spotify window never comes forward. Volume, jumps and timing work the same. If it can’t reach Spotify that way, Runway starts the song the usual way instead.</InfoTip>
           </label>
-          <div className="settings-section-sub" style={{ marginTop: 4 }}>
-            Runway starts each song through Spotify’s own remote control (like your phone does), so the Spotify
-            window never comes forward. Volume, jumps and timing work the same. If it can’t reach Spotify that
-            way, Runway starts the song the usual way instead.
-          </div>
           {status.quietStart && !status.canControl && (
             <div className="pp-actions">
               <span className="pp-status err">Sign in to Spotify again once so Runway is allowed to start songs this way.</span>
@@ -2261,12 +2170,7 @@ function SpotifyTimingTestSection() {
     : null;
   return (
     <section className="settings-section">
-      <div className="settings-section-title">Spotify timing test (experimental)</div>
-      <div className="settings-section-sub">
-        Checks how precisely Runway can make a Spotify song end at a planned moment. Open the Spotify
-        app, then run the test: it plays the last 20 seconds of a song three times (about a minute)
-        and reports how close each landing was. Don’t run this during a service — it takes over Spotify.
-      </div>
+      <div className="settings-section-title">Spotify timing test (experimental)<InfoTip>Checks how precisely Runway can make a Spotify song end at a planned moment. Open the Spotify app, then run the test: it plays the last 20 seconds of a song three times (about a minute) and reports how close each landing was. Don’t run this during a service — it takes over Spotify.</InfoTip></div>
       <div className="pp-actions">
         <input
           type="text"
@@ -2379,18 +2283,13 @@ function RemoteSettings() {
     <>
       <section className="settings-section">
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div className="settings-section-title">Remote control</div>
+          <div className="settings-section-title">Remote control<InfoTip>Open one of these addresses on a phone or iPad on the same Wi-Fi to see the live timer. Anyone on the network can watch; controlling Runway needs the PIN. It's on whenever Runway is open.</InfoTip></div>
           <span
             className="pp-card-status on"
             title="Always on while Runway is open."
           >
             <span className="pp-card-status-dot" aria-hidden /> Server on
           </span>
-        </div>
-        <div className="settings-section-sub" style={{ maxWidth: 580 }}>
-          Open one of these addresses on a phone or iPad on the same Wi-Fi to
-          see the live timer. Anyone on the network can watch; controlling
-          Runway needs the PIN. It's on whenever Runway is open.
         </div>
 
         <div style={{ display: 'flex', gap: 28, alignItems: 'flex-start', marginTop: 18, flexWrap: 'wrap' }}>
@@ -2447,6 +2346,7 @@ function RemoteSettings() {
               <label style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 280 }}>
                 <span style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.06, color: 'var(--text-faint)', fontWeight: 600 }}>
                   Network interface
+                  <InfoTip>If this Mac is on more than one network (Wi-Fi, Ethernet, VPN), pick the one your phone uses.</InfoTip>
                 </span>
                 <select
                   value={remote.bindHost ?? ''}
@@ -2480,14 +2380,12 @@ function RemoteSettings() {
                       </option>
                     )}
                 </select>
-                <span style={{ fontSize: 11, color: 'var(--text-faint)', maxWidth: 320 }}>
-                  If this Mac is on more than one network (Wi-Fi, Ethernet,
-                  VPN), pick the one your phone uses.
-                </span>
+
               </label>
               <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                 <span style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.06, color: 'var(--text-faint)', fontWeight: 600 }}>
                   Port
+                  <InfoTip>Default 7811. Only change it if another app uses that port.</InfoTip>
                 </span>
                 <input
                   type="number"
@@ -2506,9 +2404,7 @@ function RemoteSettings() {
                     color: 'var(--text)',
                   }}
                 />
-                <span style={{ fontSize: 11, color: 'var(--text-faint)', maxWidth: 200 }}>
-                  Default 7811. Only change if another app uses it.
-                </span>
+
               </label>
             </div>
           </div>
@@ -2534,12 +2430,7 @@ function RemoteSettings() {
       </section>
 
       <section className="settings-section">
-        <div className="settings-section-title">Security</div>
-        <div className="settings-section-sub" style={{ maxWidth: 580 }}>
-          The PIN is needed to control Runway from a phone (Arm, Stop All,
-          Shuffle, Start Post-Service, etc.). Watching the timer doesn't need
-          it. After 5 wrong tries, that phone is locked out for 30 seconds.
-        </div>
+        <div className="settings-section-title">Security<InfoTip>The PIN is needed to control Runway from a phone (Arm, Stop All, Shuffle, Start Post-Service, etc.). Watching the timer doesn't need it. After 5 wrong tries, that phone is locked out for 30 seconds.</InfoTip></div>
         <div style={{ display: 'flex', gap: 24, marginTop: 16, flexWrap: 'wrap' }}>
           <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             <span style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.06, color: 'var(--text-faint)', fontWeight: 600 }}>
@@ -2762,15 +2653,7 @@ function BackupSection() {
   return (
     <>
       <section className="settings-section">
-        <div className="settings-section-title">Backup &amp; restore</div>
-        <div className="settings-section-sub" style={{ maxWidth: 560 }}>
-          Export saves your playlists, services, weekly pattern, MIDI
-          assignments, ProPresenter setup and defaults to one file. To move to
-          a new computer, copy this file <em>and</em> your audio and pad folders,
-          then Import here. Runway reconnects every song and pad and keeps all
-          keys, trims, fades and playlists. If a song shows as missing later,
-          use “Fix missing audio files”.
-        </div>
+        <div className="settings-section-title">Backup &amp; restore<InfoTip>Export saves your playlists, services, weekly pattern, MIDI assignments, ProPresenter setup and defaults to one file. To move to a new computer, copy this file <em>and</em> your audio and pad folders, then Import here. Runway reconnects every song and pad and keeps all keys, trims, fades and playlists. If a song shows as missing later, use “Fix missing audio files”.</InfoTip></div>
         <div style={{ display: 'flex', gap: 10, marginTop: 14, alignItems: 'center', flexWrap: 'wrap' }}>
           <button className="btn-secondary" onClick={onExport} disabled={busy !== null}>
             {busy === 'export' ? 'Exporting…' : 'Export config…'}
@@ -2782,13 +2665,11 @@ function BackupSection() {
             {busy === 'relink' ? 'Fixing…' : 'Fix missing audio files'}
           </button>
         </div>
-        <div className="settings-section-sub" style={{ maxWidth: 560, marginTop: 18 }}>
-          <strong>Playlists + audio.</strong> Export every playlist with its song
-          and pad files into one folder. Copy that folder to another computer
-          (USB drive, AirDrop, shared drive) and import it there. On import you
-          choose to add, merge or replace playlists.
+        <div className="settings-field-label" style={{ marginTop: 18 }}>
+          Playlists + audio
+          <InfoTip>Export every playlist with its song and pad files into one folder. Copy that folder to another computer (USB drive, AirDrop, shared drive) and import it there. On import you choose to add, merge or replace playlists.</InfoTip>
         </div>
-        <div style={{ display: 'flex', gap: 10, marginTop: 14, alignItems: 'center', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 10, marginTop: 10, alignItems: 'center', flexWrap: 'wrap' }}>
           <button className="btn-secondary" onClick={onExportLibrary} disabled={busy !== null}>
             {busy === 'libExport' ? 'Exporting audio…' : 'Export playlists + audio…'}
           </button>
@@ -2808,13 +2689,7 @@ function BackupSection() {
       </section>
 
       <section className="settings-section">
-        <div className="settings-section-title" style={{ color: 'var(--red-bright)' }}>Reset to factory defaults</div>
-        <div className="settings-section-sub" style={{ maxWidth: 560 }}>
-          Permanently deletes every playlist, service, weekly pattern, action
-          sequence, MIDI assignment, pad assignment, ProPresenter setting and
-          library entry. Audio files stay in Runway's library folder and can be
-          imported again. Export a backup first if you might want any of this back.
-        </div>
+        <div className="settings-section-title" style={{ color: 'var(--red-bright)' }}>Reset to factory defaults<InfoTip>Permanently deletes every playlist, service, weekly pattern, action sequence, MIDI assignment, pad assignment, ProPresenter setting and library entry. Audio files stay in Runway's library folder and can be imported again. Export a backup first if you might want any of this back.</InfoTip></div>
         <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
           <button
             className="btn-secondary"
@@ -3248,11 +3123,7 @@ function DisplaySettings() {
   return (
     <>
       <section className="settings-section">
-        <div className="settings-section-title">Live runway display</div>
-        <div className="settings-section-sub" style={{ maxWidth: 580 }}>
-          The runway on the Live screen shows one tile per song and scrolls
-          when they don't all fit.
-        </div>
+        <div className="settings-section-title">Live runway display<InfoTip>The runway on the Live screen shows one tile per song and scrolls when they don't all fit.</InfoTip></div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 18, marginTop: 18 }}>
           <label
@@ -3270,12 +3141,9 @@ function DisplaySettings() {
               ariaLabel="Show played tracks"
             />
             <div>
-              <div style={{ fontSize: 14, color: 'var(--text)', fontWeight: 600 }}>
+              <div style={{ fontSize: 14, color: 'var(--text)', fontWeight: 600, display: 'flex', alignItems: 'center' }}>
                 Keep played tracks visible
-              </div>
-              <div style={{ fontSize: 12, color: 'var(--text-faint)', marginTop: 2 }}>
-                Played songs stay in the runway, dimmed, so you can review the
-                whole service afterward.
+                <InfoTip>Played songs stay in the runway, dimmed, so you can review the whole service afterward.</InfoTip>
               </div>
             </div>
           </label>
@@ -3283,11 +3151,7 @@ function DisplaySettings() {
       </section>
 
       <section className="settings-section">
-        <div className="settings-section-title">Developer mode</div>
-        <div className="settings-section-sub" style={{ maxWidth: 580 }}>
-          Testing tools for working on Runway itself. Nothing here affects
-          playback or timing.
-        </div>
+        <div className="settings-section-title">Developer mode<InfoTip>Testing tools for working on Runway itself. Nothing here affects playback or timing.</InfoTip></div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 18, marginTop: 18 }}>
           <label
             style={{
@@ -3304,13 +3168,9 @@ function DisplaySettings() {
               ariaLabel="Developer mode"
             />
             <div>
-              <div style={{ fontSize: 14, color: 'var(--text)', fontWeight: 600 }}>
+              <div style={{ fontSize: 14, color: 'var(--text)', fontWeight: 600, display: 'flex', alignItems: 'center' }}>
                 Show developer tools
-              </div>
-              <div style={{ fontSize: 12, color: 'var(--text-faint)', marginTop: 2 }}>
-                Adds a "Key test" button to the Library. It runs key detection
-                on songs you've already tagged, compares the two, and gives
-                you a report to copy. It never changes your tags.
+                <InfoTip>Adds a "Key test" button to the Library. It runs key detection on songs you've already tagged, compares the two, and gives you a report to copy. It never changes your tags.</InfoTip>
               </div>
             </div>
           </label>
@@ -3541,11 +3401,7 @@ function PlanningCenterSettings() {
   return (
     <>
       <section className="settings-section">
-        <div className="settings-section-title">Planning Center</div>
-        <div className="settings-section-sub">
-          Sets the pad key from the first song in your Planning Center plan, so it's right
-          even when nobody sets it by hand.
-        </div>
+        <div className="settings-section-title">Planning Center<InfoTip>Sets the pad key from the first song in your Planning Center plan, so it's right even when nobody sets it by hand.</InfoTip></div>
 
         <div className="settings-field" style={{ marginTop: 12 }}>
           <div className="settings-field-label">Auto-set key from Planning Center</div>
@@ -3619,7 +3475,8 @@ function PlanningCenterSettings() {
               }}
             />
             <span className="settings-field-sub">
-              minutes before each service starts. Change it per service on the Schedule screen.
+              minutes before each service
+              <InfoTip>Change it per service on the Schedule screen.</InfoTip>
             </span>
           </label>
 
@@ -3627,11 +3484,11 @@ function PlanningCenterSettings() {
             <button className="btn-primary" onClick={onFetchNow} disabled={fetching || !cfg.enabled || !cfg.serviceTypeId}>
               {fetching ? 'Fetching…' : 'Fetch now'}
             </button>
-            <span className="settings-field-sub">
+            <InfoTip>
               {nextService
                 ? `Pull the coming plan's key and set it on ${nextService.name || `${nextService.date} ${nextService.startTime}`} now.`
                 : 'Get the next plan’s key now. No upcoming service to apply it to yet.'}
-            </span>
+            </InfoTip>
           </div>
 
           {status && (
@@ -3651,7 +3508,8 @@ function PlanningCenterSettings() {
       </section>
 
       <section className="settings-section">
-        <div className="settings-section-title">How to connect</div>
+        <details open={!cfg.serviceTypeId}>
+        <summary className="settings-section-title" style={{ cursor: 'pointer', display: 'list-item' }}>How to connect</summary>
         <ol className="settings-section-sub" style={{ lineHeight: 1.7, paddingLeft: 18 }}>
           <li>Sign in at <strong>planningcenteronline.com</strong> → <strong>Developer</strong> (api.planningcenteronline.com).</li>
           <li>Open <strong>Personal Access Tokens</strong> → <strong>New Personal Access Token</strong>. Name it "Runway".</li>
@@ -3659,6 +3517,7 @@ function PlanningCenterSettings() {
           <li>Press <strong>Test connection</strong>, then choose your Sunday <strong>service type</strong>.</li>
           <li>Press <strong>Fetch now</strong> to confirm it reads the right key. After that it refreshes on its own each day.</li>
         </ol>
+        </details>
       </section>
     </>
   );

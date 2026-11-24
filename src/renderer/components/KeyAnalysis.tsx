@@ -5,6 +5,7 @@ import { rescoreProfile } from '@shared/keyLearn';
 import { learnedKeyParams } from '../lib/keyLearning';
 import { keyColor, displayKey, camelotOf, isMajor, MAJOR_KEYS, MINOR_KEYS } from '@shared/music';
 import { useAppStore } from '../state/store';
+import { InfoTip } from './InfoTip';
 
 const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const MAJOR_STEPS = [0, 2, 4, 5, 7, 9, 11];
@@ -242,10 +243,9 @@ export function NoteMapStrip({ noteMap, durSec, zoomX, scrollX, height = 140, hi
         </div>
       )}
       {noteMap && noteMap.some(c => c) && (
-        <div className="settings-field-sub" style={{ marginTop: 3 }}>
-          How to read it: a key uses 7 of the 12 notes. Rows that stay dark are notes the song leaves out; the bright
-          rows that are left are the key. Right edge: each note’s total over the song (the key’s notes long, home note in
-          orange). Top band: the key each part of the song sounds like (same-note keys like D and Bm share a band).
+        <div className="settings-field-sub" style={{ marginTop: 3, display: 'flex', alignItems: 'center' }}>
+          How to read the note map
+          <InfoTip width={320}>A key uses 7 of the 12 notes. Rows that stay dark are notes the song leaves out; the bright rows that are left are the key. Right edge: each note’s total over the song (the key’s notes long, home note in orange). Top band: the key each part of the song sounds like (same-note keys like D and Bm share a band).</InfoTip>
         </div>
       )}
     </div>

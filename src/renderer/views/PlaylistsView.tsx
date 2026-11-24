@@ -7,6 +7,7 @@ import { KeyPickerModal } from '../components/KeyPickerModal';
 import type { KeyName, Playlist, PlaylistKind, Track } from '@shared/types';
 import { keyColor } from '@shared/music';
 import { effectiveDuration } from '@shared/types';
+import { InfoTip } from '../components/InfoTip';
 
 export function PlaylistsView() {
   const playlists = useAppStore(s => s.config.playlists);
@@ -714,15 +715,10 @@ function PlaylistSettingsStrip({ playlist }: { playlist: Playlist }) {
           </div>
         </div>
 
-        <div
-          className="pl-setting"
-          title="On: music starts a little earlier so the first song plays from the top. Off: the first song starts partway in, so music starts exactly at the lead time."
-        >
+        <div className="pl-setting">
           <span className="pl-setting-label">
             Don't trim opening song
-            <span className="pl-setting-help">
-              ON: music starts earlier so the first song plays from the beginning. OFF: starts mid-song to fit the lead window.
-            </span>
+            <InfoTip>On: music starts a little earlier so the first song plays from the top. Off: the first song starts partway in, so music starts exactly at the lead time.</InfoTip>
           </span>
           <div className="pl-toggle">
             {[true, false].map(v => (

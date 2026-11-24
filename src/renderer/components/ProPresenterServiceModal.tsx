@@ -4,6 +4,7 @@ import { useEngines } from '../state/engines';
 import type { ProPresenterServiceOverride } from '@shared/types';
 import type { PpTimer } from '../lib/proPresenterClient';
 import { PpItemPicker } from './PpItemPicker';
+import { InfoTip } from './InfoTip';
 
 interface Props {
   /** Header text (e.g. service or pattern name). Optional. */
@@ -294,18 +295,20 @@ export function ProPresenterServiceModal({ title, subtitle, override, onClose, o
       <div className="pp-modal" onClick={e => e.stopPropagation()}>
         <div className="pp-modal-header">
           <div>
-            <div className="pp-modal-title">{title ?? 'ProPresenter setup'}</div>
+            <div className="pp-modal-title">
+              {title ?? 'ProPresenter setup'}
+              <InfoTip>
+                {override
+                  ? 'This entry uses its own ProPresenter setup. Click "Use global instead" to go back to the Settings defaults.'
+                  : 'Saving here gives this entry its own ProPresenter setup instead of the Settings defaults.'}
+              </InfoTip>
+            </div>
             <div className="pp-modal-sub">{subtitle}</div>
           </div>
           <button className="pp-modal-close" onClick={onClose}>×</button>
         </div>
 
         <div className="pp-modal-body">
-          <div className="pp-modal-help">
-            {override
-              ? 'This entry uses its own ProPresenter setup. Click "Use global instead" to go back to the Settings defaults.'
-              : 'Saving here gives this entry its own ProPresenter setup instead of the Settings defaults.'}
-          </div>
           <div className="pp-modal-poll-status">
             {polling
               ? '⟳ Loading timers and playlists from ProPresenter…'

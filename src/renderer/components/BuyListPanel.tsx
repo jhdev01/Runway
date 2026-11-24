@@ -5,6 +5,7 @@ import { formatDuration } from '../lib/format';
 import {
   appleSearchUrl, importPurchases, linkExistingOwned, makeRunwayPlaylist, ownedTrackFor, qobuzSearchUrl,
 } from '../lib/purchases';
+import { InfoTip } from './InfoTip';
 
 const CHECK_EVERY_MS = 15_000;
 
@@ -75,13 +76,9 @@ export function BuyListPanel({ songs, title, onClose }: {
     <div style={{ margin: '10px 0', padding: '12px 14px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-elev)' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
         <strong>Buy list · {title}</strong>
+        <InfoTip width={320}>Stores only let you buy in the store, one click per song. Qobuz has a cart: add each song, then check out once and download the zip. While this panel is open, Runway checks Downloads, unzips it, adds the songs to your Library and links them to these Spotify songs (key, trims, fades and 0:00 carried over).</InfoTip>
         <span className="settings-field-sub">{owned.length} of {unique.length} owned · {toBuy.length} to buy</span>
         <button className="btn-secondary" style={{ marginLeft: 'auto' }} onClick={onClose}>Close</button>
-      </div>
-      <div className="settings-section-sub" style={{ marginTop: 4 }}>
-        Stores only let you buy in the store, one click per song. Qobuz has a cart: add each song, then check out once
-        and download the zip. While this panel is open, Runway checks Downloads, unzips it, adds the songs to your Library
-        and links them to these Spotify songs (key, trims, fades and 0:00 carried over).
       </div>
 
       {toBuy.length > 0 && (

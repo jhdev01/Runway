@@ -5,6 +5,7 @@ import { useAppStore } from '../state/store';
 import { useEngines } from '../state/engines';
 import { MAJOR_KEYS, keyColor } from '@shared/music';
 import type { KeyName } from '@shared/types';
+import { InfoTip } from './InfoTip';
 
 /**
  * Library Pad Player — slides up from the bottom of the Library so
@@ -128,8 +129,7 @@ export function KeyTesterPiano({ onClose, controlSpotify = false }: Props) {
     <div className="key-tester-drawer" role="dialog" aria-label="Pad player">
       <header className="key-tester-head">
         <div className="key-tester-titlewrap">
-          <h2>Pad Player</h2>
-          <p>Click a key to play its pad. Use this to check pads against songs playing in the list above.</p>
+          <h2 style={{ display: 'flex', alignItems: 'center' }}>Pad Player<InfoTip>Click a key to play its pad. Use this to check pads against songs playing in the list above.</InfoTip></h2>
         </div>
         <button
           type="button"

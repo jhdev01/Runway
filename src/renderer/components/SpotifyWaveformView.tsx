@@ -7,6 +7,7 @@ import { DragHandle, ServiceLandHandle, formatPreciseTime } from '../views/Edito
 import { effectiveGuess } from '../lib/keyLearning';
 import { fadeShape, FADE_STEP_MS } from '../lib/spotifyTestRun';
 import { NoteMapStrip, ZeroCountdown } from './KeyAnalysis';
+import { InfoTip } from './InfoTip';
 
 const HEIGHT = 150;
 const ZOOM_MAX_X = 64;
@@ -449,9 +450,9 @@ export function SpotifyWaveformView({ track, edit, onChange, full = false, showN
         </div>
       )}
       <div className="settings-field-sub" style={{ display: 'flex', gap: 12, marginTop: 6, flexWrap: 'wrap' }}>
-        <span>
-          Drag Start / End. Shift+drag for fades. Option-click for 0:00. Click to play from there.
-          Space play/stop, Enter from Start, + / − zoom.
+        <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+          Shortcuts
+          <InfoTip>Drag Start / End. Shift+drag for fades. Option-click for 0:00. Click to play from there. Space play/stop, Enter from Start, + / − zoom.</InfoTip>
         </span>
         <span style={{ marginLeft: 'auto' }}>
           Trim length · {formatDuration(trimLen)}{trimLen < dur - 0.05 ? ` / original ${formatDuration(dur)}` : ''}

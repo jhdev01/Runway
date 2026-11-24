@@ -5,6 +5,7 @@ import { ALL_KEYS, displayKey } from '@shared/music';
 import type { KeyName, SpotifyPlaylistResult } from '@shared/types';
 import { formatDuration } from '../lib/format';
 import { spotifyTestRun, type SpotifyRunState } from '../lib/spotifyTestRun';
+import { InfoTip } from './InfoTip';
 
 const LENGTHS: Array<{ label: string; sec: number | null }> = [
   { label: '30 sec', sec: 30 },
@@ -66,11 +67,9 @@ export function SpotifyTestRunPanel({ playlist }: { playlist: SpotifyPlaylistRes
 
   return (
     <div style={{ marginTop: 18, paddingTop: 14, borderTop: '1px solid var(--border)' }}>
-      <div className="settings-section-title" style={{ fontSize: 14 }}>Test run (experimental)</div>
-      <div className="settings-section-sub">
-        Plays this playlist through the Spotify app so the last song ends exactly when the countdown hits 0:00,
-        then the pad takes over. Spotify plays through its own output and its own volume. Test only: it never
-        starts or changes a service.
+      <div className="settings-section-title" style={{ fontSize: 14 }}>
+        Test run (experimental)
+        <InfoTip>Plays this playlist through the Spotify app so the last song ends exactly when the countdown hits 0:00, then the pad takes over. Spotify plays through its own output and its own volume. Test only: it never starts or changes a service.</InfoTip>
       </div>
 
       <div className="pp-actions">

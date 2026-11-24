@@ -7,6 +7,7 @@ import { ProPresenterServiceModal } from '../components/ProPresenterServiceModal
 import { formatTime12h, parseTime, dayName, formatDateLong, todayISO } from '../lib/format';
 import type { KeyName, ServiceInstance, WeeklyPatternEntry } from '@shared/types';
 import { resolveServiceFirstSongKey, resolveServiceLastSongTrackId } from '@shared/types';
+import { InfoTip } from '../components/InfoTip';
 
 export function ScheduleView() {
   const services = useAppStore(s => s.config.services);
@@ -148,8 +149,7 @@ export function ScheduleView() {
         <section className="sched-section">
           <div className="sched-section-header">
             <div>
-              <div className="sched-section-title">Upcoming services</div>
-              <div className="sched-section-sub">Next two weeks. Each card sets its own first-song key.</div>
+              <div className="sched-section-title">Upcoming services<InfoTip>The next two weeks. Each card sets its own first-song key.</InfoTip></div>
             </div>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
               {upcomingCount > 0 && (
@@ -198,13 +198,15 @@ export function ScheduleView() {
         <section className="sched-section">
           <div className="sched-section-header">
             <div>
-              <div className="sched-section-title">Weekly pattern</div>
-              <div className="sched-section-sub">
-                Service times that repeat every week. Checked rows become
-                services when Runway opens and every hour after.
-                {weeklyPatternMode === 'auto_rotate'
-                  ? ' Recurring: today’s and tomorrow’s services appear on their own.'
-                  : ' Manual: services appear only when you click a Load button.'}
+              <div className="sched-section-title">
+                Weekly pattern
+                <InfoTip>
+                  Service times that repeat every week. Checked rows become
+                  services when Runway opens and every hour after.
+                  {weeklyPatternMode === 'auto_rotate'
+                    ? ' Recurring: today’s and tomorrow’s services appear on their own.'
+                    : ' Manual: services appear only when you click a Load button.'}
+                </InfoTip>
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>

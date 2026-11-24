@@ -1020,9 +1020,6 @@ export function LiveView() {
                       >
                         ▶ Start Post-Service
                       </button>
-                      <div className="post-ready-hint">
-                        Pick a different post-service playlist below if needed.
-                      </div>
                     </>
                   ) : (
                     <div className="post-ready-hint">

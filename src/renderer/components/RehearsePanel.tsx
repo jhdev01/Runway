@@ -3,6 +3,7 @@ import { useAppStore } from '../state/store';
 import { useEngines } from '../state/engines';
 import { ALL_KEYS } from '@shared/music';
 import type { KeyName } from '@shared/types';
+import { InfoTip } from './InfoTip';
 
 const PRESETS: { label: string; minutes: number }[] = [
   { label: '1m', minutes: 1 },
@@ -210,10 +211,8 @@ export function RehearsePanel() {
               >
                 {isQuickPlaying ? 'Stop' : '▶ Play test'}
               </button>
+              <div><InfoTip>Plays the playlist immediately. Use the test controls above to fast-forward and check transitions.</InfoTip></div>
               {quickError && <div style={{ color: 'var(--red, #ef4444)', fontSize: 11 }}>{quickError}</div>}
-              <div style={{ fontSize: 12, color: 'var(--text-faint)' }}>
-                Plays the playlist immediately. Use the test controls above to fast-forward and check transitions.
-              </div>
             </div>
           )}
         </div>
