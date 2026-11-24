@@ -11,7 +11,7 @@ import { IPC, type PpRequest, type PpResponse, type PcoRequest, type PcoResponse
 import { runSpotifyTimingTest } from './spotifyTimingTest';
 import { spotifyPlayer } from './spotifyPlayer';
 import { stopFastSpotifyVolume } from './spotifyVolume';
-import { openStoreLink, findPurchases } from './purchases';
+import { openStoreLink, findPurchases, appleStoreLookup } from './purchases';
 import { spotifyWaveformEnable, spotifyWaveformStatus, spotifyWaveformGet, spotifyWaveformCoverage, spotifyWaveformKeys, spotifyWaveformShutdown } from './spotifyWaveform';
 import type { SpotifyPlayerCommand } from '../shared/types';
 import { spotifyConnect, spotifyStatus, spotifyDisconnect, spotifyReadPlaylist, spotifyListPlaylists, spotifyFetchArt } from './spotifyAccount';
@@ -941,6 +941,11 @@ function registerIpcHandlers() {
   ipcMain.handle(IPC.SPOTIFY_WAVEFORM_GET, async (_e, uri: unknown) => (typeof uri === 'string' ? spotifyWaveformGet(uri) : null));
   ipcMain.handle(IPC.SPOTIFY_WAVEFORM_COVERAGE, async (_e, uris: unknown, edgesSec: unknown) => (Array.isArray(uris) ? spotifyWaveformCoverage(uris as string[], typeof edgesSec === 'number' ? edgesSec : undefined) : {}));
   ipcMain.handle(IPC.STORE_OPEN, async (_e, url: unknown) => (typeof url === 'string' ? openStoreLink(url) : false));
+  ipcMain.handle(IPC.APPLE_STORE_LOOKUP, async (_e, q: unknown) => {
+    const o = (q ?? {}) as { title?: unknown; artist?: unknown; durationMs?: unknown };
+    if (typeof o.title !== 'string' || !o.title.trim()) return { ok: false, reason: 'No song title.' };
+    return appleStoreLookup({ title: o.title.slice(0, 200), artist: typeof o.artist === 'string' ? o.artist.slice(0, 200) : '', durationMs: typeof o.durationMs === 'number' ? o.durationMs : 0 });
+  });
   ipcMain.handle(IPC.PURCHASES_FIND, async (_e, since: unknown) => findPurchases(typeof since === 'number' ? since : Date.now() - 30 * 86400_000));
   ipcMain.handle(IPC.SPOTIFY_WAVEFORM_KEYS, async (_e, uris: unknown) => (Array.isArray(uris) ? spotifyWaveformKeys(uris as string[]) : {}));
   app.on('will-quit', () => { spotifyWaveformShutdown(); stopFastSpotifyVolume(); });

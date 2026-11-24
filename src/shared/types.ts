@@ -1101,6 +1101,7 @@ export const IPC = {
   SPOTIFY_WAVEFORM_COVERAGE: 'spotify:waveformCoverage',
   SPOTIFY_WAVEFORM_KEYS: 'spotify:waveformKeys',
   STORE_OPEN: 'purchases:openStore',
+  APPLE_STORE_LOOKUP: 'purchases:appleLookup',
   PURCHASES_FIND: 'purchases:find',
   MULTITRACKS_LOOKUP: 'track:multitracks',
 } as const;

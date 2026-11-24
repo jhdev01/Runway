@@ -61,6 +61,7 @@ const IPC = {
   SPOTIFY_WAVEFORM_COVERAGE: 'spotify:waveformCoverage',
   SPOTIFY_WAVEFORM_KEYS: 'spotify:waveformKeys',
   STORE_OPEN: 'purchases:openStore',
+  APPLE_STORE_LOOKUP: 'purchases:appleLookup',
   PURCHASES_FIND: 'purchases:find',
   // MultiTracks.com song lookup — returns the published original master
   // key for worship songs, plus alternates when the catalog disagrees.
@@ -160,6 +161,7 @@ contextBridge.exposeInMainWorld('runway', {
   // Buy list: open store pages; pick up bought songs from Downloads.
   purchases: {
     openStore: (url: string) => ipcRenderer.invoke(IPC.STORE_OPEN, url),
+    appleLookup: (q: { title: string; artist: string; durationMs: number }) => ipcRenderer.invoke(IPC.APPLE_STORE_LOOKUP, q),
     find: (sinceMs: number) => ipcRenderer.invoke(IPC.PURCHASES_FIND, sinceMs),
   },
   planningCenter: {

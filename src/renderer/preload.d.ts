@@ -102,6 +102,10 @@ declare global {
       };
       purchases: {
         openStore: (url: string) => Promise<boolean>;
+        appleLookup: (q: { title: string; artist: string; durationMs: number }) => Promise<{
+          ok: boolean; url?: string; webUrl?: string; price?: number; currency?: string;
+          title?: string; artist?: string; album?: string; durationMs?: number; reason?: string;
+        }>;
         find: (sinceMs: number) => Promise<{ files: string[]; zips: number; reason?: string }>;
       };
       diagnostics: {
