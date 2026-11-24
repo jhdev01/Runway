@@ -23,7 +23,7 @@ interface PlaybackInfo {
   durationSec: number;
 }
 
-export type SettingsTab = 'audio' | 'midi' | 'propresenter' | 'planningcenter' | 'pads' | 'remote' | 'spotify' | 'engine' | 'display' | 'about';
+export type SettingsTab = 'service' | 'audio' | 'pads' | 'library' | 'spotify' | 'propresenter' | 'planningcenter' | 'midi' | 'remote' | 'display' | 'about';
 
 interface AppStoreState {
   // UI

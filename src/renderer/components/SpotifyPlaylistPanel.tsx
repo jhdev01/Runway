@@ -65,7 +65,7 @@ export function SpotifyImportButton({ onImported }: { onImported: (id: string) =
           {status && !status.connected && (
             <div className="post-pick-empty">
               Spotify isn’t connected.{' '}
-              <button className="btn-secondary" onClick={() => openSettings('engine')}>Connect in Settings</button>
+              <button className="btn-secondary" onClick={() => openSettings('spotify')}>Connect in Settings</button>
             </div>
           )}
           {status?.connected && mine === null && <div className="post-pick-empty">Loading your playlists…</div>}

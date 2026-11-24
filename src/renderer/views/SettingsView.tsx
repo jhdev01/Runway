@@ -18,10 +18,42 @@ import { SpotifySongList } from '../components/SpotifySongList';
 import runwayIconUrl from '../assets/runway-icon.png';
 import { InfoTip } from '../components/InfoTip';
 
-type SettingsTab = 'audio' | 'midi' | 'propresenter' | 'planningcenter' | 'pads' | 'remote' | 'spotify' | 'engine' | 'display' | 'about';
+type SettingsTab = 'service' | 'audio' | 'pads' | 'library' | 'spotify' | 'propresenter' | 'planningcenter' | 'midi' | 'remote' | 'display' | 'about';
+
+const SETTINGS_NAV: { group: string; items: { id: SettingsTab; label: string }[] }[] = [
+  { group: 'Service', items: [
+    { id: 'service', label: 'Service timing' },
+    { id: 'audio', label: 'Audio' },
+    { id: 'pads', label: 'Pads' },
+  ] },
+  { group: 'Music', items: [
+    { id: 'library', label: 'Library' },
+    { id: 'spotify', label: 'Spotify' },
+  ] },
+  { group: 'Connections', items: [
+    { id: 'propresenter', label: 'ProPresenter' },
+    { id: 'planningcenter', label: 'Planning Center' },
+    { id: 'midi', label: 'MIDI' },
+    { id: 'remote', label: 'Phone remote' },
+  ] },
+  { group: 'App', items: [
+    { id: 'display', label: 'Display' },
+    { id: 'about', label: 'Backup & about' },
+  ] },
+];
+
+/** Rarely touched settings, folded away until asked for. */
+function Advanced({ children }: { children: React.ReactNode }) {
+  return (
+    <details className="settings-advanced">
+      <summary>Advanced</summary>
+      <div className="settings-advanced-body">{children}</div>
+    </details>
+  );
+}
 
 export function SettingsView() {
-  const [tab, setTab] = useState<SettingsTab>('audio');
+  const [tab, setTab] = useState<SettingsTab>('service');
   const consumePendingSettingsTab = useAppStore(s => s.consumePendingSettingsTab);
   const pendingSettingsTab = useAppStore(s => s.pendingSettingsTab);
 
@@ -30,42 +62,57 @@ export function SettingsView() {
     if (next) setTab(next);
   }, [pendingSettingsTab, consumePendingSettingsTab]);
 
+  const title = SETTINGS_NAV.flatMap(g => g.items).find(i => i.id === tab)?.label ?? 'Settings';
+
   return (
     <div className="settings-view">
-      <aside className="settings-nav">
-        {([
-          { id: 'audio', label: 'Audio Routing' },
-          { id: 'midi', label: 'MIDI' },
-          { id: 'propresenter', label: 'ProPresenter' },
-          { id: 'planningcenter', label: 'Planning Center' },
-          { id: 'pads', label: 'Pad Library' },
-          { id: 'remote', label: 'Remote' },
-          { id: 'spotify', label: 'Spotify' },
-          { id: 'engine', label: 'Engine' },
-          { id: 'display', label: 'Display' },
-          { id: 'about', label: 'About' },
-        ] as const).map(item => (
-          <button
-            key={item.id}
-            className={`settings-nav-item ${tab === item.id ? 'active' : ''}`}
-            onClick={() => setTab(item.id)}
-          >
-            {item.label}
-          </button>
+      <nav className="settings-nav" aria-label="Settings sections">
+        <div className="settings-nav-title">Settings</div>
+        {SETTINGS_NAV.map(g => (
+          <div key={g.group} className="settings-nav-group">
+            <div className="settings-nav-group-label">{g.group}</div>
+            {g.items.map(item => (
+              <button
+                key={item.id}
+                className={`settings-nav-item ${tab === item.id ? 'active' : ''}`}
+                aria-current={tab === item.id ? 'page' : undefined}
+                onClick={() => setTab(item.id)}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
         ))}
-      </aside>
+      </nav>
 
       <div className="settings-content">
-        {tab === 'audio' && <AudioSettings />}
-        {tab === 'midi' && <MidiSettings />}
-        {tab === 'propresenter' && <ProPresenterSettings />}
-        {tab === 'planningcenter' && <PlanningCenterSettings />}
-        {tab === 'pads' && <PadSettings />}
-        {tab === 'remote' && <RemoteSettings />}
-        {tab === 'spotify' && <><SpotifyAccountSection /><SpotifyTimingTestSection /></>}
-        {tab === 'engine' && <EngineSettings />}
-        {tab === 'display' && <DisplaySettings />}
-        {tab === 'about' && <AboutSection />}
+        <div className="settings-page">
+          <h1 className="settings-page-title">{title}</h1>
+          {tab === 'service' && <EngineSettings parts={['preservice', 'fades', 'autoschedule']} />}
+          {tab === 'audio' && (
+            <>
+              <AudioSettings />
+              <PadSettings parts={['output']} />
+              <Advanced><EngineSettings parts={['engine']} /></Advanced>
+            </>
+          )}
+          {tab === 'pads' && <PadSettings parts={['library']} />}
+          {tab === 'library' && <EngineSettings parts={['library']} />}
+          {tab === 'spotify' && <><SpotifyAccountSection /><Advanced><SpotifyTimingTestSection /></Advanced></>}
+          {tab === 'propresenter' && <ProPresenterSettings />}
+          {tab === 'planningcenter' && <PlanningCenterSettings />}
+          {tab === 'midi' && <MidiSettings />}
+          {tab === 'remote' && <RemoteSettings />}
+          {tab === 'display' && <DisplaySettings parts={['runway']} />}
+          {tab === 'about' && (
+            <>
+              <AboutSection />
+              <EngineSettings parts={['timinglog']} />
+              <DisplaySettings parts={['dev']} />
+              <BackupSection />
+            </>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -1096,7 +1143,9 @@ function ActionPicker({ action, onChange }: { action: MidiAction; onChange: (a: 
   );
 }
 
-function PadSettings() {
+type PadPart = 'output' | 'library';
+function PadSettings({ parts }: { parts: PadPart[] }) {
+  const show = (p: PadPart) => parts.includes(p);
   const pads = useAppStore(s => s.config.pads);
   const defaults = useAppStore(s => s.config.defaults);
   const updateConfig = useAppStore(s => s.updateConfig);
@@ -1234,6 +1283,7 @@ function PadSettings() {
 
   return (
     <>
+      {show('output') && (<>
       <section className="settings-section">
         <div className="settings-section-title">Pad player output<InfoTip>Volume sets the pad level against the music. Gain boosts quiet pad files or turns down loud ones. Both apply to every pad.</InfoTip></div>
         <div className="pad-level-grid">
@@ -1286,7 +1336,9 @@ function PadSettings() {
           <InfoTip>Changes how keys are shown, not your files. Match how your pad files and songs are named.</InfoTip>
         </div>
       </section>
+      </>)}
 
+    {show('library') && (<>
     <section className="settings-section">
       <div className="settings-section-title">Pad library<InfoTip>Assign one looping pad file per key, or use Scan to load a folder of files named after their keys (A.wav, C#.wav, etc.). Scan in the Major section maps plain-letter files (A.wav, B.wav) as major; Scan in Minor maps them as minor. The other section is left alone.</InfoTip></div>
       <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: 12, flexWrap: 'wrap' }}>
@@ -1362,6 +1414,7 @@ function PadSettings() {
       )}
       <PadGrid keys={MINOR_KEYS} pads={pads} mode={keyDisplayMode} onAssign={onAssignPad} onClear={onClearPad} />
     </section>
+    </>)}
     </>
   );
 }
@@ -1432,7 +1485,9 @@ function PadGrid({ keys, pads, mode, onAssign, onClear }: {
   );
 }
 
-function EngineSettings() {
+type EnginePart = 'autoschedule' | 'library' | 'preservice' | 'engine' | 'timinglog' | 'fades';
+function EngineSettings({ parts }: { parts: EnginePart[] }) {
+  const show = (p: EnginePart) => parts.includes(p);
   const config = useAppStore(s => s.config);
   const updateConfig = useAppStore(s => s.updateConfig);
   const updateTrack = useAppStore(s => s.updateTrack);
@@ -1497,6 +1552,176 @@ function EngineSettings() {
 
   return (
     <>
+
+      {show('library') && (<>
+      <section className="settings-section">
+        <div className="settings-section-title">Library<InfoTip>New imports are copied into Runway's library folder. Consolidate copies in older songs that still play from their original location.</InfoTip></div>
+        {audioDir && (
+          <div
+            style={{
+              marginTop: 12,
+              padding: '10px 12px',
+              background: 'var(--bg-elev-2)',
+              border: '1px solid var(--border)',
+              borderRadius: 6,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 12,
+              fontSize: 12,
+              fontFamily: 'IBM Plex Mono, monospace',
+              color: 'var(--text-dim)',
+              maxWidth: 720,
+            }}
+          >
+            <span
+              style={{
+                flex: 1,
+                minWidth: 0,
+                direction: 'rtl',
+                textAlign: 'left',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                unicodeBidi: 'plaintext',
+              }}
+              title={audioDir}
+            >
+              {audioDir}
+            </span>
+            <button
+              className="btn-secondary"
+              onClick={() => { void window.runway?.files.revealFolder(audioDir); }}
+              style={{ flexShrink: 0 }}
+            >
+              View in Finder
+            </button>
+          </div>
+        )}
+        <button
+          className="btn-primary"
+          onClick={onReimportAll}
+          disabled={importing}
+          style={{ width: 'fit-content', marginTop: 12 }}
+        >
+          {importing ? 'Consolidating…' : 'Consolidate'}
+        </button>
+        {importStatus && (
+          <div className="settings-section-sub" style={{ marginTop: 10, fontSize: 12 }}>
+            {importStatus}
+          </div>
+        )}
+
+        <label
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 14,
+            cursor: 'pointer',
+            maxWidth: 580,
+            marginTop: 22,
+          }}
+        >
+          <Toggle
+            checked={autoKeyTagOnImport}
+            onChange={(next) => updateConfig({
+              defaults: { ...config.defaults, autoKeyTagOnImport: next },
+            })}
+            ariaLabel="Tag keys on import"
+          />
+          <div>
+            <div style={{ fontSize: 14, color: 'var(--text)', fontWeight: 600, display: 'flex', alignItems: 'center' }}>
+              Tag keys on import
+              <InfoTip>Newly imported tracks that arrive without a key get looked up on MultiTracks.com and tagged with the published original master key. Only confident, unambiguous matches are applied. Anything the catalog lists in more than one key is held for you to review from the Library toolbar. Tracks that already carry a key are left alone.</InfoTip>
+            </div>
+          </div>
+        </label>
+      </section>
+      </>)}
+
+      {show('preservice') && (<>
+      <section className="settings-section">
+        <div className="settings-section-title">Pre-service music<InfoTip><p>When a playlist is shorter than the auto-start lead time:</p><p><strong>Repeat to fill</strong>: songs repeat to fill the time. The song in the service key plays last.</p><p><strong>Start late</strong>: the playlist plays once and music starts later.</p><p>Either way, music ends at service start.</p></InfoTip></div>
+        <div className="pl-toggle" style={{ width: 'fit-content' }}>
+          <button
+            className={`pl-toggle-btn ${repeatToFill ? 'active' : ''}`}
+            onClick={() => setRepeatToFill(true)}
+          >
+            Repeat to fill
+          </button>
+          <button
+            className={`pl-toggle-btn ${!repeatToFill ? 'active' : ''}`}
+            onClick={() => setRepeatToFill(false)}
+          >
+            Start late
+          </button>
+        </div>
+      </section>
+      </>)}
+
+      {show('engine') && (<>
+      <section className="settings-section">
+        <div className="settings-section-title">Audio engine<InfoTip>Changes apply after you restart Runway.</InfoTip></div>
+        <div className="settings-grid">
+          <div className="settings-field">
+            <div className="settings-field-label">Sample rate</div>
+            <div className="settings-field-control">
+              <span className="settings-field-value">{config.sampleRate} Hz</span>
+            </div>
+          </div>
+          <div className="settings-field">
+            <div className="settings-field-label">Buffer size</div>
+            <div className="settings-field-control">
+              <span className="settings-field-value">{config.bufferSize} samples</span>
+              <span className="settings-field-sub">~{(config.bufferSize / config.sampleRate * 1000).toFixed(1)} ms latency</span>
+            </div>
+          </div>
+        </div>
+      </section>
+      </>)}
+      {show('timinglog') && (
+      <section className="settings-section">
+        <div className="settings-section-title">Diagnostics</div>
+        <div className="settings-grid">
+          <div className="settings-field">
+            <div className="settings-field-label" style={{ display: 'flex', alignItems: 'center' }}>Service timing log<InfoTip>Records each service's arm, landing and pad handoff to a file you can review afterward.</InfoTip></div>
+            <div className="settings-field-control">
+              <button
+                className="btn-secondary"
+                onClick={() => { void window.runway?.diagnostics?.revealTimingLog(); }}
+                style={{ width: 'fit-content' }}
+              >
+                Open timing log
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+      )}
+
+      {show('fades') && (<>
+      <section className="settings-section">
+        <div className="settings-section-title">Default fade times<InfoTip>Used when creating new playlists. Existing playlists keep their own settings.</InfoTip></div>
+        <div className="settings-grid">
+          <DefaultsField label="Crossfade" value={config.defaults.crossfadeSec}
+                         onChange={v => updateDefault('crossfadeSec', v)} />
+          <DefaultsField label="Pad hold" value={config.defaults.padBridgeSec}
+                         onChange={v => updateDefault('padBridgeSec', v)} />
+          <DefaultsField label="Pad fade out" value={config.defaults.padFadeOutSec}
+                         onChange={v => updateDefault('padFadeOutSec', v)} />
+          <DefaultsField label="Panic fade" value={config.defaults.panicFadeSec}
+                         onChange={v => updateDefault('panicFadeSec', v)} />
+          <DefaultsField label="Post-service fade-in" value={config.defaults.postServiceFadeInSec}
+                         onChange={v => updateDefault('postServiceFadeInSec', v)} />
+          <DefaultsField label="Music start fade-in" value={config.defaults.musicFadeInSec}
+                         onChange={v => updateDefault('musicFadeInSec', v)} />
+          <DefaultsField label="Auto-start lead time"
+                         value={config.defaults.autoStartTargetSec / 60}
+                         onChange={v => updateDefault('autoStartTargetSec', v * 60)}
+                         unit="min" step={1} max={60} />
+        </div>
+      </section>
+      </>)}
+      {show('autoschedule') && (<>
       <section className="settings-section">
         <div className="settings-section-title">Auto-schedule services<InfoTip>When the weekly pattern is set to <strong>Auto rotate</strong>, Runway adds services from it to the schedule. Days ahead sets how far out (2 = today and tomorrow). If Runway stays open overnight, it adds the next day's services at the daily check time, e.g. 03:00.</InfoTip></div>
         <div
@@ -1681,162 +1906,8 @@ function EngineSettings() {
           </div>
         )}
       </section>
+      </>)}
 
-      <section className="settings-section">
-        <div className="settings-section-title">Library<InfoTip>New imports are copied into Runway's library folder. Consolidate copies in older songs that still play from their original location.</InfoTip></div>
-        {audioDir && (
-          <div
-            style={{
-              marginTop: 12,
-              padding: '10px 12px',
-              background: 'var(--bg-elev-2)',
-              border: '1px solid var(--border)',
-              borderRadius: 6,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 12,
-              fontSize: 12,
-              fontFamily: 'IBM Plex Mono, monospace',
-              color: 'var(--text-dim)',
-              maxWidth: 720,
-            }}
-          >
-            <span
-              style={{
-                flex: 1,
-                minWidth: 0,
-                direction: 'rtl',
-                textAlign: 'left',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                unicodeBidi: 'plaintext',
-              }}
-              title={audioDir}
-            >
-              {audioDir}
-            </span>
-            <button
-              className="btn-secondary"
-              onClick={() => { void window.runway?.files.revealFolder(audioDir); }}
-              style={{ flexShrink: 0 }}
-            >
-              View in Finder
-            </button>
-          </div>
-        )}
-        <button
-          className="btn-primary"
-          onClick={onReimportAll}
-          disabled={importing}
-          style={{ width: 'fit-content', marginTop: 12 }}
-        >
-          {importing ? 'Consolidating…' : 'Consolidate'}
-        </button>
-        {importStatus && (
-          <div className="settings-section-sub" style={{ marginTop: 10, fontSize: 12 }}>
-            {importStatus}
-          </div>
-        )}
-
-        <label
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 14,
-            cursor: 'pointer',
-            maxWidth: 580,
-            marginTop: 22,
-          }}
-        >
-          <Toggle
-            checked={autoKeyTagOnImport}
-            onChange={(next) => updateConfig({
-              defaults: { ...config.defaults, autoKeyTagOnImport: next },
-            })}
-            ariaLabel="Tag keys on import"
-          />
-          <div>
-            <div style={{ fontSize: 14, color: 'var(--text)', fontWeight: 600, display: 'flex', alignItems: 'center' }}>
-              Tag keys on import
-              <InfoTip>Newly imported tracks that arrive without a key get looked up on MultiTracks.com and tagged with the published original master key. Only confident, unambiguous matches are applied. Anything the catalog lists in more than one key is held for you to review from the Library toolbar. Tracks that already carry a key are left alone.</InfoTip>
-            </div>
-          </div>
-        </label>
-      </section>
-
-      <section className="settings-section">
-        <div className="settings-section-title">Pre-service music<InfoTip><p>When a playlist is shorter than the auto-start lead time:</p><p><strong>Repeat to fill</strong>: songs repeat to fill the time. The song in the service key plays last.</p><p><strong>Start late</strong>: the playlist plays once and music starts later.</p><p>Either way, music ends at service start.</p></InfoTip></div>
-        <div className="pl-toggle" style={{ width: 'fit-content' }}>
-          <button
-            className={`pl-toggle-btn ${repeatToFill ? 'active' : ''}`}
-            onClick={() => setRepeatToFill(true)}
-          >
-            Repeat to fill
-          </button>
-          <button
-            className={`pl-toggle-btn ${!repeatToFill ? 'active' : ''}`}
-            onClick={() => setRepeatToFill(false)}
-          >
-            Start late
-          </button>
-        </div>
-      </section>
-
-      <section className="settings-section">
-        <div className="settings-section-title">Engine<InfoTip>Changes apply after you restart Runway.</InfoTip></div>
-        <div className="settings-grid">
-          <div className="settings-field">
-            <div className="settings-field-label">Sample rate</div>
-            <div className="settings-field-control">
-              <span className="settings-field-value">{config.sampleRate} Hz</span>
-            </div>
-          </div>
-          <div className="settings-field">
-            <div className="settings-field-label">Buffer size</div>
-            <div className="settings-field-control">
-              <span className="settings-field-value">{config.bufferSize} samples</span>
-              <span className="settings-field-sub">~{(config.bufferSize / config.sampleRate * 1000).toFixed(1)} ms latency</span>
-            </div>
-          </div>
-          <div className="settings-field">
-            <div className="settings-field-label" style={{ display: 'flex', alignItems: 'center' }}>Service timing log<InfoTip>Records each service's arm, landing and pad handoff to a file you can review afterward.</InfoTip></div>
-            <div className="settings-field-control">
-              <button
-                className="btn-secondary"
-                onClick={() => { void window.runway?.diagnostics?.revealTimingLog(); }}
-                style={{ width: 'fit-content' }}
-              >
-                Open timing log
-              </button>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="settings-section">
-        <div className="settings-section-title">Default fade times<InfoTip>Used when creating new playlists. Existing playlists keep their own settings.</InfoTip></div>
-        <div className="settings-grid">
-          <DefaultsField label="Crossfade" value={config.defaults.crossfadeSec}
-                         onChange={v => updateDefault('crossfadeSec', v)} />
-          <DefaultsField label="Pad hold" value={config.defaults.padBridgeSec}
-                         onChange={v => updateDefault('padBridgeSec', v)} />
-          <DefaultsField label="Pad fade out" value={config.defaults.padFadeOutSec}
-                         onChange={v => updateDefault('padFadeOutSec', v)} />
-          <DefaultsField label="Panic fade" value={config.defaults.panicFadeSec}
-                         onChange={v => updateDefault('panicFadeSec', v)} />
-          <DefaultsField label="Post-service fade-in" value={config.defaults.postServiceFadeInSec}
-                         onChange={v => updateDefault('postServiceFadeInSec', v)} />
-          <DefaultsField label="Music start fade-in" value={config.defaults.musicFadeInSec}
-                         onChange={v => updateDefault('musicFadeInSec', v)} />
-          <DefaultsField label="Auto-start lead time"
-                         value={config.defaults.autoStartTargetSec / 60}
-                         onChange={v => updateDefault('autoStartTargetSec', v * 60)}
-                         unit="min" step={1} max={60} />
-        </div>
-      </section>
-
-      <BackupSection />
     </>
   );
 }
@@ -2072,7 +2143,7 @@ function SpotifyAccountSection() {
 
   return (
     <section className="settings-section">
-      <div className="settings-section-title">Spotify (experimental)<InfoTip>Sign in so Runway can read the songs in your Spotify playlists. Spotify only lets Runway read playlists you created or collaborate on.</InfoTip></div>
+      <div className="settings-section-title">Account<InfoTip>Sign in so Runway can read the songs in your Spotify playlists. Spotify only lets Runway read playlists you created or collaborate on.</InfoTip></div>
       {!status.connected && (
         <div className="settings-section-sub">
           One-time setup: at developer.spotify.com/dashboard create an app, add the Redirect URI{' '}
@@ -2687,6 +2758,7 @@ function BackupSection() {
         </div>
       </section>
 
+      <Advanced>
       <section className="settings-section">
         <div className="settings-section-title" style={{ color: 'var(--red-bright)' }}>Reset to factory defaults<InfoTip>Permanently deletes every playlist, service, weekly pattern, action sequence, MIDI assignment, pad assignment, ProPresenter setting and library entry. Audio files stay in Runway's library folder and can be imported again. Export a backup first if you might want any of this back.</InfoTip></div>
         <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
@@ -2702,6 +2774,7 @@ function BackupSection() {
           </button>
         </div>
       </section>
+      </Advanced>
 
       {libPreview && (
         <LibraryImportModal
@@ -3108,7 +3181,9 @@ function DefaultsField({ label, value, onChange, unit = 's', step = 0.5, max = 3
   );
 }
 
-function DisplaySettings() {
+type DisplayPart = 'runway' | 'dev';
+function DisplaySettings({ parts }: { parts: DisplayPart[] }) {
+  const show = (p: DisplayPart) => parts.includes(p);
   const ui = useAppStore(s => s.config.ui);
   const updateConfig = useAppStore(s => s.updateConfig);
   const showPlayedTracks = ui?.showPlayedTracks ?? false;
@@ -3121,6 +3196,7 @@ function DisplaySettings() {
 
   return (
     <>
+      {show('runway') && (<>
       <section className="settings-section">
         <div className="settings-section-title">Live runway display<InfoTip>The runway on the Live screen shows one tile per song and scrolls when they don't all fit.</InfoTip></div>
 
@@ -3148,7 +3224,9 @@ function DisplaySettings() {
           </label>
         </div>
       </section>
+      </>)}
 
+      {show('dev') && (<>
       <section className="settings-section">
         <div className="settings-section-title">Developer mode<InfoTip>Testing tools for working on Runway itself. Nothing here affects playback or timing.</InfoTip></div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 18, marginTop: 18 }}>
@@ -3175,6 +3253,7 @@ function DisplaySettings() {
           </label>
         </div>
       </section>
+      </>)}
     </>
   );
 }
