@@ -393,3 +393,49 @@ div.rw-tip-anchor { display: block; }
 .infotip-box p { margin: 0 0 6px; }
 .infotip-box p:last-child { margin-bottom: 0; }
 .infotip-box ol, .infotip-box ul { margin: 4px 0; padding-left: 18px; }
+
+/* Checkboxes (list selection etc.): dark box, teal when checked. On/off
+   settings use the Toggle switch instead. */
+input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  flex-shrink: 0;
+  border: 1.5px solid var(--border-bright);
+  border-radius: 4px;
+  background: var(--bg-elev);
+  cursor: pointer;
+  display: inline-grid;
+  place-content: center;
+  vertical-align: middle;
+  transition: background 0.12s, border-color 0.12s;
+}
+input[type="checkbox"]:hover:not(:disabled) { border-color: var(--accent); }
+input[type="checkbox"]:checked {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+input[type="checkbox"]:checked::after {
+  content: '';
+  width: 9px;
+  height: 5px;
+  border-left: 2px solid #04201d;
+  border-bottom: 2px solid #04201d;
+  transform: translateY(-1px) rotate(-45deg);
+}
+input[type="checkbox"]:indeterminate {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+input[type="checkbox"]:indeterminate::after {
+  content: '';
+  width: 8px;
+  height: 2px;
+  background: #04201d;
+}
+input[type="checkbox"]:focus-visible { outline: 2px solid var(--accent-bright); outline-offset: 2px; }
+input[type="checkbox"]:disabled { opacity: 0.4; cursor: default; }

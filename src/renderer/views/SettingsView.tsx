@@ -1890,7 +1890,7 @@ function KeyLearningStatus() {
         : `Checked against ${kl.examples} of your songs: the standard settings do as well (${kl.before}), so they’re still in use.`;
   return (
     <div style={{ marginTop: 14 }}>
-      <div className="settings-field-sub" style={{ fontWeight: 600 }}>
+      <div style={{ fontSize: 14, color: 'var(--text)', fontWeight: 600, display: 'flex', alignItems: 'center' }}>
         Key learning
         <InfoTip>Keys you set or fix yourself teach Runway’s key detection. It re-checks on its own and only switches when it clearly gets more right.</InfoTip>
       </div>
@@ -1935,16 +1935,16 @@ function SpotifyWaveformSetting() {
     : { ok: true, text: 'On. Starts listening when Spotify plays.' };
   return (
     <div style={{ marginTop: 12 }}>
-      <label style={{ display: 'flex', gap: 8, alignItems: 'center', cursor: 'pointer' }}>
-        <input
-          type="checkbox"
+      <label style={{ display: 'flex', gap: 14, alignItems: 'center', cursor: 'pointer' }}>
+        <Toggle
           checked={on}
-          onChange={e => {
+          ariaLabel="Draw waveforms of Spotify songs"
+          onChange={v => {
             const latest = useAppStore.getState().config.spotify;
-            updateConfig({ spotify: { ...latest, waveforms: e.target.checked } });
+            updateConfig({ spotify: { ...latest, waveforms: v } });
           }}
         />
-        <span>Draw waveforms of Spotify songs (Mac)</span>
+        <span style={{ fontSize: 14, color: 'var(--text)', fontWeight: 600 }}>Draw waveforms of Spotify songs (Mac)</span>
         <InfoTip>Runway listens to how loud Spotify is as each song plays (never the sound itself, nothing is recorded) and draws the song’s waveform in its Edit panel. A song needs to play through once. macOS asks you to allow Runway under Screen &amp; System Audio Recording; Runway only listens to Spotify, never your screen.</InfoTip>
       </label>
       {label && <div className={`pp-status ${label.ok ? 'ok' : 'err'}`}>{label.text}</div>}
@@ -2107,17 +2107,16 @@ function SpotifyAccountSection() {
 
       {status.connected && (
         <div style={{ marginTop: 12 }}>
-          <label style={{ display: 'flex', gap: 8, alignItems: 'center', cursor: 'pointer' }}>
-            <input
-              type="checkbox"
+          <label style={{ display: 'flex', gap: 14, alignItems: 'center', cursor: 'pointer' }}>
+            <Toggle
               checked={!!status.quietStart}
-              onChange={async e => {
-                const on = e.target.checked;
+              ariaLabel="Start songs without showing Spotify"
+              onChange={async on => {
                 await window.runway.spotify.player({ op: 'quietStart', on });
                 setStatus(await window.runway.spotify.status());
               }}
             />
-            <span>Start songs without showing Spotify (Spotify Premium)</span>
+            <span style={{ fontSize: 14, color: 'var(--text)', fontWeight: 600 }}>Start songs without showing Spotify (Spotify Premium)</span>
             <InfoTip>Runway starts each song through Spotify’s own remote control (like your phone does), so the Spotify window never comes forward. Volume, jumps and timing work the same. If it can’t reach Spotify that way, Runway starts the song the usual way instead.</InfoTip>
           </label>
           {status.quietStart && !status.canControl && (
@@ -2135,7 +2134,7 @@ function SpotifyAccountSection() {
       <KeyLearningStatus />
       {status.connected && (
         <div className="pp-actions" style={{ marginTop: 10 }}>
-          <span className="settings-field-sub">Import playlists, set keys and download artwork in</span>
+          <span style={{ fontSize: 13, color: 'var(--text-dim)' }}>Import playlists, set keys and download artwork in</span>
           <button className="btn-secondary" onClick={() => useAppStore.getState().setView('playlists')}>Playlists › Spotify</button>
         </div>
       )}
