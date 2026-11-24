@@ -380,7 +380,7 @@ function MidiSettings() {
       </section>
 
       <section className="settings-section">
-        <div className="settings-section-title">Quick assign<InfoTip>Click Learn next to an action, then press the button or key on your MIDI controller. Runway will capture the channel and note (or CC) and assign it to that action.</InfoTip></div>
+        <div className="settings-section-title">Quick assign<InfoTip>Click Learn next to an action, then press the button or key on your MIDI controller. Runway captures the channel and note (or CC) and assigns it to that action.</InfoTip></div>
 
         <div className="midi-bindings-table">
           {assignable.map(item => {
@@ -1759,7 +1759,7 @@ function EngineSettings() {
           <div>
             <div style={{ fontSize: 14, color: 'var(--text)', fontWeight: 600, display: 'flex', alignItems: 'center' }}>
               Tag keys on import
-              <InfoTip>Newly imported tracks that arrive without a key get looked up on MultiTracks.com and tagged with the published original master key. Only confident, unambiguous matches are applied — anything the catalog lists in more than one key is held for you to review from the Library toolbar. Tracks that already carry a key are left alone.</InfoTip>
+              <InfoTip>Newly imported tracks that arrive without a key get looked up on MultiTracks.com and tagged with the published original master key. Only confident, unambiguous matches are applied. Anything the catalog lists in more than one key is held for you to review from the Library toolbar. Tracks that already carry a key are left alone.</InfoTip>
             </div>
           </div>
         </label>
@@ -1784,7 +1784,7 @@ function EngineSettings() {
       </section>
 
       <section className="settings-section">
-        <div className="settings-section-title">Engine<InfoTip>Audio settings. Changes apply after you restart Runway.</InfoTip></div>
+        <div className="settings-section-title">Engine<InfoTip>Changes apply after you restart Runway.</InfoTip></div>
         <div className="settings-grid">
           <div className="settings-field">
             <div className="settings-field-label">Sample rate</div>
@@ -2169,7 +2169,7 @@ function SpotifyTimingTestSection() {
     : null;
   return (
     <section className="settings-section">
-      <div className="settings-section-title">Spotify timing test (experimental)<InfoTip>Checks how precisely Runway can make a Spotify song end at a planned moment. Open the Spotify app, then run the test: it plays the last 20 seconds of a song three times (about a minute) and reports how close each landing was. Don’t run this during a service — it takes over Spotify.</InfoTip></div>
+      <div className="settings-section-title">Spotify timing test (experimental)<InfoTip>Checks how precisely Runway can make a Spotify song end at a planned moment. Open the Spotify app, then run the test: it plays the last 20 seconds of a song three times (about a minute) and reports how close each landing was. Don’t run this during a service; it takes over Spotify.</InfoTip></div>
       <div className="pp-actions">
         <input
           type="text"
