@@ -526,13 +526,11 @@ export class ServiceController {
    * crossfade. No land-in-key, no pad bridge. Fades out when last track ends.
    */
   async startPostServicePlay(playlistId: string, originServiceId?: string): Promise<{ ok: boolean; reason?: string; warning?: string }> {
-    if (playlistId.startsWith('spotify:')) {
-      return this.startSpotifyPostService(playlistId.slice('spotify:'.length), originServiceId);
-    }
+    const spotifyPostId = playlistId.startsWith('spotify:') ? playlistId.slice('spotify:'.length) : null;
     const state = this.store.getState();
-    const playlist = state.config.playlists.find(p => p.id === playlistId);
-    if (!playlist) return { ok: false, reason: 'Playlist not found' };
-    if (playlist.trackIds.length === 0) return { ok: false, reason: 'Playlist is empty' };
+    const playlist = spotifyPostId ? undefined : state.config.playlists.find(p => p.id === playlistId);
+    if (!spotifyPostId && !playlist) return { ok: false, reason: 'Playlist not found' };
+    if (playlist && playlist.trackIds.length === 0) return { ok: false, reason: 'Playlist is empty' };
     // Infer which service triggered this post-service, in priority order:
     //   1. Explicit originServiceId from the caller
     //   2. Currently-armed pre-service runway's serviceId, BUT ONLY
@@ -583,6 +581,15 @@ export class ServiceController {
       ?? fromRunway
       ?? fromPostRunway
       ?? mostRecentPastService;
+    // Spotify post-service: same service lookup, so the service's
+    // post-service actions (Schedule) apply to it too. Without it a Spotify
+    // post-service had no actions at all (it has no Runway playlist to
+    // inherit a sequence from).
+    if (spotifyPostId) {
+      console.log('[postService] Spotify post-service for service', { originServiceId: inferredOriginId ?? null });
+      return this.startSpotifyPostService(spotifyPostId, inferredOriginId);
+    }
+    if (!playlist) return { ok: false, reason: 'Playlist not found' };
     // Refuse to clobber a pre-service runway that's actually producing
     // audio (music or pad). A queued pre-service runway (auto-armed but
     // waiting) gets quietly cleared so the operator can fire post-service
