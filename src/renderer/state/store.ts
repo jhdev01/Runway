@@ -799,6 +799,11 @@ export const useAppStore = create<AppStoreState>((set, get) => ({
     // A key set any other way than the detector's auto-fill is the
     // operator's own: key learning may learn from it.
     if ('key' in patch && !('keySource' in patch)) patch = { ...patch, keySource: undefined };
+    // Same for 0:00: moved by hand → the operator's own mark (learning uses it).
+    if ('editServiceLandSec' in patch && !('editServiceLandAuto' in patch)) {
+      const cur = get().config.tracks.find(t => t.id === id);
+      if (cur && patch.editServiceLandSec !== cur.editServiceLandSec) patch = { ...patch, editServiceLandAuto: undefined };
+    }
     try {
       const keys = ['trimStartSec', 'trimEndSec', 'editFadeInSec', 'editFadeOutSec', 'editServiceLandSec', 'key'] as const;
       const t = get().config.tracks.find(x => x.id === id);

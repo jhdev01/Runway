@@ -63,6 +63,8 @@ export function SpotifyWaveformView({ track, edit, onChange, full = false, showN
   // ── Edits: local while dragging, saved shortly after ──────────────────
   const [d, setD] = useState<Draft>(() => draftOf(edit, dur));
   const committed = useRef(JSON.stringify(draftOf(edit, dur)));
+  // The 0:00 that came from a suggestion; a 0:00 anywhere else is a hand mark.
+  const autoLand = useRef<number | null>(edit.landAuto ? edit.landSec ?? null : null);
   useEffect(() => {
     // Typed in the boxes below (or cleared): follow.
     const incoming = JSON.stringify(draftOf(edit, dur));
@@ -81,6 +83,7 @@ export function SpotifyWaveformView({ track, edit, onChange, full = false, showN
         fadeInSec: d.fadeIn > 0.05 ? r(d.fadeIn) : undefined,
         fadeOutSec: d.fadeOut > 0.05 ? r(d.fadeOut) : undefined,
         landSec: d.land !== null ? r(d.land) : undefined,
+        landAuto: d.land !== null && autoLand.current !== null && Math.abs(d.land - autoLand.current) < 0.05 ? true : undefined,
       });
     }, COMMIT_MS);
     return () => window.clearTimeout(t);
@@ -467,11 +470,14 @@ export function SpotifyWaveformView({ track, edit, onChange, full = false, showN
       {suggestion && full && (
         <EditSuggestions
           s={suggestion}
-          onUse={p => patch({
-            ...(p.startSec !== undefined ? { start: p.startSec } : {}),
-            ...(p.endSec !== undefined ? { end: p.endSec } : {}),
-            ...(p.landSec !== undefined ? { land: p.landSec } : {}),
-          })}
+          onUse={p => {
+            if (p.landSec !== undefined) autoLand.current = p.landSec;
+            patch({
+              ...(p.startSec !== undefined ? { start: p.startSec } : {}),
+              ...(p.endSec !== undefined ? { end: p.endSec } : {}),
+              ...(p.landSec !== undefined ? { land: p.landSec } : {}),
+            });
+          }}
         />
       )}
       <div className="settings-field-sub" style={{ display: 'flex', gap: 12, marginTop: 6, flexWrap: 'wrap' }}>

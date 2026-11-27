@@ -60,6 +60,10 @@ export interface Track {
   // trimStart < editServiceLandSec <= trimEnd; out-of-range values are
   // clamped at arm time. Undefined = land on trimEnd (current behavior).
   editServiceLandSec?: number;
+  // True while editServiceLandSec is a suggestion the operator accepted
+  // unchanged. 0:00 learning skips these (it would only be learning its own
+  // guesses); moving the mark by hand clears it.
+  editServiceLandAuto?: boolean;
 }
 
 /** Effective playback duration of a track after applying trim points. */
@@ -1198,6 +1202,8 @@ export interface SpotifyTrackEdit {
   fadeOutSec?: number;
   /** When this song is last, the countdown hits 0:00 here (see songBounds). */
   landSec?: number;
+  /** landSec is an accepted suggestion, not moved since (0:00 learning skips it). */
+  landAuto?: boolean;
   /** Song key, set by the operator or looked up. Spotify no longer gives keys to apps. */
   key?: KeyName;
   /** True when Find keys set `key` on its own (not learned from; any hand edit clears it). */

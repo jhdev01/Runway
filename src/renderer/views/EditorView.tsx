@@ -126,6 +126,9 @@ export function EditorView() {
   // playing past it as a tail.
   const [landSec, setLandSec] = useState<number | null>(null);
   const [suggestUsed, setSuggestUsed] = useState(false);
+  // The 0:00 that came from a suggestion (or was saved as one), so Save can
+  // tell an accepted suggestion from a mark placed by hand.
+  const [autoLand, setAutoLand] = useState<number | null>(null);
   // Silence trims and a learned 0:00 for values not set yet (suggestions only).
   const landLearnedAt = useAppStore(st => st.config.landLearning?.at);
   const bufferEnv = useMemo(() => (buffer ? bufferEnvelope(buffer) : null), [buffer]);
@@ -236,6 +239,7 @@ export function EditorView() {
         setFadeInSec(selectedTrack.editFadeInSec ?? 0);
         setFadeOutSec(selectedTrack.editFadeOutSec ?? 0);
         setLandSec(selectedTrack.editServiceLandSec ?? null);
+        setAutoLand(selectedTrack.editServiceLandAuto ? selectedTrack.editServiceLandSec ?? null : null);
       } catch (err) {
         if (!cancelled) {
           const msg = err instanceof Error ? err.message : String(err);
@@ -458,6 +462,7 @@ export function EditorView() {
       editFadeInSec: fIn,
       editFadeOutSec: fOut,
       editServiceLandSec: land,
+      editServiceLandAuto: land !== undefined && autoLand !== null && Math.abs(land - autoLand) < 0.05 ? true : undefined,
     });
     setSaveStatus('Edit saved · plays trimmed in playlists');
     window.setTimeout(() => setSaveStatus(null), 3000);
@@ -754,7 +759,7 @@ export function EditorView() {
               onUse={p => {
                 if (p.startSec !== undefined) setStartSec(p.startSec);
                 if (p.endSec !== undefined) setEndSec(p.endSec);
-                if (p.landSec !== undefined) setLandSec(p.landSec);
+                if (p.landSec !== undefined) { setLandSec(p.landSec); setAutoLand(p.landSec); }
                 setSuggestUsed(true);
               }}
             />

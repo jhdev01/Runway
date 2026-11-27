@@ -13,6 +13,9 @@ export function saveSpotifyEdit(uri: string, e: SpotifyTrackEdit, title?: string
   const before = st.config.spotify?.trackEdits?.[uri] ?? {};
   logSpotifyOperator('spotify song edited', { title, from: before, to: e });
   if (e.key !== before.key) e = { ...e, keyAuto: undefined };
+  // 0:00 moved by hand (it was already set and changed): the operator's own mark.
+  if (before.landSec !== undefined && e.landSec !== before.landSec) e = { ...e, landAuto: undefined };
+  if (e.landSec === undefined) e = { ...e, landAuto: undefined };
   const clean = Object.fromEntries(Object.entries(e).filter(([, v]) => v !== undefined)) as SpotifyTrackEdit;
   const latest = useAppStore.getState().config.spotify;
   const next = { ...(latest?.trackEdits ?? {}) };

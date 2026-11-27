@@ -410,7 +410,7 @@ function PlaylistEditor({ playlist }: { playlist: Playlist }) {
               updateTrack(t.id, {
                 ...(sg.startSec !== undefined && cur.trimStartSec === undefined ? { trimStartSec: sg.startSec } : {}),
                 ...(sg.endSec !== undefined && cur.trimEndSec === undefined ? { trimEndSec: sg.endSec } : {}),
-                ...(sg.landSec !== undefined && cur.editServiceLandSec === undefined ? { editServiceLandSec: sg.landSec } : {}),
+                ...(sg.landSec !== undefined && cur.editServiceLandSec === undefined ? { editServiceLandSec: sg.landSec, editServiceLandAuto: true } : {}),
               });
             },
           }))}

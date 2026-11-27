@@ -89,7 +89,7 @@ async function collectExamples(): Promise<LandExample[]> {
   const cfg = useAppStore.getState().config;
   const out: LandExample[] = [];
   for (const t of cfg.tracks) {
-    if (t.editServiceLandSec === undefined || !t.filePath) continue;
+    if (t.editServiceLandSec === undefined || t.editServiceLandAuto || !t.filePath) continue;
     const r = useAppStore.getState().currentRunway;
     if (r && (r.phase === 'music' || r.phase === 'pad')) return out;   // a service started: stop
     try {
@@ -99,7 +99,7 @@ async function collectExamples(): Promise<LandExample[]> {
   }
   const edits = cfg.spotify?.trackEdits ?? {};
   for (const [uri, e] of Object.entries(edits)) {
-    if (e.landSec === undefined) continue;
+    if (e.landSec === undefined || e.landAuto) continue;
     const env = await spotifyEnvelope(uri);
     if (!env) continue;
     const durSec = env.peaks.length * env.binSec;
@@ -111,8 +111,8 @@ async function collectExamples(): Promise<LandExample[]> {
 function signatureOf(): string {
   const cfg = useAppStore.getState().config;
   const parts: string[] = [];
-  for (const t of cfg.tracks) if (t.editServiceLandSec !== undefined) parts.push(`${t.id}:${t.editServiceLandSec}:${t.trimEndSec ?? ''}`);
-  for (const [u, e] of Object.entries(cfg.spotify?.trackEdits ?? {})) if (e.landSec !== undefined) parts.push(`${u}:${e.landSec}:${e.trimEndSec ?? ''}`);
+  for (const t of cfg.tracks) if (t.editServiceLandSec !== undefined && !t.editServiceLandAuto) parts.push(`${t.id}:${t.editServiceLandSec}:${t.trimEndSec ?? ''}`);
+  for (const [u, e] of Object.entries(cfg.spotify?.trackEdits ?? {})) if (e.landSec !== undefined && !e.landAuto) parts.push(`${u}:${e.landSec}:${e.trimEndSec ?? ''}`);
   parts.sort();
   let h = 0;
   for (const s of parts) for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;

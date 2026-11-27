@@ -348,7 +348,7 @@ export function SpotifySongList({ tracks }: { tracks: SpotifyPlaylistTrack[] }) 
                   ...cur,
                   ...(sg.startSec !== undefined && cur.trimStartSec === undefined ? { trimStartSec: sg.startSec } : {}),
                   ...(sg.endSec !== undefined && cur.trimEndSec === undefined ? { trimEndSec: sg.endSec } : {}),
-                  ...(sg.landSec !== undefined && cur.landSec === undefined ? { landSec: sg.landSec } : {}),
+                  ...(sg.landSec !== undefined && cur.landSec === undefined ? { landSec: sg.landSec, landAuto: true } : {}),
                 });
               },
             };
