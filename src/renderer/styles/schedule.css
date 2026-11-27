@@ -217,7 +217,7 @@
 
 /* Brighten the native picker indicator so it's visible on dark bg */
 .service-when-field input::-webkit-calendar-picker-indicator {
-  filter: invert(0.7);
+  filter: none;   /* already light: the app is color-scheme dark */
   cursor: pointer;
   opacity: 0.7;
 }

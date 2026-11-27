@@ -1,4 +1,8 @@
 :root {
+  /* Dark app: native pop-ups (time / date pickers, select menus, scrollbars)
+     draw in their dark style, highlighted in Runway's teal. */
+  color-scheme: dark;
+  accent-color: var(--accent);
   --bg: #06090d;
   --bg-elev: #0c1116;
   --bg-elev-2: #11171f;
