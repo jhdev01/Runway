@@ -204,9 +204,22 @@ export function resolveActionFireMs(
     trackIds: string[];
     crossfadeSec?: number;
     startOffsetSec?: number;
+    /** Spotify runway: its planned songs (each with its wall-clock start / end). */
+    spotify?: { segments: { startAt: number; endAt: number; stopAt: number }[] };
   },
   tracks: Track[],
 ): number | null {
+  // Spotify runway: songs come from its plan, which already knows exactly
+  // when each one starts (first / last song, ± offsets, and "after the
+  // playlist" = when the last song finishes).
+  if (action.songAnchor && runway.spotify?.segments?.length) {
+    const segs = runway.spotify.segments;
+    const baseIdx = action.songAnchor === 'first_song' ? 0 : segs.length - 1;
+    const targetIdx = baseIdx + (action.songOffset ?? 0);
+    if (targetIdx < 0 || targetIdx > segs.length) return null;
+    if (targetIdx === segs.length) return segs[segs.length - 1].stopAt;
+    return segs[targetIdx].startAt;
+  }
   if (action.songAnchor) {
     const ids = runway.trackIds;
     if (ids.length === 0) return null;
