@@ -379,8 +379,10 @@ export function SpotifySongList({ tracks }: { tracks: SpotifyPlaylistTrack[] }) 
       <div style={{ maxHeight: 460, overflowY: 'auto' }}>
         {tracks.map((t, i) => {
           const e = edits[t.uri] ?? {};
-          const { key, ...trimEdits } = e;
-          const edited = Object.keys(trimEdits).length > 0;
+          const key = e.key;
+          // "edited" = trims, fades or 0:00 you set. A key (yours or from
+          // Find keys) and bookkeeping like keyAuto don't count.
+          const edited = [e.trimStartSec, e.trimEndSec, e.fadeInSec, e.fadeOutSec, e.landSec].some(v => v !== undefined);
           const b = songBounds(t.durationMs / 1000, e);
           const rowKey = `${t.uri}-${i}`;
           const kc = keyColor(key);
@@ -493,7 +495,7 @@ export function SpotifySongList({ tracks }: { tracks: SpotifyPlaylistTrack[] }) 
                     </span>
                   );
                 })()}
-                {edited && <span className="pp-status ok" title="This song has trims or fades">edited</span>}
+                {edited && <span className="pp-status ok" title="This song has trims, fades or a 0:00 you set">edited</span>}
                 <span style={{ width: 40, textAlign: 'right' }}>{formatDuration(b.end - b.start)}</span>
                 <button className="btn-secondary" onClick={() => useAppStore.getState().openSpotifyEditor(t.uri)} title="Open in the Editor: waveform, zoom, trims, fades, 0:00 and key analysis">
                   Edit
