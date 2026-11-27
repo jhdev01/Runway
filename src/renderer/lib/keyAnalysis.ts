@@ -57,7 +57,11 @@ function getWorker(): Worker | null {
   }
 }
 
-async function decodeMono(filePath: string): Promise<Float32Array> {
+/** Sample rate of `decodeMono` output. */
+export const DECODE_RATE = ANALYSIS_RATE;
+
+/** A Library file decoded to mono at `DECODE_RATE` (also used for trim / 0:00 suggestions). */
+export async function decodeMono(filePath: string): Promise<Float32Array> {
   const res = await fetch(filePathToUrl(filePath));
   if (!res.ok) throw new Error(`File not found (HTTP ${res.status})`);
   const bytes = await res.arrayBuffer();

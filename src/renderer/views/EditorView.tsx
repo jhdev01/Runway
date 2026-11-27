@@ -11,6 +11,8 @@ import { analyzeTrackNotes } from '../lib/keyAnalysis';
 import { profileOf } from '@shared/keyLearn';
 import type { KeyDetectResult } from '@shared/keyDetect';
 import { InfoTip } from '../components/InfoTip';
+import { EditSuggestions } from '../components/EditSuggestions';
+import { bufferEnvelope, suggestEdits } from '../lib/landLearning';
 
 /**
  * Non-destructive audio editor — pick a track, set trim points and fades,
@@ -123,6 +125,21 @@ export function EditorView() {
   // A number = source-file position where the timer hits zero; track keeps
   // playing past it as a tail.
   const [landSec, setLandSec] = useState<number | null>(null);
+  const [suggestUsed, setSuggestUsed] = useState(false);
+  // Silence trims and a learned 0:00 for values not set yet (suggestions only).
+  const landLearnedAt = useAppStore(st => st.config.landLearning?.at);
+  const bufferEnv = useMemo(() => (buffer ? bufferEnvelope(buffer) : null), [buffer]);
+  useEffect(() => { setSuggestUsed(false); }, [trackId]);
+  const suggestion = useMemo(() => {
+    if (!bufferEnv || !buffer) return null;
+    const s = suggestEdits(bufferEnv, buffer.duration, {
+      startSec: startSec > 0.01 ? startSec : undefined,
+      endSec: endSec < buffer.duration - 0.01 ? endSec : undefined,
+      landSec: landSec ?? undefined,
+    });
+    return s.startSec !== undefined || s.endSec !== undefined || s.landSec !== undefined ? s : null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bufferEnv, startSec, endSec, landSec, landLearnedAt]);
 
   const previewSourceRef = useRef<AudioBufferSourceNode | null>(null);
   const previewGainRef = useRef<GainNode | null>(null);
@@ -730,6 +747,18 @@ export function EditorView() {
 
       {buffer && (
         <div className="editor-footer" style={{ maxHeight: '45vh', overflowY: 'auto' }}>
+          {suggestion && (
+            <EditSuggestions
+              s={suggestion}
+              note={suggestUsed ? 'Press Save edit to keep it.' : undefined}
+              onUse={p => {
+                if (p.startSec !== undefined) setStartSec(p.startSec);
+                if (p.endSec !== undefined) setEndSec(p.endSec);
+                if (p.landSec !== undefined) setLandSec(p.landSec);
+                setSuggestUsed(true);
+              }}
+            />
+          )}
           <div className="editor-fields">
             <SecField label="Start" value={startSec} max={endSec - 0.1} onChange={v => setStartSec(Math.max(0, Math.min(endSec - 0.1, v)))} />
             <SecField label="End" value={endSec} min={startSec + 0.1} max={buffer.duration} onChange={v => setEndSec(Math.max(startSec + 0.1, Math.min(buffer.duration, v)))} />

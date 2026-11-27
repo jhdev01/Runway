@@ -316,3 +316,42 @@
   align-items: center;
   flex-wrap: wrap;
 }
+
+/* Suggested trims / 0:00 (components/EditSuggestions.tsx) */
+.edit-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0;
+  font-size: 13px;
+}
+.edit-suggestions-label {
+  display: inline-flex;
+  align-items: center;
+  color: var(--text-dim);
+  font-weight: 500;
+}
+.edit-suggestion {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 6px 5px 10px;
+  border: 1px dashed var(--accent);
+  border-radius: 6px;
+  background: rgba(20, 184, 166, 0.08);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.edit-suggestion:hover { background: rgba(20, 184, 166, 0.16); }
+.edit-suggestion-use {
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: var(--accent);
+  color: #03201c;
+  font-weight: 600;
+  font-size: 12px;
+}
+.edit-suggestions-note { color: var(--text-dim); font-size: 12px; }

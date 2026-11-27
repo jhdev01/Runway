@@ -781,6 +781,18 @@ export interface AppConfig {
   };
   // Key detector settings learned from the operator's own tagged songs
   // (see shared/keyLearn.ts). Only used when `adopted`; absent = standard.
+  // 0:00 (service landing) suggestions learned from the marks the operator
+  // placed by hand. Only used to suggest; never applied on its own.
+  landLearning?: {
+    params: { smoothSec: number; level: number; mode: 'edge' | 'peak'; offsetSec: number };
+    adopted: boolean;      // learned settings beat the standard ones on held-out songs
+    examples: number;
+    within1s: number;      // share of held-out songs within 1 s (learned)
+    within1sDefault: number;
+    medianMissSec: number;
+    at: number;
+    signature: string;
+  };
   keyLearning?: {
     params: { subFifth: number; subThird: number; wBass: number; wEdge: number; introShare: number; majorLean: number };
     adopted: boolean;

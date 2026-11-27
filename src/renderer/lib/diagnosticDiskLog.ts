@@ -21,6 +21,7 @@ const TIMING_TAGS = [
   '[arm]',
   '[operator]',
   '[keylearn]',
+  '[landlearn]',
   '[spotify]',
   '[beginMusic]',
   '[scheduleRunway]',

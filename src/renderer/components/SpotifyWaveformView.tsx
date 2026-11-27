@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { SpotifyPlaylistTrack, SpotifyTrackEdit, SpotifyWaveform } from '@shared/types';
 import { useAppStore } from '../state/store';
 import { formatDuration } from '../lib/format';
@@ -8,6 +8,8 @@ import { effectiveGuess } from '../lib/keyLearning';
 import { fadeShape, FADE_STEP_MS } from '../lib/spotifyTestRun';
 import { NoteMapStrip, ZeroCountdown } from './KeyAnalysis';
 import { InfoTip } from './InfoTip';
+import { EditSuggestions } from './EditSuggestions';
+import { suggestEdits } from '../lib/landLearning';
 
 const HEIGHT = 150;
 const ZOOM_MAX_X = 64;
@@ -84,6 +86,19 @@ export function SpotifyWaveformView({ track, edit, onChange, full = false, showN
     return () => window.clearTimeout(t);
   }, [d]); // eslint-disable-line react-hooks/exhaustive-deps
   const patch = (p: Partial<Draft>) => setD(cur => ({ ...cur, ...p }));
+
+  // Silence trims and a learned 0:00 for values not set yet (suggestions only).
+  const landLearnedAt = useAppStore(st => st.config.landLearning?.at);
+  const suggestion = useMemo(() => {
+    if (!wave) return null;
+    const sg = suggestEdits({ binSec: wave.binSec, peaks: wave.peaks }, dur, {
+      startSec: d.start > 0.05 ? d.start : undefined,
+      endSec: d.end < dur - 0.05 ? d.end : undefined,
+      landSec: d.land ?? undefined,
+    });
+    return sg.startSec !== undefined || sg.endSec !== undefined || sg.landSec !== undefined ? sg : null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wave, d.start, d.end, d.land, dur, landLearnedAt]);
 
   // ── Zoom ──────────────────────────────────────────────────────────────
   const [zoomX, setZoomX] = useState(1);
@@ -448,6 +463,16 @@ export function SpotifyWaveformView({ track, edit, onChange, full = false, showN
         <div style={{ marginTop: 6, flex: 'none' }}>
           <NoteMapStrip noteMap={wave?.key?.noteMap} durSec={dur} zoomX={zoomX} scrollX={scrollX} height={full ? 130 : 90} highlightKey={heardKey?.key} />
         </div>
+      )}
+      {suggestion && full && (
+        <EditSuggestions
+          s={suggestion}
+          onUse={p => patch({
+            ...(p.startSec !== undefined ? { start: p.startSec } : {}),
+            ...(p.endSec !== undefined ? { end: p.endSec } : {}),
+            ...(p.landSec !== undefined ? { land: p.landSec } : {}),
+          })}
+        />
       )}
       <div className="settings-field-sub" style={{ display: 'flex', gap: 12, marginTop: 6, flexWrap: 'wrap' }}>
         <span style={{ display: 'inline-flex', alignItems: 'center' }}>

@@ -3,6 +3,7 @@ import { useAppStore, type ViewName } from '../state/store';
 import { useEngines } from '../state/engines';
 import { SpotifyStatusPill } from './SpotifyStatusPill';
 import { useAutoKeyLearning } from '../lib/keyLearning';
+import { useAutoLandLearning } from '../lib/landLearning';
 
 const NAV_ITEMS: { id: ViewName; label: string }[] = [
   { id: 'live', label: 'Live' },
@@ -17,6 +18,7 @@ const NAV_ITEMS: { id: ViewName; label: string }[] = [
 export function TopBar() {
   // Re-learns the key detector's settings from your tags in the background.
   useAutoKeyLearning();
+  useAutoLandLearning();
   const view = useAppStore(s => s.view);
   const setView = useAppStore(s => s.setView);
   const midiConnected = useAppStore(s => s.midiConnected);

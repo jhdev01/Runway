@@ -8,6 +8,8 @@ import type { KeyName, Playlist, PlaylistKind, Track } from '@shared/types';
 import { keyColor } from '@shared/music';
 import { effectiveDuration } from '@shared/types';
 import { InfoTip } from '../components/InfoTip';
+import { SuggestionsPanel } from '../components/SuggestionsPanel';
+import { trackEnvelope } from '../lib/landLearning';
 
 export function PlaylistsView() {
   const playlists = useAppStore(s => s.config.playlists);
@@ -149,6 +151,7 @@ function PlaylistEditor({ playlist }: { playlist: Playlist }) {
 
   const [keyEditingTrackId, setKeyEditingTrackId] = useState<string | null>(null);
   const [libraryPickerOpen, setLibraryPickerOpen] = useState(false);
+  const [suggestOpen, setSuggestOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [dragFromIndex, setDragFromIndex] = useState<number | null>(null);
   const [dragHoverIndex, setDragHoverIndex] = useState<number | null>(null);
@@ -380,7 +383,39 @@ function PlaylistEditor({ playlist }: { playlist: Playlist }) {
           </svg>
           <span>Add from library</span>
         </button>
+        <button
+          className="pl-add-btn"
+          onClick={() => setSuggestOpen(o => !o)}
+          disabled={playlistTracks.length === 0}
+          title="Suggested silence trims and 0:00 marks for songs that don't have them yet. Nothing changes until you apply."
+        >
+          <span>Suggest trims &amp; 0:00</span>
+        </button>
       </div>
+
+      {suggestOpen && (
+        <SuggestionsPanel
+          title={playlist.name}
+          onClose={() => setSuggestOpen(false)}
+          items={playlistTracks.filter((t, i, a) => a.findIndex(x => x.id === t.id) === i).map(t => ({
+            id: t.id,
+            title: t.title,
+            artist: t.artist,
+            durationSec: t.durationSec,
+            current: { startSec: t.trimStartSec, endSec: t.trimEndSec, landSec: t.editServiceLandSec },
+            getEnv: () => trackEnvelope(t.id, t.filePath),
+            apply: sg => {
+              const cur = useAppStore.getState().config.tracks.find(x => x.id === t.id);
+              if (!cur) return;
+              updateTrack(t.id, {
+                ...(sg.startSec !== undefined && cur.trimStartSec === undefined ? { trimStartSec: sg.startSec } : {}),
+                ...(sg.endSec !== undefined && cur.trimEndSec === undefined ? { trimEndSec: sg.endSec } : {}),
+                ...(sg.landSec !== undefined && cur.editServiceLandSec === undefined ? { editServiceLandSec: sg.landSec } : {}),
+              });
+            },
+          }))}
+        />
+      )}
 
       {libraryPickerOpen && (
         <LibraryPicker

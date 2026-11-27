@@ -9,6 +9,8 @@ import { KeyPickerModal } from './KeyPickerModal';
 import { saveSpotifyEdit } from '../lib/spotifyEdits';
 import { waveformScanner, useWaveformScan, scanEdgesSec, logSpotifyOperator } from '../lib/spotifyWaveformScan';
 import { keyColor, displayKey, displayKeyBoth } from '@shared/music';
+import { SuggestionsPanel } from './SuggestionsPanel';
+import { spotifyEnvelope } from '../lib/landLearning';
 
 type Field = 'trimStartSec' | 'trimEndSec' | 'landSec' | 'fadeInSec' | 'fadeOutSec';
 
@@ -161,6 +163,7 @@ export function SpotifySongList({ tracks }: { tracks: SpotifyPlaylistTrack[] }) 
   const updateConfig = useAppStore(s => s.updateConfig);
   const keyMode = config.defaults.keyDisplayMode ?? 'sharp';
   const edits = config.spotify?.trackEdits ?? {};
+  const [suggestOpen, setSuggestOpen] = useState(false);
   const artCache = config.spotify?.artCache ?? {};
   const [keyFor, setKeyFor] = useState<string | null>(null);
   const [lookup, setLookup] = useState<{ busy: boolean; done: number; total: number; note: string | null }>(
@@ -316,9 +319,42 @@ export function SpotifySongList({ tracks }: { tracks: SpotifyPlaylistTrack[] }) 
             </span>
           )
           : <button className="btn-secondary" onClick={() => void waveformScanner.start(tracks)} title="Draws waveforms for this playlist: plays its songs that don’t have one yet straight through, in the background. You can mute your Mac and walk away.">Scan this playlist</button>)}
+        <button
+          className="btn-secondary"
+          onClick={() => setSuggestOpen(o => !o)}
+          title="Suggested silence trims and 0:00 marks for songs that don't have them yet, from their waveforms. Nothing changes until you apply."
+        >
+          Suggest trims &amp; 0:00
+        </button>
         {lookup.note && <span className="settings-field-sub">{lookup.note}</span>}
         {scan.note && <span className="settings-field-sub">{scan.note}</span>}
       </div>
+      {suggestOpen && (
+        <SuggestionsPanel
+          title="this playlist"
+          onClose={() => setSuggestOpen(false)}
+          items={tracks.filter((t, i, a) => a.findIndex(x => x.uri === t.uri) === i).map(t => {
+            const e = useAppStore.getState().config.spotify?.trackEdits?.[t.uri] ?? {};
+            return {
+              id: t.uri,
+              title: t.title,
+              artist: t.artist,
+              durationSec: t.durationMs / 1000,
+              current: { startSec: e.trimStartSec, endSec: e.trimEndSec, landSec: e.landSec },
+              getEnv: () => spotifyEnvelope(t.uri),
+              apply: sg => {
+                const cur = useAppStore.getState().config.spotify?.trackEdits?.[t.uri] ?? {};
+                save(t.uri, {
+                  ...cur,
+                  ...(sg.startSec !== undefined && cur.trimStartSec === undefined ? { trimStartSec: sg.startSec } : {}),
+                  ...(sg.endSec !== undefined && cur.trimEndSec === undefined ? { trimEndSec: sg.endSec } : {}),
+                  ...(sg.landSec !== undefined && cur.landSec === undefined ? { landSec: sg.landSec } : {}),
+                });
+              },
+            };
+          })}
+        />
+      )}
       <div style={{ maxHeight: 460, overflowY: 'auto' }}>
         {tracks.map((t, i) => {
           const e = edits[t.uri] ?? {};
