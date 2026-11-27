@@ -1016,7 +1016,12 @@ export function LiveView() {
                       <button
                         className="post-ready-cta"
                         onClick={onStartPostService}
-                        disabled={!!currentRunway && !currentRunway.isPostService}
+                        // Greyed out only while the next service's music or
+                        // pad is actually playing. An armed (queued) next
+                        // service is fine: starting post-service disarms it
+                        // and auto-arm picks it up again, like the bottom
+                        // Start Post-Service button.
+                        disabled={!!currentRunway && !currentRunway.isPostService && currentRunway.phase !== 'queued'}
                       >
                         ▶ Start Post-Service
                       </button>
