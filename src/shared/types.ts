@@ -64,6 +64,9 @@ export interface Track {
   // unchanged. 0:00 learning skips these (it would only be learning its own
   // guesses); moving the mark by hand clears it.
   editServiceLandAuto?: boolean;
+  // Values that came from accepted suggestions (so they can be removed
+  // again). A value changed by hand since no longer matches and is kept.
+  suggestApplied?: { startSec?: number; endSec?: number; landSec?: number };
 }
 
 /** Effective playback duration of a track after applying trim points. */
@@ -1204,6 +1207,8 @@ export interface SpotifyTrackEdit {
   landSec?: number;
   /** landSec is an accepted suggestion, not moved since (0:00 learning skips it). */
   landAuto?: boolean;
+  /** Values that came from accepted suggestions (so they can be removed again). */
+  suggestApplied?: { startSec?: number; endSec?: number; landSec?: number };
   /** Song key, set by the operator or looked up. Spotify no longer gives keys to apps. */
   key?: KeyName;
   /** True when Find keys set `key` on its own (not learned from; any hand edit clears it). */

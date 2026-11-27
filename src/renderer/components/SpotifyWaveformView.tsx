@@ -8,8 +8,8 @@ import { effectiveGuess } from '../lib/keyLearning';
 import { fadeShape, FADE_STEP_MS } from '../lib/spotifyTestRun';
 import { NoteMapStrip, ZeroCountdown } from './KeyAnalysis';
 import { InfoTip } from './InfoTip';
-import { EditSuggestions } from './EditSuggestions';
-import { suggestEdits } from '../lib/landLearning';
+import { EditSuggestions, SuggestionMarkers } from './EditSuggestions';
+import { addApplied, stillApplied, suggestEdits, type EditSuggestion } from '../lib/landLearning';
 
 const HEIGHT = 150;
 const ZOOM_MAX_X = 64;
@@ -65,6 +65,8 @@ export function SpotifyWaveformView({ track, edit, onChange, full = false, showN
   const committed = useRef(JSON.stringify(draftOf(edit, dur)));
   // The 0:00 that came from a suggestion; a 0:00 anywhere else is a hand mark.
   const autoLand = useRef<number | null>(edit.landAuto ? edit.landSec ?? null : null);
+  // Suggestion values used (start / end / 0:00), recorded with the edit.
+  const usedSugg = useRef<{ startSec?: number; endSec?: number; landSec?: number }>(edit.suggestApplied ?? {});
   useEffect(() => {
     // Typed in the boxes below (or cleared): follow.
     const incoming = JSON.stringify(draftOf(edit, dur));
@@ -84,6 +86,11 @@ export function SpotifyWaveformView({ track, edit, onChange, full = false, showN
         fadeOutSec: d.fadeOut > 0.05 ? r(d.fadeOut) : undefined,
         landSec: d.land !== null ? r(d.land) : undefined,
         landAuto: d.land !== null && autoLand.current !== null && Math.abs(d.land - autoLand.current) < 0.05 ? true : undefined,
+        suggestApplied: stillApplied(usedSugg.current, {
+          startSec: d.start > 0.05 ? r(d.start) : undefined,
+          endSec: d.end < dur - 0.05 ? r(d.end) : undefined,
+          landSec: d.land !== null ? r(d.land) : undefined,
+        }) ?? undefined,
       });
     }, COMMIT_MS);
     return () => window.clearTimeout(t);
@@ -264,6 +271,15 @@ export function SpotifyWaveformView({ track, edit, onChange, full = false, showN
 
   // ── Geometry (same mapping as the audio editor) ───────────────────────
   const secToPct = (sec: number) => ((sec / dur) * zoomX - scrollX) * 100;
+  const applySuggestion = (p: EditSuggestion) => {
+    if (p.landSec !== undefined) autoLand.current = p.landSec;
+    usedSugg.current = addApplied(usedSugg.current, p);
+    patch({
+      ...(p.startSec !== undefined ? { start: p.startSec } : {}),
+      ...(p.endSec !== undefined ? { end: p.endSec } : {}),
+      ...(p.landSec !== undefined ? { land: p.landSec } : {}),
+    });
+  };
   const pxToSec = (px: number, w: number) => Math.max(0, Math.min(dur, ((px / w + scrollX) / zoomX) * dur));
 
   // ── Draw ──────────────────────────────────────────────────────────────
@@ -430,6 +446,7 @@ export function SpotifyWaveformView({ track, edit, onChange, full = false, showN
           onFadeChange={v => patch({ fadeOut: Math.max(0, Math.min(20, v)) })}
           label={formatDuration(d.end)}
         />
+        {suggestion && full && <SuggestionMarkers s={suggestion} secToPct={secToPct} onUse={applySuggestion} />}
         {d.land !== null && (
           <ServiceLandHandle
             pct={secToPct(d.land)}
@@ -467,17 +484,32 @@ export function SpotifyWaveformView({ track, edit, onChange, full = false, showN
           <NoteMapStrip noteMap={wave?.key?.noteMap} durSec={dur} zoomX={zoomX} scrollX={scrollX} height={full ? 130 : 90} highlightKey={heardKey?.key} />
         </div>
       )}
+      {full && stillApplied(edit.suggestApplied, { startSec: edit.trimStartSec, endSec: edit.trimEndSec, landSec: edit.landSec }) && (
+        <div className="edit-suggestions">
+          <span className="edit-suggestions-label">This song has suggested edits applied.</span>
+          <button
+            type="button"
+            className="btn-secondary"
+            title="Put back the Start / End / 0:00 that came from suggestions (anything you changed by hand stays)"
+            onClick={() => {
+              const live = stillApplied(edit.suggestApplied, { startSec: edit.trimStartSec, endSec: edit.trimEndSec, landSec: edit.landSec });
+              usedSugg.current = {};
+              if (live?.landSec !== undefined) autoLand.current = null;
+              patch({
+                ...(live?.startSec !== undefined ? { start: 0 } : {}),
+                ...(live?.endSec !== undefined ? { end: dur } : {}),
+                ...(live?.landSec !== undefined ? { land: null } : {}),
+              });
+            }}
+          >
+            Remove suggested edits
+          </button>
+        </div>
+      )}
       {suggestion && full && (
         <EditSuggestions
           s={suggestion}
-          onUse={p => {
-            if (p.landSec !== undefined) autoLand.current = p.landSec;
-            patch({
-              ...(p.startSec !== undefined ? { start: p.startSec } : {}),
-              ...(p.endSec !== undefined ? { end: p.endSec } : {}),
-              ...(p.landSec !== undefined ? { land: p.landSec } : {}),
-            });
-          }}
+          onUse={applySuggestion}
         />
       )}
       <div className="settings-field-sub" style={{ display: 'flex', gap: 12, marginTop: 6, flexWrap: 'wrap' }}>

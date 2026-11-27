@@ -42,3 +42,43 @@ export function EditSuggestions({ s, onUse, note }: {
     </div>
   );
 }
+
+/**
+ * The suggestions drawn on the waveform: a dashed light-purple line at each
+ * suggested Start / End / 0:00 with a label; click the label to use it.
+ * (The real 0:00 marker is solid purple; these are dashed and labelled
+ * "Suggested" so the two can't be confused.)
+ */
+export function SuggestionMarkers({ s, secToPct, onUse }: {
+  s: EditSuggestion;
+  secToPct: (sec: number) => number;
+  onUse: (p: EditSuggestion) => void;
+}) {
+  const marks: { key: string; sec: number; label: string; p: EditSuggestion; side: 'left' | 'right' }[] = [];
+  if (s.startSec !== undefined) marks.push({ key: 'start', sec: s.startSec, label: 'Suggested start', p: { startSec: s.startSec }, side: 'right' });
+  if (s.endSec !== undefined) marks.push({ key: 'end', sec: s.endSec, label: 'Suggested end', p: { endSec: s.endSec }, side: 'left' });
+  if (s.landSec !== undefined) marks.push({ key: 'land', sec: s.landSec, label: 'Suggested 0:00', p: { landSec: s.landSec }, side: 'left' });
+  // 0:00 sits near the end marker: its label goes at the top so they never overlap.
+  const vert = (k: string) => (k === 'land' ? 'top' : 'bottom');
+  return (
+    <>
+      {marks.map(m => {
+        const pct = secToPct(m.sec);
+        if (!(pct >= 0 && pct <= 100)) return null;
+        return (
+          <div key={m.key} className="suggest-mark" style={{ left: `${pct}%` }}>
+            <button
+              type="button"
+              className={`suggest-mark-label ${m.side} ${vert(m.key)}`}
+              onClick={e => { e.stopPropagation(); onUse(m.p); }}
+              onMouseDown={e => e.stopPropagation()}
+              title={`${m.label} at ${fmt(m.sec)}. Click to use it.`}
+            >
+              {m.label} <span className="suggest-mark-use">Use</span>
+            </button>
+          </div>
+        );
+      })}
+    </>
+  );
+}

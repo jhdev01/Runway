@@ -13,6 +13,10 @@ export interface SuggestItem {
   current: { startSec?: number; endSec?: number; landSec?: number };
   getEnv: () => Promise<Envelope | null>;
   apply: (s: EditSuggestion) => void;
+  /** Has suggested values still in place (not changed by hand since). */
+  hasApplied?: () => boolean;
+  /** Put those values back to unset. */
+  removeApplied?: () => void;
 }
 
 const fmt = (s: number) => {
@@ -58,12 +62,21 @@ export function SuggestionsPanel({ items, title, onClose }: { items: SuggestItem
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const working = progress.done < progress.total;
+  const [appliedCount, setAppliedCount] = useState(() => items.filter(i => i.hasApplied?.()).length);
+  const removeAll = () => {
+    const withApplied = items.filter(i => i.hasApplied?.());
+    for (const i of withApplied) i.removeApplied?.();
+    console.log('[operator] removed applied trim / 0:00 suggestions', { playlist: title, songs: withApplied.length });
+    setAppliedCount(0);
+    setNote(`Removed suggested edits from ${withApplied.length} song${withApplied.length === 1 ? '' : 's'}. Anything you changed by hand was kept.`);
+  };
   const chosen = rows.filter(r => r.on);
   const apply = () => {
     for (const r of chosen) r.item.apply(r.s);
     console.log('[operator] applied trim / 0:00 suggestions', { playlist: title, songs: chosen.length });
     setNote(`Applied to ${chosen.length} song${chosen.length === 1 ? '' : 's'}.`);
     setRows(rs => rs.filter(r => !r.on));
+    setAppliedCount(items.filter(i => i.hasApplied?.()).length);
   };
 
   return (
@@ -103,6 +116,15 @@ export function SuggestionsPanel({ items, title, onClose }: { items: SuggestItem
             {servicePlaying && <span className="settings-field-sub">A service is playing: apply when it's done.</span>}
           </div>
         </>
+      )}
+      {appliedCount > 0 && (
+        <div className="pp-actions" style={{ marginTop: 8 }}>
+          <span className="settings-field-sub">{appliedCount} song{appliedCount === 1 ? ' has' : 's have'} suggested edits applied.</span>
+          <button className="btn-secondary" disabled={servicePlaying} onClick={removeAll}
+            title="Put back the Start / End / 0:00 that came from suggestions. Anything you changed by hand stays.">
+            Remove applied suggestions
+          </button>
+        </div>
       )}
       {note && <div className="pp-status ok" style={{ marginTop: 6 }}>{note}</div>}
     </div>

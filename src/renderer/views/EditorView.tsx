@@ -11,8 +11,8 @@ import { analyzeTrackNotes } from '../lib/keyAnalysis';
 import { profileOf } from '@shared/keyLearn';
 import type { KeyDetectResult } from '@shared/keyDetect';
 import { InfoTip } from '../components/InfoTip';
-import { EditSuggestions } from '../components/EditSuggestions';
-import { bufferEnvelope, suggestEdits } from '../lib/landLearning';
+import { EditSuggestions, SuggestionMarkers } from '../components/EditSuggestions';
+import { addApplied, bufferEnvelope, removeTrackSuggestions, stillApplied, suggestEdits, type EditSuggestion } from '../lib/landLearning';
 
 /**
  * Non-destructive audio editor — pick a track, set trim points and fades,
@@ -23,6 +23,8 @@ import { bufferEnvelope, suggestEdits } from '../lib/landLearning';
  * don't decode twice and so format quirks behave consistently.
  */
 type TrackFilter = 'inPlaylists' | 'library' | 'all';
+
+const RETURN_LABEL: Record<string, string> = { library: 'Library', playlists: 'Playlists', live: 'Live', schedule: 'Schedule', actions: 'Actions', settings: 'Settings' };
 
 export function EditorView() {
   const allTracks = useAppStore(s => s.config.tracks);
@@ -126,13 +128,17 @@ export function EditorView() {
   // playing past it as a tail.
   const [landSec, setLandSec] = useState<number | null>(null);
   const [suggestUsed, setSuggestUsed] = useState(false);
+  const returnView = useAppStore(st => st.editorReturnView);
+  const backFromEditor = useAppStore(st => st.backFromEditor);
   // The 0:00 that came from a suggestion (or was saved as one), so Save can
   // tell an accepted suggestion from a mark placed by hand.
   const [autoLand, setAutoLand] = useState<number | null>(null);
+  // Every suggestion value used in this edit (start / end / 0:00).
+  const [usedSugg, setUsedSugg] = useState<{ startSec?: number; endSec?: number; landSec?: number }>({});
   // Silence trims and a learned 0:00 for values not set yet (suggestions only).
   const landLearnedAt = useAppStore(st => st.config.landLearning?.at);
   const bufferEnv = useMemo(() => (buffer ? bufferEnvelope(buffer) : null), [buffer]);
-  useEffect(() => { setSuggestUsed(false); }, [trackId]);
+  useEffect(() => { setSuggestUsed(false); setUsedSugg({}); }, [trackId]);
   const suggestion = useMemo(() => {
     if (!bufferEnv || !buffer) return null;
     const s = suggestEdits(bufferEnv, buffer.duration, {
@@ -463,6 +469,8 @@ export function EditorView() {
       editFadeOutSec: fOut,
       editServiceLandSec: land,
       editServiceLandAuto: land !== undefined && autoLand !== null && Math.abs(land - autoLand) < 0.05 ? true : undefined,
+      // What came from suggestions and is still as suggested (so it can be removed later).
+      suggestApplied: stillApplied(addApplied(selectedTrack.suggestApplied, usedSugg), { startSec: start, endSec: end, landSec: land }) ?? undefined,
     });
     setSaveStatus('Edit saved · plays trimmed in playlists');
     window.setTimeout(() => setSaveStatus(null), 3000);
@@ -546,6 +554,13 @@ export function EditorView() {
   const endPct = secToPct(endSec);
   const playheadPct = secToPct(playheadSec);
   const landPct = landSec !== null ? secToPct(landSec) : null;
+  const applySuggestion = (p: EditSuggestion) => {
+    if (p.startSec !== undefined) setStartSec(p.startSec);
+    if (p.endSec !== undefined) setEndSec(p.endSec);
+    if (p.landSec !== undefined) { setLandSec(p.landSec); setAutoLand(p.landSec); }
+    setUsedSugg(u => addApplied(u, p));
+    setSuggestUsed(true);
+  };
 
   if (spotifyUri) {
     return (
@@ -599,6 +614,11 @@ export function EditorView() {
               </optgroup>
             ))}
           </select>
+        )}
+        {returnView && returnView !== 'editor' && (
+          <button className="btn-secondary" onClick={backFromEditor} title="Back to where you opened the editor from">
+            ← Back to {RETURN_LABEL[returnView] ?? 'previous'}
+          </button>
         )}
         {hiddenCount > 0 && (
           <span className="editor-hidden-count">
@@ -703,6 +723,7 @@ export function EditorView() {
                 onFadeChange={v => setFadeOutSec(Math.max(0, Math.min(20, v)))}
                 label={formatDuration(endSec)}
               />
+              {suggestion && <SuggestionMarkers s={suggestion} secToPct={secToPct} onUse={applySuggestion} />}
               {/* Service-landing marker — only meaningful when set; the
                   timer hits zero here, music continues to trim end. */}
               {landPct !== null && landSec !== null && (
@@ -752,16 +773,34 @@ export function EditorView() {
 
       {buffer && (
         <div className="editor-footer" style={{ maxHeight: '45vh', overflowY: 'auto' }}>
+          {selectedTrack && stillApplied(selectedTrack.suggestApplied, { startSec: selectedTrack.trimStartSec, endSec: selectedTrack.trimEndSec, landSec: selectedTrack.editServiceLandSec }) && (
+            <div className="edit-suggestions">
+              <span className="edit-suggestions-label">This song has suggested edits applied.</span>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => {
+                  const t = selectedTrack;
+                  const live = stillApplied(t.suggestApplied, { startSec: t.trimStartSec, endSec: t.trimEndSec, landSec: t.editServiceLandSec });
+                  removeTrackSuggestions(t.id);
+                  if (live?.startSec !== undefined) setStartSec(0);
+                  if (live?.endSec !== undefined && buffer) setEndSec(buffer.duration);
+                  if (live?.landSec !== undefined) { setLandSec(null); setAutoLand(null); }
+                  setUsedSugg({});
+                  setSaveStatus('Suggested edits removed');
+                  window.setTimeout(() => setSaveStatus(null), 3000);
+                }}
+                title="Put back the Start / End / 0:00 that came from suggestions (anything you changed by hand stays)"
+              >
+                Remove suggested edits
+              </button>
+            </div>
+          )}
           {suggestion && (
             <EditSuggestions
               s={suggestion}
               note={suggestUsed ? 'Press Save edit to keep it.' : undefined}
-              onUse={p => {
-                if (p.startSec !== undefined) setStartSec(p.startSec);
-                if (p.endSec !== undefined) setEndSec(p.endSec);
-                if (p.landSec !== undefined) { setLandSec(p.landSec); setAutoLand(p.landSec); }
-                setSuggestUsed(true);
-              }}
+              onUse={applySuggestion}
             />
           )}
           <div className="editor-fields">

@@ -11,6 +11,7 @@ import type { SpotifyRunSegment } from '../lib/spotifyTestRun';
 import { arrangeSpotifyRunway } from '../lib/spotifyArrange';
 import { todayISO } from '../lib/format';
 import { describeLoadError } from '../lib/audioEngine';
+import { rememberScroll, restoreScroll } from '../lib/editorReturn';
 
 export type ViewName = 'live' | 'playlists' | 'library' | 'schedule' | 'actions' | 'editor' | 'settings';
 
@@ -157,6 +158,8 @@ interface AppStoreState {
   pendingEditorSpotifyUri: string | null;
   editorReturnView: ViewName | null;
   openSpotifyEditor: (uri: string) => void;
+  /** Back to the screen (and scroll position) the Editor was opened from. */
+  backFromEditor: () => void;
   consumePendingEditorSpotifyUri: () => string | null;
   setMidiConnected: (b: boolean) => void;
   setPpStatus: (s: 'disabled' | 'unknown' | 'ok' | 'err') => void;
@@ -315,7 +318,7 @@ export const useAppStore = create<AppStoreState>((set, get) => ({
   config: DEFAULT_CONFIG,
   configLoaded: false,
 
-  setView: (v) => set({ view: v }),
+  setView: (v) => set(s => ({ view: v, editorReturnView: v === 'editor' && s.view !== 'editor' ? null : s.editorReturnView })),
   setSelectedPlaylistId: (id) => set({ selectedPlaylistId: id }),
   setSelectedServiceId: (id) => set({ selectedServiceId: id }),
   autoArmEnabled: true,
@@ -329,7 +332,10 @@ export const useAppStore = create<AppStoreState>((set, get) => ({
     return tab;
   },
   pendingEditorTrackId: null,
-  openEditor: (trackId) => set({ view: 'editor', pendingEditorTrackId: trackId }),
+  openEditor: (trackId) => {
+    if (get().view !== 'editor') rememberScroll();
+    set(s => ({ view: 'editor', pendingEditorTrackId: trackId, editorReturnView: s.view === 'editor' ? s.editorReturnView : s.view }));
+  },
   consumePendingEditorTrackId: () => {
     const id = get().pendingEditorTrackId;
     if (id) set({ pendingEditorTrackId: null });
@@ -337,7 +343,16 @@ export const useAppStore = create<AppStoreState>((set, get) => ({
   },
   pendingEditorSpotifyUri: null,
   editorReturnView: null,
-  openSpotifyEditor: (uri) => set(s => ({ view: 'editor', pendingEditorSpotifyUri: uri, editorReturnView: s.view === 'editor' ? s.editorReturnView : s.view })),
+  openSpotifyEditor: (uri) => {
+    if (get().view !== 'editor') rememberScroll();
+    set(s => ({ view: 'editor', pendingEditorSpotifyUri: uri, editorReturnView: s.view === 'editor' ? s.editorReturnView : s.view }));
+  },
+  backFromEditor: () => {
+    const back = get().editorReturnView;
+    if (!back || back === 'editor') return;
+    set({ view: back, editorReturnView: null });
+    restoreScroll();
+  },
   consumePendingEditorSpotifyUri: () => {
     const uri = get().pendingEditorSpotifyUri;
     if (uri) set({ pendingEditorSpotifyUri: null });

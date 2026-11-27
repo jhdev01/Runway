@@ -13,6 +13,9 @@ import { BuyListPanel } from './BuyListPanel';
  * try a test run. Imported playlists are what services, post-service and
  * Actions can pick from.
  */
+/** Which playlist was shown, kept while you visit the Editor and come back. */
+let lastFilter = 'all';
+
 export function SpotifyLibrary() {
   const config = useAppStore(s => s.config);
   const updateConfig = useAppStore(s => s.updateConfig);
@@ -28,7 +31,8 @@ export function SpotifyLibrary() {
   const [picking, setPicking] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
-  const [filter, setFilter] = useState<string>('all');
+  const [filter, setFilterState] = useState<string>(() => (lastFilter === 'all' || cache[lastFilter] ? lastFilter : 'all'));
+  const setFilter = (f: string) => { lastFilter = f; setFilterState(f); };
   const [artProgress, setArtProgress] = useState<{ done: number; total: number } | null>(null);
   const [padOpen, setPadOpen] = useState(false);
   const [buyOpen, setBuyOpen] = useState(false);

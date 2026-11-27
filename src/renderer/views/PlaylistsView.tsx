@@ -9,7 +9,7 @@ import { keyColor } from '@shared/music';
 import { effectiveDuration } from '@shared/types';
 import { InfoTip } from '../components/InfoTip';
 import { SuggestionsPanel } from '../components/SuggestionsPanel';
-import { trackEnvelope } from '../lib/landLearning';
+import { addApplied, removeTrackSuggestions, stillApplied, trackEnvelope } from '../lib/landLearning';
 
 export function PlaylistsView() {
   const playlists = useAppStore(s => s.config.playlists);
@@ -407,12 +407,23 @@ function PlaylistEditor({ playlist }: { playlist: Playlist }) {
             apply: sg => {
               const cur = useAppStore.getState().config.tracks.find(x => x.id === t.id);
               if (!cur) return;
+              const used = {
+                ...(sg.startSec !== undefined && cur.trimStartSec === undefined ? { startSec: sg.startSec } : {}),
+                ...(sg.endSec !== undefined && cur.trimEndSec === undefined ? { endSec: sg.endSec } : {}),
+                ...(sg.landSec !== undefined && cur.editServiceLandSec === undefined ? { landSec: sg.landSec } : {}),
+              };
               updateTrack(t.id, {
-                ...(sg.startSec !== undefined && cur.trimStartSec === undefined ? { trimStartSec: sg.startSec } : {}),
-                ...(sg.endSec !== undefined && cur.trimEndSec === undefined ? { trimEndSec: sg.endSec } : {}),
-                ...(sg.landSec !== undefined && cur.editServiceLandSec === undefined ? { editServiceLandSec: sg.landSec, editServiceLandAuto: true } : {}),
+                ...(used.startSec !== undefined ? { trimStartSec: used.startSec } : {}),
+                ...(used.endSec !== undefined ? { trimEndSec: used.endSec } : {}),
+                ...(used.landSec !== undefined ? { editServiceLandSec: used.landSec, editServiceLandAuto: true } : {}),
+                suggestApplied: addApplied(cur.suggestApplied, used),
               });
             },
+            hasApplied: () => {
+              const cur = useAppStore.getState().config.tracks.find(x => x.id === t.id);
+              return !!cur && !!stillApplied(cur.suggestApplied, { startSec: cur.trimStartSec, endSec: cur.trimEndSec, landSec: cur.editServiceLandSec });
+            },
+            removeApplied: () => { removeTrackSuggestions(t.id); },
           }))}
         />
       )}

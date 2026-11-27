@@ -103,7 +103,7 @@ export function SpotifyEditorPage({ uri, onPick, onExit }: {
             Pad player
           </button>
           {returnView && returnView !== 'editor' && (
-            <button className="btn-secondary" onClick={() => setView(returnView)}>← Back to {VIEW_LABEL[returnView] ?? 'previous'}</button>
+            <button className="btn-secondary" onClick={() => useAppStore.getState().backFromEditor()}>← Back to {VIEW_LABEL[returnView] ?? 'previous'}</button>
           )}
           <button className="btn-secondary" onClick={onExit} title="Edit tracks from your own library">Your songs</button>
         </span>

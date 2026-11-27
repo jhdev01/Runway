@@ -10,7 +10,7 @@ import { saveSpotifyEdit } from '../lib/spotifyEdits';
 import { waveformScanner, useWaveformScan, scanEdgesSec, logSpotifyOperator } from '../lib/spotifyWaveformScan';
 import { keyColor, displayKey, displayKeyBoth } from '@shared/music';
 import { SuggestionsPanel } from './SuggestionsPanel';
-import { spotifyEnvelope } from '../lib/landLearning';
+import { addApplied, spotifyEnvelope, stillApplied } from '../lib/landLearning';
 
 type Field = 'trimStartSec' | 'trimEndSec' | 'landSec' | 'fadeInSec' | 'fadeOutSec';
 
@@ -344,11 +344,32 @@ export function SpotifySongList({ tracks }: { tracks: SpotifyPlaylistTrack[] }) 
               getEnv: () => spotifyEnvelope(t.uri),
               apply: sg => {
                 const cur = useAppStore.getState().config.spotify?.trackEdits?.[t.uri] ?? {};
+                const used = {
+                  ...(sg.startSec !== undefined && cur.trimStartSec === undefined ? { startSec: sg.startSec } : {}),
+                  ...(sg.endSec !== undefined && cur.trimEndSec === undefined ? { endSec: sg.endSec } : {}),
+                  ...(sg.landSec !== undefined && cur.landSec === undefined ? { landSec: sg.landSec } : {}),
+                };
                 save(t.uri, {
                   ...cur,
-                  ...(sg.startSec !== undefined && cur.trimStartSec === undefined ? { trimStartSec: sg.startSec } : {}),
-                  ...(sg.endSec !== undefined && cur.trimEndSec === undefined ? { trimEndSec: sg.endSec } : {}),
-                  ...(sg.landSec !== undefined && cur.landSec === undefined ? { landSec: sg.landSec, landAuto: true } : {}),
+                  ...(used.startSec !== undefined ? { trimStartSec: used.startSec } : {}),
+                  ...(used.endSec !== undefined ? { trimEndSec: used.endSec } : {}),
+                  ...(used.landSec !== undefined ? { landSec: used.landSec, landAuto: true } : {}),
+                  suggestApplied: addApplied(cur.suggestApplied, used),
+                });
+              },
+              hasApplied: () => {
+                const cur = useAppStore.getState().config.spotify?.trackEdits?.[t.uri] ?? {};
+                return !!stillApplied(cur.suggestApplied, { startSec: cur.trimStartSec, endSec: cur.trimEndSec, landSec: cur.landSec });
+              },
+              removeApplied: () => {
+                const cur = useAppStore.getState().config.spotify?.trackEdits?.[t.uri] ?? {};
+                const live = stillApplied(cur.suggestApplied, { startSec: cur.trimStartSec, endSec: cur.trimEndSec, landSec: cur.landSec });
+                save(t.uri, {
+                  ...cur,
+                  ...(live?.startSec !== undefined ? { trimStartSec: undefined } : {}),
+                  ...(live?.endSec !== undefined ? { trimEndSec: undefined } : {}),
+                  ...(live?.landSec !== undefined ? { landSec: undefined, landAuto: undefined } : {}),
+                  suggestApplied: undefined,
                 });
               },
             };

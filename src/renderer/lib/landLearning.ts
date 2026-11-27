@@ -74,6 +74,39 @@ export function suggestEdits(env: Envelope, durationSec: number, current: { star
   return out;
 }
 
+type Applied = { startSec?: number; endSec?: number; landSec?: number };
+const same = (a: number | undefined, b: number | undefined) => a !== undefined && b !== undefined && Math.abs(a - b) < 0.05;
+
+/** The suggested values still in place (not changed by hand since), or null. */
+export function stillApplied(applied: Applied | undefined, cur: { startSec?: number; endSec?: number; landSec?: number }): Applied | null {
+  if (!applied) return null;
+  const out: Applied = {};
+  if (same(applied.startSec, cur.startSec)) out.startSec = applied.startSec;
+  if (same(applied.endSec, cur.endSec)) out.endSec = applied.endSec;
+  if (same(applied.landSec, cur.landSec)) out.landSec = applied.landSec;
+  return Object.keys(out).length ? out : null;
+}
+
+/** Merge newly accepted suggestion values into what a song already got. */
+export function addApplied(prev: Applied | undefined, s: Applied): Applied {
+  return { ...(prev ?? {}), ...Object.fromEntries(Object.entries(s).filter(([, v]) => v !== undefined)) };
+}
+
+/** Remove a Library song's suggested trims / 0:00 that are still as suggested. */
+export function removeTrackSuggestions(trackId: string): boolean {
+  const st = useAppStore.getState();
+  const t = st.config.tracks.find(x => x.id === trackId);
+  if (!t) return false;
+  const live = stillApplied(t.suggestApplied, { startSec: t.trimStartSec, endSec: t.trimEndSec, landSec: t.editServiceLandSec });
+  st.updateTrack(trackId, {
+    ...(live?.startSec !== undefined ? { trimStartSec: undefined } : {}),
+    ...(live?.endSec !== undefined ? { trimEndSec: undefined } : {}),
+    ...(live?.landSec !== undefined ? { editServiceLandSec: undefined, editServiceLandAuto: undefined } : {}),
+    suggestApplied: undefined,
+  });
+  return !!live;
+}
+
 /** How sure the 0:00 suggestion is, for the operator. */
 export function landAccuracyNote(): string {
   const l = useAppStore.getState().config.landLearning;
