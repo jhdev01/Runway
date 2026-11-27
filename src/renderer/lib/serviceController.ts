@@ -1782,6 +1782,11 @@ export class ServiceController {
             : 100
         );
         this.audio.fadeBusToPct?.(p.bus, pct, p.durationSec);
+        // Spotify music is the music bus's job here too: fade it the same way.
+        if (p.bus === 'music') {
+          if (spotifyServiceRun.isActive()) void spotifyServiceRun.setManualGain(pct / 100, p.durationSec);
+          if (spotifyFreePlay.isActive()) void spotifyFreePlay.setGain(pct / 100, p.durationSec);
+        }
         log(`fade ${p.bus} → ${Math.round(pct)}% over ${p.durationSec}s`);
         return;
       }
@@ -1807,8 +1812,17 @@ export class ServiceController {
         return;
       case 'spotify_play': {
         if (spotifyServiceRun.isActive()) {
-          this.notifyActionError?.('Spotify action skipped: a service’s Spotify music is playing.');
-          return;
+          // A Spotify post-service is replaced, like a Runway post-service
+          // would be faded (Spotify can only play one thing). A service's
+          // pre-service runway is left alone: it has a landing to make.
+          const r = this.store.getState().currentRunway;
+          if (r?.isPostService && r.spotify) {
+            this.stopPostService(Math.max(1, p.fadeOutRunwaySec));
+            await new Promise(res => setTimeout(res, Math.max(1, p.fadeOutRunwaySec) * 1000 + 300));
+          } else {
+            this.notifyActionError?.('Spotify action skipped: a service’s Spotify music is playing.');
+            return;
+          }
         }
         if (!p.playlistId) {
           this.notifyActionError?.('Spotify action has no playlist set.');

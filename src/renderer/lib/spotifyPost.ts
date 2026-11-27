@@ -110,6 +110,19 @@ class SpotifyFreePlayer {
     }, 1000);
   }
 
+  /**
+   * Audio fade action on the music bus, for Spotify playing here: ramps
+   * Spotify to `gain` (0…1) of its level over `fadeSec`, keeping the song.
+   */
+  async setGain(gain: number, fadeSec: number): Promise<void> {
+    if (!this.isActive()) return;
+    const id = this.runId;
+    const cur = await this.cmd({ op: 'state' });
+    const from = cur.ok && cur.volume !== undefined ? cur.volume : this.volume;
+    const to = Math.round(this.volume * Math.max(0, Math.min(1, gain)));
+    await glideSpotifyVolume(v => this.cmd({ op: 'volume', volume: v }), from, to, fadeSec, () => id === this.runId);
+  }
+
   /** Fades Spotify out, pauses it and puts its volume back. */
   async stop(fadeSec: number): Promise<void> {
     if (this.stopping) return this.stopping;
