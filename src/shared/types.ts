@@ -770,6 +770,10 @@ export interface AppConfig {
     // whole song.
     waveformScan?: 'edges' | 'whole';
     waveformScanSec?: number;   // default 30
+    // When each song was last scanned (by spotify:track: URI). A song scanned
+    // in the last few days that still came out incomplete isn't re-queued by
+    // Scan all / Scan this playlist (Re-scan this song still works).
+    waveformScanTried?: Record<string, number>;
     // Buy list: Spotify song URI → the Library track that is its bought copy.
     ownedLinks?: Record<string, string>;
     // When Downloads was last checked for bought songs.

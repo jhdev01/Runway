@@ -38,6 +38,17 @@ export const scanEdgesSec = (): number | undefined => {
   return typeof n === 'number' && Number.isFinite(n) && n >= 5 ? Math.min(n, 600) : DEFAULT_EDGE_SEC;
 };
 const STOP_BEFORE_SERVICE_MS = 5 * 60_000;
+/** An incomplete song isn't scanned again by Scan all for this long (Re-scan this song still can). */
+const RETRY_AFTER_MS = 3 * 86400_000;
+
+function markTried(uri: string): void {
+  const st = useAppStore.getState();
+  const sp = st.config.spotify;
+  const tried = { ...(sp?.waveformScanTried ?? {}), [uri]: Date.now() };
+  // Keep the list from growing forever: drop entries older than 30 days.
+  for (const [k, at] of Object.entries(tried)) if (Date.now() - at > 30 * 86400_000) delete tried[k];
+  st.updateConfig({ spotify: { ...sp, waveformScanTried: tried } });
+}
 const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
 
 /** Why scanning can't run right now, or null when it can. */
@@ -97,11 +108,18 @@ class WaveformScanner {
     // short) have a waveform but no key: they're played again for the key.
     const keys = await window.runway.spotify.waveformKeys(uris).catch(() => ({} as Record<string, unknown>));
     const needsKey = new Set(uris.filter(u => !keys[u]));
+    const tried = useAppStore.getState().config.spotify?.waveformScanTried ?? {};
+    const incomplete = uris.filter(u => (cov[u] ?? 0) < DONE_AT || needsKey.has(u));
+    // Scanned recently and still incomplete: don't play it again on every scan.
+    const recentlyTried = opts?.force ? [] : incomplete.filter(u => Date.now() - (tried[u] ?? 0) < RETRY_AFTER_MS && (cov[u] ?? 0) > 0);
     const todo = uris
-      .filter(u => opts?.force || (cov[u] ?? 0) < DONE_AT || needsKey.has(u))
+      .filter(u => opts?.force || (incomplete.includes(u) && !recentlyTried.includes(u)))
       .map(u => tracks.find(t => t.uri === u)!)
       .filter(Boolean);
-    if (todo.length === 0) { this.set({ note: 'Every song already has a waveform and a key reading.' }); return; }
+    const skippedNote = recentlyTried.length
+      ? ` ${recentlyTried.length} song${recentlyTried.length === 1 ? ' was' : 's were'} scanned in the last 3 days without a full result and ${recentlyTried.length === 1 ? 'was' : 'were'} skipped; open ${recentlyTried.length === 1 ? 'it' : 'one'} in the editor and press Re-scan this song to try again.`
+      : '';
+    if (todo.length === 0) { this.set({ note: (recentlyTried.length ? 'Nothing new to scan.' : 'Every song already has a waveform and a key reading.') + skippedNote }); return; }
     logSpotifyOperator('waveform scan started', { songs: todo.length, edgesSec: edges ?? 'whole songs' });
 
     const check = await window.runway.spotify.player({ op: 'check' });
@@ -132,6 +150,7 @@ class WaveformScanner {
         let jumped = !quick;
         const limit = Date.now() + t.durationMs + 20_000;
         let started = false;
+        let lastPos = 0;
         while (Date.now() < limit) {
           await sleep(1000);
           if (this.stopRequested) break;
@@ -139,7 +158,14 @@ class WaveformScanner {
           const st = await window.runway.spotify.player({ op: 'state' });
           if (st.ok && st.trackUri === t.uri && st.positionSec !== undefined) this.set({ posSec: st.positionSec });
           if (st.ok && st.trackUri === t.uri) {
+            const pos = st.positionSec ?? 0;
+            // Back at the start of the same song: Spotify's Repeat started it
+            // over after it ended. The song is done; don't hear it all again.
+            if (started && jumped && pos + 5 < lastPos) break;
             started = true;
+            lastPos = pos;
+            // Reached the end: done (don't wait for Spotify to move on or repeat).
+            if (jumped && pos >= durSec - 0.8) break;
             // Someone paused Spotify: carry on rather than wait forever.
             if (st.playerState === 'paused') await window.runway.spotify.player({ op: 'resume' });
           } else if (started) break;  // song ended / moved on
@@ -147,6 +173,7 @@ class WaveformScanner {
             // Start heard; skip the middle. (A second early so the edges overlap.)
             await window.runway.spotify.player({ op: 'seek', positionSec: Math.max(edges! + 1, durSec - edges! - 1.5) });
             jumped = true;
+            lastPos = durSec - edges! - 1.5;
             continue;
           }
           // Waveform done early? Stop, unless the key still needs hearing:
@@ -156,6 +183,7 @@ class WaveformScanner {
             if ((c[t.uri] ?? 0) >= 0.98) break;
           }
         }
+        markTried(t.uri);
         done++;
       }
     } finally {
@@ -175,7 +203,7 @@ class WaveformScanner {
       const keyNote = ` ${keyed} of ${todo.length} have a key reading.`;
       this.set({
         running: false, idx: 0, title: '', uri: '', posSec: 0,
-        note: `${why ? why + ' ' : ''}${ok} of ${todo.length} song${todo.length === 1 ? '' : 's'} now have a waveform.${keyNote}`,
+        note: `${why ? why + ' ' : ''}${ok} of ${todo.length} song${todo.length === 1 ? '' : 's'} now have a waveform.${keyNote}${skippedNote}`,
       });
     }
   }

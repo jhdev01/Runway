@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useAppStore } from '../state/store';
 import { useWaveformScan } from '../lib/spotifyWaveformScan';
 import { setSpotifyAlert } from '../lib/spotifyAlert';
+import { startSpotifyWatchdog } from '../lib/spotifyWatchdog';
 import type { SpotifyHealth } from '@shared/types';
 
 type SpotifyLight = { state: 'on' | 'err' | 'unknown'; detail: string };
@@ -38,6 +39,9 @@ export function SpotifyStatusPill() {
   useEffect(() => {
     void window.runway?.spotify?.waveformEnable?.(waveforms);
   }, [waveforms]);
+
+  // Playback watchdog: catches "playing" that isn't (e.g. Spotify logged out).
+  useEffect(() => (clientId ? startSpotifyWatchdog() : undefined), [clientId]);
 
   useEffect(() => {
     if (!clientId) { setSpotifyAlert(null); return; }
