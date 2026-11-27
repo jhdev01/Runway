@@ -793,17 +793,17 @@ export function LiveView() {
                     return;
                   }
                   extendServiceStart(activeService.id, sec);
-                  // Adding time (+N): also fill the new time with a song so
-                  // the operator gets music, not silence, during the
-                  // extension. extendServiceStart already moved the runway's
-                  // targetMs, so addSongLive fades the song at the NEW start.
-                  // Removing time (−N) doesn't add a song.
-                  if (sec > 0) {
-                    setArmError(null);
+                  // Re-plan so the music lands on the NEW start: re-arms a
+                  // runway whose music hasn't started, re-plans Spotify
+                  // music in place. Runway music playing: +N fills the new
+                  // time with a song (it fades at the new start), as before.
+                  setArmError(null);
+                  void controller.retargetAfterShift(sec).then(r => {
+                    if (!r.addSong) return;
                     void controller.addSongLive().then(res => {
                       if (!res.ok) setArmError(res.reason ?? null);
                     });
-                  }
+                  });
                   setFlag(false);
                   if (timerRef.current !== null) {
                     window.clearTimeout(timerRef.current);

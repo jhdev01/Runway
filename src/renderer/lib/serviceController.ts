@@ -1002,6 +1002,7 @@ export class ServiceController {
     if (!runway || runway.serviceId === null || runway.isPostService) {
       return { ok: false, reason: 'No live service to add a song to' };
     }
+    if (runway.spotify) return this.spotifyAddSong();
     if (runway.phase !== 'music' && runway.phase !== 'pad') {
       return { ok: false, reason: 'Service music has not started yet' };
     }
@@ -2347,6 +2348,118 @@ export class ServiceController {
     });
     state.patchCurrentRunway({ spotify: { ...runway.spotify, segments: [...plan.slice(0, current + 1), ...rest] } });
     spotifyServiceRun.cutTo(rest);
+  }
+
+  /**
+   * After −2 / +2 min moved the service start (extendServiceStart already
+   * moved the runway's targetMs and padStartMs), make the music land on the
+   * NEW 0:00:
+   *  - Armed, music not started (Runway or Spotify): re-arm, so the plan is
+   *    built for the new time.
+   *  - Spotify music playing: re-plan the songs after the current one (or
+   *    from now, if the new start cuts into it) to land on the new 0:00.
+   *  - Runway music playing: as before (+2 adds a song; −2 lets the pad
+   *    take over at the new time).
+   * Returns whether the caller should still add a song (Runway music, +).
+   */
+  async retargetAfterShift(addSec: number): Promise<{ addSong: boolean }> {
+    const state = this.store.getState();
+    const runway = state.currentRunway;
+    if (!runway || !runway.serviceId || runway.isPostService) return { addSong: false };
+    if (runway.phase === 'queued') {
+      console.log('[timeshift] re-arming for the new service start', { bySec: addSec, spotify: !!runway.spotify });
+      const res = await state.armService(runway.serviceId, (fp) => this.audio.loadBuffer(fp).then(() => undefined));
+      if (!res.ok) this.notifyActionError?.(`Couldn’t re-plan for the new start time: ${res.reason ?? 'unknown'}`);
+      return { addSong: false };
+    }
+    if (runway.phase === 'music' && runway.spotify) {
+      this.spotifyRetarget(runway.targetMs);
+      return { addSong: false };
+    }
+    return { addSong: addSec > 0 && !runway.spotify };
+  }
+
+  /** Spotify runway: re-plan to land on `targetMs` (after a time shift). */
+  private spotifyRetarget(targetMs: number): void {
+    const state = this.store.getState();
+    const runway = state.currentRunway;
+    if (!runway?.spotify || !spotifyServiceRun.isActive()) return;
+    const { current, plan } = spotifyServiceRun.upcoming();
+    const cur = plan[current];
+    const now = Date.now();
+    if (!cur || targetMs - now < 20_000) {
+      console.warn('[timeshift] too close to service start to re-plan Spotify', { msLeft: targetMs - now });
+      return;
+    }
+    const edits = state.config.spotify?.trackEdits ?? {};
+    const cached = state.config.spotify?.playlistCache?.[runway.spotify.playlistId];
+    const lastFade = runway.spotify.lastFadeSec;
+    const asTrack = (s: typeof plan[number]) => cached?.tracks?.find(t => t.uri === s.uri)
+      ?? { uri: s.uri, title: s.title, artist: s.artist, durationMs: s.songDurSec * 1000, albumArtUrl: s.albumArtUrl };
+    const played = new Set(plan.slice(0, current + 1).map(s => s.uri));
+    const after = plan.slice(current + 1).map(asTrack);
+    // The landing song stays last; unused playlist songs fill any extra time in front.
+    const spare = (cached?.tracks ?? []).filter(t => !played.has(t.uri) && !after.some(a => a.uri === t.uri));
+    const curIsLast = current === plan.length - 1;
+    let pool = [...spare, ...after];
+    if (curIsLast) {
+      // The landing song is playing: a new landing song is needed. Prefer one in the service's key.
+      const key = runway.landInKey;
+      const inKey = spare.filter(t => key && edits[t.uri]?.key === key);
+      const lastPick = inKey[inKey.length - 1] ?? spare[spare.length - 1];
+      pool = lastPick ? [...spare.filter(t => t.uri !== lastPick.uri), lastPick] : spare;
+    }
+    if (pool.length === 0) {
+      console.warn('[timeshift] no songs left to re-plan Spotify with');
+      return;
+    }
+    if (cur.endAt <= targetMs - 8000) {
+      // Keep the current song; re-plan what follows it.
+      const fill = planSpotifyRun(pool, (targetMs - cur.endAt) / 1000, targetMs, edits, lastFade);
+      console.log('[timeshift] Spotify re-planned after the current song', { songs: fill.length, landsAt: new Date(targetMs).toLocaleTimeString() });
+      state.patchCurrentRunway({ spotify: { ...runway.spotify, segments: [...plan.slice(0, current + 1), ...fill] } });
+      this.spotifyEndAt = targetMs;
+      spotifyServiceRun.replaceUpcoming(fill);
+    } else {
+      // The new start cuts into the current song: re-plan from now.
+      const startAt = now + 800;
+      const fill = planSpotifyRun(pool, (targetMs - startAt) / 1000, targetMs, edits, lastFade);
+      console.log('[timeshift] Spotify re-planned from now', { songs: fill.length, landsAt: new Date(targetMs).toLocaleTimeString() });
+      state.patchCurrentRunway({ spotify: { ...runway.spotify, segments: [...plan.slice(0, current + 1), ...fill] } });
+      this.spotifyEndAt = targetMs;
+      spotifyServiceRun.cutTo(fill);
+    }
+  }
+
+  /**
+   * + Song on a Spotify runway: a song from the same Spotify playlist
+   * (preferring the service's key, never the one playing) becomes the
+   * landing song now, and lands on 0:00; if it's shorter than the time
+   * left, unused songs fill in before it so there's no silence.
+   */
+  private spotifyAddSong(): { ok: boolean; reason?: string } {
+    const state = this.store.getState();
+    const runway = state.currentRunway;
+    if (!runway?.spotify || !spotifyServiceRun.isActive()) return { ok: false, reason: 'Spotify music isn’t playing' };
+    const { current, plan } = spotifyServiceRun.upcoming();
+    const now = Date.now();
+    const startAt = now + 800;
+    if (runway.targetMs - startAt < 15_000) return { ok: false, reason: 'Too close to service start — add time first' };
+    const edits = state.config.spotify?.trackEdits ?? {};
+    const cached = state.config.spotify?.playlistCache?.[runway.spotify.playlistId];
+    const playing = plan[current]?.uri;
+    const cands = (cached?.tracks ?? []).filter(t => t.uri !== playing);
+    if (cands.length === 0) return { ok: false, reason: 'No other song in this Spotify playlist' };
+    const key = runway.landInKey ?? state.padArmedKey ?? undefined;
+    const inKey = cands.filter(t => key && edits[t.uri]?.key === key);
+    const chosen = (inKey.length ? inKey : cands)[Math.floor(Math.random() * (inKey.length ? inKey : cands).length)];
+    const played = new Set(plan.slice(0, current + 1).map(s => s.uri));
+    const spare = cands.filter(t => t.uri !== chosen.uri && !played.has(t.uri));
+    const fill = planSpotifyRun([...spare, chosen], (runway.targetMs - startAt) / 1000, runway.targetMs, edits, runway.spotify.lastFadeSec);
+    console.log('[addSong] Spotify', { title: chosen.title, keyMatched: inKey.length > 0, songs: fill.length });
+    state.patchCurrentRunway({ spotify: { ...runway.spotify, segments: [...plan.slice(0, current + 1), ...fill] } });
+    spotifyServiceRun.cutTo(fill);
+    return { ok: true };
   }
 
   /** Hands a Spotify runway's planned songs to the Spotify runner. */
