@@ -1087,6 +1087,7 @@ export const IPC = {
   // Experimental: Spotify account link (PKCE sign-in) + playlist reader.
   SPOTIFY_CONNECT: 'spotify:connect',
   SPOTIFY_STATUS: 'spotify:status',
+  SPOTIFY_HEALTH: 'spotify:health',
   SPOTIFY_DISCONNECT: 'spotify:disconnect',
   SPOTIFY_PLAYLIST_READ: 'spotify:playlistRead',
   // Experimental: one remote-control command to the Spotify desktop app.
@@ -1115,6 +1116,16 @@ export interface SpotifyStatus {
   canControl?: boolean;
   /** Quiet start is switched on (songs start without showing Spotify). */
   quietStart?: boolean;
+  /** Spotify refused the saved sign-in: sign in again in Settings › Spotify. */
+  signInLost?: boolean;
+}
+/** Result of the periodic Spotify sign-in check. */
+export interface SpotifyHealth {
+  /** ok; expired: Spotify refused Runway's sign-in; none: never signed in; offline: couldn't reach Spotify. */
+  account: 'ok' | 'expired' | 'none' | 'offline';
+  /** False when the Spotify app is open here but isn't on the account (logged out, or another account). */
+  appOnAccount?: boolean;
+  accountComputers?: string[];
 }
 /** A song's note profile from the key detector (12 values each, C first); enough to re-score it. */
 export interface KeyProfile { harm: number[]; bass: number[]; intro: number[]; outro: number[]; tuning: number }

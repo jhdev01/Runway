@@ -1,10 +1,25 @@
 import React, { useEffect, useState } from 'react';
 import { useAppStore } from '../state/store';
 import { useWaveformScan } from '../lib/spotifyWaveformScan';
+import { setSpotifyAlert } from '../lib/spotifyAlert';
+import type { SpotifyHealth } from '@shared/types';
 
 type SpotifyLight = { state: 'on' | 'err' | 'unknown'; detail: string };
 
 const POLL_MS = 5000;
+const HEALTH_MS = 60_000;
+
+/** A service using a Spotify playlist starts within the next hour (or started in the last 90 min). */
+function spotifyServiceSoon(): boolean {
+  const st = useAppStore.getState();
+  const now = Date.now();
+  if (st.currentRunway?.spotify && st.currentRunway.phase !== 'done') return true;
+  return (st.config.services ?? []).some(s => {
+    if (!s.spotifyPlaylistId) return false;
+    const t = new Date(`${s.date}T${s.startTime}:00`).getTime();
+    return Number.isFinite(t) && t - now < 60 * 60_000 && now - t < 90 * 60_000;
+  });
+}
 
 /**
  * Top-bar light for Spotify, next to MIDI / Pro7 / Audio. Green when the
@@ -25,27 +40,60 @@ export function SpotifyStatusPill() {
   }, [waveforms]);
 
   useEffect(() => {
-    if (!clientId) return;
+    if (!clientId) { setSpotifyAlert(null); return; }
     let alive = true;
     const isMac = navigator.userAgent.includes('Mac');
+    let lastHealthAt = 0;
+    let health: SpotifyHealth | null = null;
+    let appMisses = 0;   // the app must be missing from the account twice in a row before we say so
     const check = async () => {
       try {
         const account = await window.runway.spotify.status();
         if (!alive) return;
         if (!account?.connected) {
           setLight({ state: 'err', detail: 'Not signed in to Spotify. Click to open Settings.' });
+          setSpotifyAlert(spotifyServiceSoon()
+            ? { kind: 'signed-out', text: 'Runway isn’t signed in to Spotify, and a Spotify service is coming up.', action: 'settings' }
+            : null);
           return;
         }
         const who = account.displayName ? ` as ${account.displayName}` : '';
-        if (!isMac) {
-          setLight({ state: 'on', detail: `Signed in${who}.` });
+        const app = isMac ? await window.runway.spotify.player({ op: 'check' }) : { ok: true };
+        if (!alive) return;
+        // Sign-in check about once a minute (Spotify's sign-in and device list).
+        if (Date.now() - lastHealthAt > HEALTH_MS || account.signInLost) {
+          lastHealthAt = Date.now();
+          health = await window.runway.spotify.health(isMac && !!app?.ok).catch(() => null);
+          if (!alive) return;
+          appMisses = health?.appOnAccount === false ? appMisses + 1 : 0;
+        }
+        if (account.signInLost || health?.account === 'expired') {
+          setLight({ state: 'err', detail: 'Spotify signed Runway out. Sign in again in Settings › Spotify.' });
+          setSpotifyAlert({
+            kind: 'signed-out',
+            text: 'Spotify signed Runway out, so it can’t read playlists or start songs quietly. Sign in again in Settings › Spotify.',
+            action: 'settings',
+          });
           return;
         }
-        const app = await window.runway.spotify.player({ op: 'check' });
-        if (!alive) return;
-        setLight(app?.ok
-          ? { state: 'on', detail: `Signed in${who}. Spotify app is open.` }
-          : { state: 'err', detail: `Signed in${who}, but ${app?.reason ?? 'the Spotify app isn’t answering.'}` });
+        if (isMac && app?.ok && appMisses >= 2) {
+          const others = health?.accountComputers?.length ? ` Computers on the account right now: ${health.accountComputers.join(', ')}.` : '';
+          setLight({ state: 'err', detail: `The Spotify app on this Mac isn’t on ${account.displayName ?? 'Runway’s'} account.${others}` });
+          setSpotifyAlert({
+            kind: 'app-account',
+            text: `The Spotify app on this Mac looks logged out, or signed in to a different account than ${account.displayName ?? 'Runway’s'}. Songs won’t play until it’s logged in. Open Spotify and log in.${others}`,
+          });
+          return;
+        }
+        if (isMac && !app?.ok) {
+          setLight({ state: 'err', detail: `Signed in${who}, but ${app?.reason ?? 'the Spotify app isn’t answering.'}` });
+          setSpotifyAlert(spotifyServiceSoon()
+            ? { kind: 'app-closed', text: 'The Spotify app isn’t open, and a Spotify service is coming up. Open Spotify on this Mac.' }
+            : null);
+          return;
+        }
+        setLight({ state: 'on', detail: isMac ? `Signed in${who}. Spotify app is open.` : `Signed in${who}.` });
+        setSpotifyAlert(null);
       } catch {
         if (alive) setLight({ state: 'err', detail: 'Couldn’t reach Spotify.' });
       }

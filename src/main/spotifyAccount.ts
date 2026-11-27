@@ -19,7 +19,7 @@ import * as http from 'http';
 import * as path from 'path';
 import * as os from 'os';
 import { execFileSync } from 'child_process';
-import type { SpotifyPlaylistSummary, SpotifyPlaylistList, SpotifyPlaylistResult, SpotifyPlaylistTrack, SpotifyStatus } from '../shared/types';
+import type { SpotifyHealth, SpotifyPlaylistSummary, SpotifyPlaylistList, SpotifyPlaylistResult, SpotifyPlaylistTrack, SpotifyStatus } from '../shared/types';
 
 // Must match the Redirect URI registered on the Spotify developer app.
 // Spotify requires a loopback IP literal ("localhost" is not allowed).
@@ -71,19 +71,43 @@ async function tokenRequest(params: Record<string, string>): Promise<{
     body: new URLSearchParams(params).toString(),
     signal: AbortSignal.timeout(10_000),
   });
-  if (!res.ok) throw new Error(`Spotify sign-in failed (${res.status}): ${await res.text().catch(() => '')}`);
+  if (!res.ok) {
+    const err = new Error(`Spotify sign-in failed (${res.status}): ${await res.text().catch(() => '')}`) as Error & { status?: number };
+    err.status = res.status;
+    throw err;
+  }
   return res.json() as Promise<{ access_token: string; expires_in: number; refresh_token?: string; scope?: string }>;
 }
+
+/**
+ * Set when Spotify refuses Runway's saved sign-in (revoked, password
+ * changed, app removed from the account). Cleared by signing in again.
+ * Being offline doesn't set it.
+ */
+let signInLost = false;
 
 async function getAccessToken(): Promise<string | null> {
   if (access && access.expiresAt > Date.now() + 30_000) return access.token;
   const auth = loadAuth();
   if (!auth) return null;
-  const json = await tokenRequest({
-    grant_type: 'refresh_token',
-    refresh_token: auth.refreshToken,
-    client_id: auth.clientId,
-  });
+  let json: Awaited<ReturnType<typeof tokenRequest>>;
+  try {
+    json = await tokenRequest({
+      grant_type: 'refresh_token',
+      refresh_token: auth.refreshToken,
+      client_id: auth.clientId,
+    });
+  } catch (e) {
+    const status = (e as { status?: number }).status;
+    if (status === 400 || status === 401) {
+      if (!signInLost) console.warn('[spotify] Spotify refused the saved sign-in; signing in again is needed', e);
+      signInLost = true;
+      access = null;
+      return null;
+    }
+    throw e;   // offline / Spotify down: not a sign-out
+  }
+  signInLost = false;
   access = { token: json.access_token, expiresAt: Date.now() + (json.expires_in ?? 3600) * 1000 };
   // Spotify may rotate the refresh token; keep the newest one.
   if (json.refresh_token && json.refresh_token !== auth.refreshToken) {
@@ -173,6 +197,7 @@ export async function spotifyConnect(clientIdRaw: string): Promise<SpotifyStatus
     } catch { /* name is cosmetic */ }
     const prev = loadAuth();
     saveAuth({ clientId, refreshToken: json.refresh_token, displayName, scopes: json.scope ?? SCOPES, quietStart: prev?.quietStart });
+    signInLost = false;
     deviceId = null;
     return spotifyStatus();
   } catch (e) {
@@ -191,7 +216,7 @@ const canControl = (auth: StoredAuth | null) => !!auth?.scopes?.split(/\s+/).inc
 export function spotifyStatus(): SpotifyStatus {
   const auth = loadAuth();
   return auth
-    ? { connected: true, displayName: auth.displayName, canControl: canControl(auth), quietStart: !!auth.quietStart }
+    ? { connected: true, displayName: auth.displayName, canControl: canControl(auth), quietStart: !!auth.quietStart, signInLost: signInLost || undefined }
     : { connected: false };
 }
 
@@ -210,22 +235,39 @@ export function spotifyQuietStartReady(): boolean {
 
 // ── Quiet start (Spotify Connect) ────────────────────────────────────
 // Runway only ever starts songs on THIS computer's Spotify app. It finds it
-// by the Mac's name (what Spotify shows in its device list); if the name
-// doesn't match and there's more than one computer, it won't guess, and
-// the caller falls back to starting the song the usual way.
+// by the computer's name (what Spotify shows in its device list); if no
+// name matches it never guesses, and the caller falls back to starting the
+// song the usual way (AppleScript, on this computer).
 
 let deviceId: string | null = null;
-let computerName: string | null = null;
-function thisComputerName(): string {
-  if (computerName !== null) return computerName;
-  try {
-    computerName = process.platform === 'darwin'
-      ? execFileSync('scutil', ['--get', 'ComputerName'], { timeout: 2000 }).toString().trim()
-      : os.hostname();
-  } catch { computerName = os.hostname(); }
-  return computerName;
+let computerNames: string[] | null = null;
+
+/** Names to compare without caring about case, spaces, dashes or apostrophe style. */
+const plainName = (s: string) => s.toLowerCase().replace(/\.local$/, '').replace(/[^a-z0-9]+/g, '');
+
+/** Every name this computer goes by (display name, network name, hostname), plain. */
+function thisComputerNames(): string[] {
+  if (computerNames) return computerNames;
+  const names = new Set<string>();
+  const add = (s: string | undefined) => { const p = plainName(s ?? ''); if (p) names.add(p); };
+  add(os.hostname());
+  if (process.platform === 'darwin') {
+    for (const k of ['ComputerName', 'LocalHostName']) {
+      try { add(execFileSync('scutil', ['--get', k], { timeout: 2000 }).toString().trim()); } catch { /* not set */ }
+    }
+  } else {
+    add(process.env.COMPUTERNAME);
+  }
+  computerNames = [...names];
+  return computerNames;
 }
 
+/**
+ * This computer's Spotify app in the account's device list, matched by
+ * name only. Never guesses: with another computer signed in to the same
+ * account (a church PC, say), a guess could send the song there. No match
+ * means the caller starts the song the usual way, on this computer.
+ */
 async function findThisDevice(): Promise<string | null> {
   const token = await getAccessToken();
   if (!token) return null;
@@ -236,10 +278,14 @@ async function findThisDevice(): Promise<string | null> {
   if (!res.ok) return null;
   const json = await res.json() as { devices?: Array<{ id: string | null; name?: string; type?: string; is_restricted?: boolean }> };
   const computers = (json.devices ?? []).filter(d => d.id && !d.is_restricted && d.type === 'Computer');
-  const name = thisComputerName().toLowerCase();
-  const named = computers.find(d => (d.name ?? '').toLowerCase() === name);
-  if (named) return named.id;
-  return computers.length === 1 ? computers[0].id : null;
+  const mine = thisComputerNames();
+  const named = computers.find(d => mine.includes(plainName(d.name ?? '')));
+  if (!named) {
+    console.warn('[spotify] quiet start: this computer is not in Spotify’s device list by name; starting the usual way', {
+      thisComputer: mine, spotifyComputers: computers.map(d => d.name),
+    });
+  }
+  return named?.id ?? null;
 }
 
 /**
@@ -278,6 +324,38 @@ export function spotifyDisconnect(): SpotifyStatus {
   deviceId = null;
   try { fs.unlinkSync(authFile()); } catch { /* already gone */ }
   return { connected: false };
+}
+
+/**
+ * Is Spotify still signed in? Checks Runway's own sign-in (refreshing it
+ * if due) and, when the Spotify app is open on this computer, whether it
+ * shows up on the account: a logged-out app, or one signed in to a
+ * different account, doesn't. Read-only; never plays or changes anything.
+ */
+export async function spotifyHealth(appRunning: boolean): Promise<SpotifyHealth> {
+  const auth = loadAuth();
+  if (!auth) return { account: 'none' };
+  let token: string | null;
+  try {
+    token = await getAccessToken();
+  } catch {
+    return { account: 'offline' };
+  }
+  if (!token) return { account: signInLost ? 'expired' : 'none' };
+  if (!appRunning || !canControl(auth)) return { account: 'ok' };
+  try {
+    const res = await fetch('https://api.spotify.com/v1/me/player/devices', {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!res.ok) return { account: 'ok' };
+    const json = await res.json() as { devices?: Array<{ name?: string; type?: string }> };
+    const computers = (json.devices ?? []).filter(d => d.type === 'Computer').map(d => d.name ?? '');
+    const mine = thisComputerNames();
+    return { account: 'ok', appOnAccount: computers.some(n => mine.includes(plainName(n))), accountComputers: computers };
+  } catch {
+    return { account: 'ok' };
+  }
 }
 
 /** Accepts a Spotify playlist share link or URI; returns the playlist id. */

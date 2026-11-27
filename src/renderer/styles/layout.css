@@ -149,3 +149,34 @@
   overflow: hidden;
   display: flex;
 }
+
+/* Spotify needs attention (components/SpotifyAlertBanner.tsx) */
+.spotify-alert {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 20px;
+  background: rgba(244, 63, 94, 0.14);
+  border-bottom: 1px solid rgba(244, 63, 94, 0.45);
+  color: var(--text);
+  font-size: 14px;
+  flex-shrink: 0;
+}
+.spotify-alert-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--red-bright);
+  box-shadow: 0 0 8px var(--red);
+  flex-shrink: 0;
+}
+.spotify-alert-text { flex: 1; min-width: 0; }
+.spotify-alert-close {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 4px 6px;
+}
+.spotify-alert-close:hover { color: var(--text); }

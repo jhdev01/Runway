@@ -18,6 +18,7 @@ import './styles/settings.css';
 import './styles/editor.css';
 import './styles/library.css';
 import './styles/actions.css';
+import { SpotifyAlertBanner } from './components/SpotifyAlertBanner';
 
 // Detect ?mock=1 — when true, the store gets pre-populated with mock
 // state and the engine providers run in a no-op mode. Use this URL
@@ -76,6 +77,7 @@ export function App() {
     <EnginesProvider>
       <div className="app">
         <TopBar />
+        <SpotifyAlertBanner />
         <div className="view-container">
           {view === 'live' && <LiveView />}
           {view === 'playlists' && <PlaylistsView />}

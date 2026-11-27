@@ -172,6 +172,7 @@ export function installMockState(): void {
         spotify: {
           lastPlaylist: playlist,
           lastPlaylistLink: 'spotify:playlist:mockpl',
+          clientId: st.config.spotify?.clientId ?? 'mock',
           playlistCache: { mockpl: playlist },
           trackEdits: {
             'spotify:track:s1': { key: 'G' },

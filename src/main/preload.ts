@@ -50,6 +50,7 @@ const IPC = {
   SPOTIFY_TIMING_TEST: 'spotify:timingTest',
   SPOTIFY_CONNECT: 'spotify:connect',
   SPOTIFY_STATUS: 'spotify:status',
+  SPOTIFY_HEALTH: 'spotify:health',
   SPOTIFY_DISCONNECT: 'spotify:disconnect',
   SPOTIFY_PLAYLIST_READ: 'spotify:playlistRead',
   SPOTIFY_PLAYER: 'spotify:player',
@@ -147,6 +148,7 @@ contextBridge.exposeInMainWorld('runway', {
   spotify: {
     connect: (clientId: string) => ipcRenderer.invoke(IPC.SPOTIFY_CONNECT, clientId),
     status: () => ipcRenderer.invoke(IPC.SPOTIFY_STATUS),
+    health: (appRunning: boolean) => ipcRenderer.invoke(IPC.SPOTIFY_HEALTH, appRunning),
     disconnect: () => ipcRenderer.invoke(IPC.SPOTIFY_DISCONNECT),
     readPlaylist: (link: string) => ipcRenderer.invoke(IPC.SPOTIFY_PLAYLIST_READ, link),
     player: (cmd: unknown) => ipcRenderer.invoke(IPC.SPOTIFY_PLAYER, cmd),

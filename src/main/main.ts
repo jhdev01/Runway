@@ -14,7 +14,7 @@ import { stopFastSpotifyVolume } from './spotifyVolume';
 import { openStoreLink, findPurchases, appleStoreLookup } from './purchases';
 import { spotifyWaveformEnable, spotifyWaveformStatus, spotifyWaveformGet, spotifyWaveformCoverage, spotifyWaveformKeys, spotifyWaveformShutdown } from './spotifyWaveform';
 import type { SpotifyPlayerCommand } from '../shared/types';
-import { spotifyConnect, spotifyStatus, spotifyDisconnect, spotifyReadPlaylist, spotifyListPlaylists, spotifyFetchArt } from './spotifyAccount';
+import { spotifyConnect, spotifyHealth, spotifyStatus, spotifyDisconnect, spotifyReadPlaylist, spotifyListPlaylists, spotifyFetchArt } from './spotifyAccount';
 import { RemoteServer, listLanUrls, listNetworkInterfaces, type RemoteSnapshot } from './remoteServer';
 import { multitracksLookup } from './multitracksLookup';
 
@@ -962,6 +962,7 @@ function registerIpcHandlers() {
   // Experimental Spotify account link + read-only playlist reader.
   ipcMain.handle(IPC.SPOTIFY_CONNECT, async (_e, clientId: string) => spotifyConnect(String(clientId ?? '')));
   ipcMain.handle(IPC.SPOTIFY_STATUS, async () => spotifyStatus());
+  ipcMain.handle(IPC.SPOTIFY_HEALTH, async (_e, appRunning: unknown) => spotifyHealth(appRunning === true));
   ipcMain.handle(IPC.SPOTIFY_DISCONNECT, async () => spotifyDisconnect());
   ipcMain.handle(IPC.SPOTIFY_PLAYLIST_READ, async (_e, link: string) => spotifyReadPlaylist(String(link ?? '')));
 

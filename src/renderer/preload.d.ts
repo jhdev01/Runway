@@ -87,6 +87,7 @@ declare global {
       spotify: {
         connect: (clientId: string) => Promise<SpotifyStatus>;
         status: () => Promise<SpotifyStatus>;
+        health: (appRunning: boolean) => Promise<import('@shared/types').SpotifyHealth>;
         disconnect: () => Promise<SpotifyStatus>;
         readPlaylist: (link: string) => Promise<SpotifyPlaylistResult>;
         player: (cmd: SpotifyPlayerCommand) => Promise<SpotifyPlayerReply>;
