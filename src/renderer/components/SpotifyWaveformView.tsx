@@ -8,7 +8,7 @@ import { effectiveGuess } from '../lib/keyLearning';
 import { fadeShape, FADE_STEP_MS } from '../lib/spotifyTestRun';
 import { NoteMapStrip, ZeroCountdown } from './KeyAnalysis';
 import { InfoTip } from './InfoTip';
-import { EditSuggestions, SuggestionMarkers } from './EditSuggestions';
+import { BeatSummary, EditSuggestions, SuggestionMarkers } from './EditSuggestions';
 import { addApplied, stillApplied, suggestEdits, type EditSuggestion } from '../lib/landLearning';
 
 const HEIGHT = 150;
@@ -101,7 +101,7 @@ export function SpotifyWaveformView({ track, edit, onChange, full = false, showN
   const landLearnedAt = useAppStore(st => st.config.landLearning?.at);
   const suggestion = useMemo(() => {
     if (!wave) return null;
-    const sg = suggestEdits({ binSec: wave.binSec, peaks: wave.peaks }, dur, {
+    const sg = suggestEdits({ binSec: wave.binSec, peaks: wave.peaks, beats: wave.beats }, dur, {
       startSec: d.start > 0.05 ? d.start : undefined,
       endSec: d.end < dur - 0.05 ? d.end : undefined,
       landSec: d.land ?? undefined,
@@ -506,6 +506,7 @@ export function SpotifyWaveformView({ track, edit, onChange, full = false, showN
           </button>
         </div>
       )}
+      {full && <BeatSummary beats={wave?.beats} />}
       {suggestion && full && (
         <EditSuggestions
           s={suggestion}

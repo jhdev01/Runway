@@ -1177,6 +1177,8 @@ export interface SpotifyKeyMiss {
 export interface SpotifyWaveform {
   key?: SpotifyKeyGuess;
   keyMiss?: SpotifyKeyMiss;
+  /** Tempo, beats and the ringing last note, from the ending Runway heard. */
+  beats?: import('./beats').BeatInfo;
   binSec: number;          // seconds per column
   durationSec: number;
   peaks: number[];         // 0…1 per column; -1 = that part hasn't been heard yet

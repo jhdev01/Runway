@@ -12,18 +12,52 @@ import {
   type Envelope, type LandExample, type LandParams,
 } from '@shared/landLearn';
 import { decodeMono, DECODE_RATE } from './keyAnalysis';
+import { analyzeBeats, type BeatInfo } from '@shared/beats';
 
-// ── Envelopes (cached for the session) ───────────────────────────────
+// ── Envelopes + beats (cached for the session) ───────────────────────
 const envCache = new Map<string, Envelope>();
+const beatCache = new Map<string, BeatInfo | null>();
 
-/** A Library file's loudness envelope (decodes the file once per session). */
+/** A Library file's loudness envelope (decodes the file once per session; beats are worked out too). */
 export async function trackEnvelope(trackId: string, filePath: string): Promise<Envelope> {
   const key = `track:${trackId}:${filePath}`;
   const hit = envCache.get(key);
   if (hit) return hit;
-  const env = envelopeFromSamples(await decodeMono(filePath), DECODE_RATE);
+  const mono = await decodeMono(filePath);
+  const beats = endBeats(mono, DECODE_RATE);
+  const env: Envelope = { ...envelopeFromSamples(mono, DECODE_RATE), beats: beats ?? undefined };
   envCache.set(key, env);
+  beatCache.set(key, beats);
   return env;
+}
+
+/** A Library file's tempo / beats / end note (after trackEnvelope has run). */
+export function trackBeats(trackId: string, filePath: string): BeatInfo | null {
+  return beatCache.get(`track:${trackId}:${filePath}`) ?? null;
+}
+
+/** Beats over the last 90 s (where 0:00 lives) plus the tempo, from mono samples. */
+function endBeats(mono: Float32Array, rate: number): BeatInfo | null {
+  const from = Math.max(0, mono.length - 90 * rate);
+  try { return analyzeBeats(mono.subarray(from), rate, from / rate); } catch { return null; }
+}
+
+/** Tempo / beats / end note from an already-decoded buffer (the editor has one). */
+export function bufferBeats(buf: AudioBuffer): BeatInfo | null {
+  // Mix to mono and drop to ~11 kHz (plenty for beats and notes).
+  const step = Math.max(1, Math.round(buf.sampleRate / 11025));
+  const rate = buf.sampleRate / step;
+  const n = Math.floor(buf.length / step);
+  const mono = new Float32Array(n);
+  for (let c = 0; c < buf.numberOfChannels; c++) {
+    const d = buf.getChannelData(c);
+    for (let i = 0; i < n; i++) {
+      let s = 0;
+      for (let k = 0; k < step; k++) s += d[i * step + k];
+      mono[i] += s / step / buf.numberOfChannels;
+    }
+  }
+  return endBeats(mono, rate);
 }
 
 /** A Library file's envelope straight from an already-decoded buffer (the editor has one). */
@@ -40,7 +74,7 @@ export function bufferEnvelope(buf: AudioBuffer): Envelope {
 /** A Spotify song's envelope from its scanned waveform, or null when it has none. */
 export async function spotifyEnvelope(uri: string): Promise<Envelope | null> {
   const w = await window.runway.spotify.waveform(uri).catch(() => null);
-  return w ? { binSec: w.binSec, peaks: w.peaks } : null;
+  return w ? { binSec: w.binSec, peaks: w.peaks, beats: w.beats } : null;
 }
 
 // ── Suggestions ──────────────────────────────────────────────────────

@@ -2,6 +2,7 @@ import React from 'react';
 import type { EditSuggestion } from '../lib/landLearning';
 import { landAccuracyNote } from '../lib/landLearning';
 import { InfoTip } from './InfoTip';
+import type { BeatInfo } from '@shared/beats';
 
 const fmt = (s: number) => {
   const m = Math.floor(s / 60);
@@ -80,5 +81,24 @@ export function SuggestionMarkers({ s, secToPct, onUse }: {
         );
       })}
     </>
+  );
+}
+
+/** "≈ 72 BPM · Ends on D (D chord)" from the song's beat analysis. */
+export function BeatSummary({ beats }: { beats?: BeatInfo | null }) {
+  if (!beats) return null;
+  const sure = beats.confidence >= 0.35;
+  return (
+    <span className="beat-summary">
+      <span title={sure ? 'Tempo heard near the end of the song' : 'Tempo is a rough guess: the beat isn’t very clear'}>
+        {sure ? '' : '~'}{beats.bpm} BPM
+      </span>
+      {beats.endNote && (
+        <span title={`What rings out after the last hit (at ${fmt(beats.endNote.sec)}). Often the key to bring the pad in on.`}>
+          · Ends on {beats.endNote.chord ? `${beats.endNote.chord} chord` : beats.endNote.note}
+        </span>
+      )}
+      <InfoTip>Runway listens to the end of the song for its tempo, its beats and the note that rings out last. The suggested 0:00 can snap to the last beat or hit before the fade; which one is learned from where you place 0:00 yourself.</InfoTip>
+    </span>
   );
 }

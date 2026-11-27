@@ -396,3 +396,12 @@
   font-weight: 600;
   font-size: 11px;
 }
+
+.beat-summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: var(--text-dim);
+}

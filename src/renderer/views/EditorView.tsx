@@ -11,8 +11,8 @@ import { analyzeTrackNotes } from '../lib/keyAnalysis';
 import { profileOf } from '@shared/keyLearn';
 import type { KeyDetectResult } from '@shared/keyDetect';
 import { InfoTip } from '../components/InfoTip';
-import { EditSuggestions, SuggestionMarkers } from '../components/EditSuggestions';
-import { addApplied, bufferEnvelope, removeTrackSuggestions, stillApplied, suggestEdits, type EditSuggestion } from '../lib/landLearning';
+import { BeatSummary, EditSuggestions, SuggestionMarkers } from '../components/EditSuggestions';
+import { addApplied, bufferBeats, bufferEnvelope, removeTrackSuggestions, stillApplied, suggestEdits, type EditSuggestion } from '../lib/landLearning';
 
 /**
  * Non-destructive audio editor — pick a track, set trim points and fades,
@@ -137,7 +137,8 @@ export function EditorView() {
   const [usedSugg, setUsedSugg] = useState<{ startSec?: number; endSec?: number; landSec?: number }>({});
   // Silence trims and a learned 0:00 for values not set yet (suggestions only).
   const landLearnedAt = useAppStore(st => st.config.landLearning?.at);
-  const bufferEnv = useMemo(() => (buffer ? bufferEnvelope(buffer) : null), [buffer]);
+  const bufferBeatInfo = useMemo(() => (buffer ? bufferBeats(buffer) : null), [buffer]);
+  const bufferEnv = useMemo(() => (buffer ? { ...bufferEnvelope(buffer), beats: bufferBeatInfo ?? undefined } : null), [buffer, bufferBeatInfo]);
   useEffect(() => { setSuggestUsed(false); setUsedSugg({}); }, [trackId]);
   const suggestion = useMemo(() => {
     if (!bufferEnv || !buffer) return null;
@@ -796,6 +797,7 @@ export function EditorView() {
               </button>
             </div>
           )}
+          <BeatSummary beats={bufferBeatInfo} />
           {suggestion && (
             <EditSuggestions
               s={suggestion}

@@ -16,10 +16,14 @@
  * applied when the operator clicks them.
  */
 
+import { nearestWithin, type BeatInfo } from './beats';
+
 export interface Envelope {
   binSec: number;
   /** Peak level per bin, 0…1; -1 where the song wasn't heard. */
   peaks: number[];
+  /** Beats and note starts near the end, when known (lets 0:00 snap to them). */
+  beats?: BeatInfo;
 }
 
 export interface LandParams {
@@ -31,9 +35,14 @@ export interface LandParams {
   mode: 'edge' | 'peak';
   /** Seconds added to the found point (learned: where the operator puts it relative to it). */
   offsetSec: number;
+  /** Then move to the nearest beat / note start within a second, when known. */
+  snap?: 'none' | 'beat' | 'onset';
 }
 
-export const DEFAULT_LAND_PARAMS: LandParams = { smoothSec: 0.5, level: 0.55, mode: 'peak', offsetSec: 0 };
+export const DEFAULT_LAND_PARAMS: LandParams = { smoothSec: 0.5, level: 0.55, mode: 'peak', offsetSec: 0, snap: 'onset' };
+
+/** How far a snap may move the guess. */
+const SNAP_SEC = 1.0;
 
 /** Near-digital silence (about -50 dBFS). */
 const SILENCE = 0.003;
@@ -128,8 +137,15 @@ export function predictLand(env: Envelope, endSec: number, p: LandParams): numbe
     for (let i = k; i >= lo; i--) if (peaks[i] > peaks[best]) best = i;
     k = best;
   }
-  const t = (k + 0.5) * binSec + p.offsetSec;
-  return Math.max(0, Math.min(endSec, Math.round(t * 10) / 10));
+  let t = (k + 0.5) * binSec + p.offsetSec;
+  const b = env.beats;
+  if (b && p.snap && p.snap !== 'none') {
+    // Onsets: the strong ones only (last big hits, not small ripples).
+    const times = p.snap === 'beat' ? b.beats : b.onsets.filter(o => o.s >= 0.4).map(o => o.t);
+    const near = nearestWithin(times, t, SNAP_SEC);
+    if (near !== null) t = near;
+  }
+  return Math.max(0, Math.min(endSec, Math.round(t * 100) / 100));
 }
 
 export interface LandExample { env: Envelope; endSec: number; landSec: number }
@@ -151,7 +167,9 @@ const GRID: Omit<LandParams, 'offsetSec'>[] = (() => {
   const out: Omit<LandParams, 'offsetSec'>[] = [];
   for (const smoothSec of [0.2, 0.5, 1, 2]) {
     for (let lv = 0.2; lv <= 0.91; lv += 0.05) {
-      for (const mode of ['edge', 'peak'] as const) out.push({ smoothSec, level: Math.round(lv * 100) / 100, mode });
+      for (const mode of ['edge', 'peak'] as const) {
+        for (const snap of ['none', 'beat', 'onset'] as const) out.push({ smoothSec, level: Math.round(lv * 100) / 100, mode, snap });
+      }
     }
   }
   return out;
@@ -169,16 +187,23 @@ function fit(train: LandExample[]): LandParams {
   let best: { p: LandParams; cost: number } | null = null;
   for (const g of GRID) {
     const res: number[] = [];
+    // Offset first (without snapping), then score with the snap applied.
     for (const ex of train) {
-      const t = predictLand(ex.env, ex.endSec, { ...g, offsetSec: 0 });
+      const t = predictLand(ex.env, ex.endSec, { ...g, snap: 'none', offsetSec: 0 });
       if (t !== null) res.push(ex.landSec - t);
     }
     if (res.length < Math.max(2, train.length * 0.6)) continue;
-    const off = median(res);
-    // Cost: capped misses (a wild miss counts as 5 s), unanswered songs as 5 s.
-    const misses = res.map(r => Math.min(5, Math.abs(r - off)));
-    const cost = (misses.reduce((a, b) => a + b, 0) + (train.length - res.length) * 5) / train.length;
-    if (!best || cost < best.cost) best = { p: { ...g, offsetSec: Math.round(off * 10) / 10 }, cost };
+    const off = Math.round(median(res) * 10) / 10;
+    const p: LandParams = { ...g, offsetSec: off };
+    let total = 0, answered = 0;
+    for (const ex of train) {
+      const t = predictLand(ex.env, ex.endSec, p);
+      if (t === null) continue;
+      answered++;
+      total += Math.min(5, Math.abs(ex.landSec - t));   // a wild miss counts as 5 s
+    }
+    const cost = (total + (train.length - answered) * 5) / train.length;
+    if (!best || cost < best.cost) best = { p, cost };
   }
   return best?.p ?? DEFAULT_LAND_PARAMS;
 }
