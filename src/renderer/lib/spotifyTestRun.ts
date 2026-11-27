@@ -245,6 +245,25 @@ export class SpotifyTestRunner {
    * Replaces the songs after the one playing now (Shuffle remaining). The
    * playing song is untouched; returns false when nothing is running.
    */
+  /**
+   * Skip / jump: fade the song that's playing out quickly and continue with
+   * `rest` (the new plan from now on; its first song should start now).
+   */
+  cutTo(rest: SpotifyRunSegment[]): boolean {
+    if (!this.isActive() || rest.length === 0) return false;
+    const idx = Math.max(0, this.state.currentIndex);
+    this.plan = [...this.plan.slice(0, idx + 1), ...rest];
+    this.cutRequested = true;
+    this.set({ segments: this.plan, endAt: rest[rest.length - 1].endAt });
+    return true;
+  }
+  private cutRequested = false;
+
+  /** The plan from the song playing now onwards (for re-planning a skip). */
+  upcoming(): { current: number; plan: SpotifyRunSegment[] } {
+    return { current: Math.max(0, this.state.currentIndex), plan: this.plan.slice() };
+  }
+
   replaceUpcoming(rest: SpotifyRunSegment[]): boolean {
     if (!this.isActive() || rest.length === 0) return false;
     const idx = Math.max(0, this.state.currentIndex);
@@ -540,8 +559,16 @@ export class SpotifyTestRunner {
       // Landing song only: a steady big miss gets fixed (see below).
       let bigOffs: number[] = [];
       let landingFixes = 0;
+      this.cutRequested = false;
       while (Date.now() < stopAt) {
         if (!live()) return;
+        if (this.cutRequested) {
+          // Skip / jump: quick fade, then on to the next song in the new plan.
+          this.cutRequested = false;
+          await glideSpotifyVolume(v => this.cmd({ op: 'volume', volume: v }), Math.max(0, sentVolume), 0, 0.6);
+          sentVolume = 0;
+          break;
+        }
         const loopStart = Date.now();
 
         if (opts.padFilePath && !this.state.padPlaying && loopStart >= padAt) {

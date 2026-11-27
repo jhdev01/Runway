@@ -249,11 +249,11 @@ export class ServiceController {
    * Test affordance: skip the current track and start the next one immediately.
    * If we're on the last track, jump straight into the pad bridge.
    */
-  skipToNextTrack() {
+  skipToNextTrack(keepLanding = false) {
     const state = this.store.getState();
     const runway = state.currentRunway;
     if (!runway || runway.phase !== 'music') return;
-    if (runway.spotify) { this.stopSpotify(); void this.beginPad(); return; }
+    if (runway.spotify) { this.spotifySkipOrJump(null, !!keepLanding); return; }
     const isLast = runway.currentTrackIndex >= runway.trackIds.length - 1;
     if (isLast) {
       void this.beginPad();
@@ -1798,8 +1798,8 @@ export class ServiceController {
         return;
       case 'music_action':
         if (p.op === 'start_early') void this.startMusicEarly();
-        else if (p.op === 'skip_to_next') this.skipToNextTrack();
-        else if (p.op === 'jump_to_track' && p.trackId) this.jumpToTrack(p.trackId);
+        else if (p.op === 'skip_to_next') this.skipToNextTrack(!!p.keepLanding);
+        else if (p.op === 'jump_to_track' && p.trackId) this.jumpToTrack(p.trackId, !!p.keepLanding);
         log(`music ${p.op}`);
         return;
       case 'change_setlist':
@@ -2245,13 +2245,108 @@ export class ServiceController {
     this.notifyActionError = fn;
   }
 
-  private jumpToTrack(trackId: string): void {
+  private jumpToTrack(trackId: string, keepLanding = false): void {
     const state = this.store.getState();
     const runway = state.currentRunway;
     if (!runway || runway.phase !== 'music') return;
+    if (runway.spotify) { this.spotifySkipOrJump(trackId, keepLanding); return; }
     const idx = runway.trackIds.indexOf(trackId);
     if (idx < 0) return;
     void this.clickTimeline(idx, 0);
+  }
+
+  /**
+   * Skip to the next song (target = null) or jump to a song on a Spotify
+   * runway, the way the same action works on a Runway playlist.
+   *  - keepLanding false (as Runway playlists do): the chosen song starts
+   *    now and everything after it moves earlier; the music ends before
+   *    0:00 and the pad takes over then.
+   *  - keepLanding true: the chosen song starts now and plays whole, then
+   *    the rest is re-planned (remaining planned songs, plus unused songs
+   *    from the same playlist if more time needs filling) so the last song
+   *    still lands exactly on 0:00.
+   * On the last song a skip goes to the pad, as on a Runway playlist.
+   */
+  private spotifySkipOrJump(target: string | null, keepLanding: boolean): void {
+    const state = this.store.getState();
+    const runway = state.currentRunway;
+    if (!runway?.spotify || !spotifyServiceRun.isActive()) return;
+    const { current, plan } = spotifyServiceRun.upcoming();
+    const now = Date.now();
+    const cur = plan[current];
+    const lastIdx = plan.length - 1;
+    let chosenIdx = target === null ? current + 1 : plan.findIndex((s, i) => i > current && s.uri === target);
+    if (target === null && current >= lastIdx) {
+      console.log('[spotify] skip on the last song: to the pad');
+      this.stopSpotify();
+      void this.beginPad();
+      return;
+    }
+    const edits = state.config.spotify?.trackEdits ?? {};
+    const cached = state.config.spotify?.playlistCache?.[runway.spotify.playlistId];
+    const trackOf = (uri: string) => cached?.tracks?.find(t => t.uri === uri);
+    const chosenUri = chosenIdx >= 0 ? plan[chosenIdx].uri : target;
+    const chosenTrack = chosenUri ? trackOf(chosenUri) ?? (chosenIdx >= 0 ? {
+      uri: plan[chosenIdx].uri, title: plan[chosenIdx].title, artist: plan[chosenIdx].artist,
+      durationMs: plan[chosenIdx].songDurSec * 1000, albumArtUrl: plan[chosenIdx].albumArtUrl,
+    } : undefined) : undefined;
+    if (!chosenTrack) {
+      console.warn('[spotify] jump: song not in this runway’s playlist', { target });
+      this.notifyActionError?.('Jump to song: that song isn’t in this Spotify runway’s playlist.');
+      return;
+    }
+    const startAt = now + 800;   // a moment for the quick fade of the current song
+    const lastFade = runway.spotify.lastFadeSec;
+    let rest: typeof plan;
+    if (!keepLanding) {
+      // Everything from the chosen song on moves earlier, as on a Runway playlist.
+      const from = chosenIdx >= 0 ? chosenIdx : -1;
+      if (from >= 0) {
+        const delta = plan[from].startAt - startAt;
+        rest = plan.slice(from).map(s => ({ ...s, startAt: s.startAt - delta, endAt: s.endAt - delta, stopAt: s.stopAt - delta }));
+      } else {
+        rest = planSpotifyRun([chosenTrack], null, startAt + (songBounds(chosenTrack.durationMs / 1000, edits[chosenTrack.uri]).end
+          - songBounds(chosenTrack.durationMs / 1000, edits[chosenTrack.uri]).start) * 1000, edits, lastFade);
+      }
+    } else {
+      // The chosen song plays whole; the rest is re-planned to land on 0:00.
+      const b = songBounds(chosenTrack.durationMs / 1000, edits[chosenTrack.uri]);
+      const isAnchor = chosenIdx === lastIdx;
+      if (isAnchor || runway.targetMs - startAt <= (b.land - b.start) * 1000) {
+        // Jumped to the landing song (or it's all the time left): it lands on 0:00.
+        rest = planSpotifyRun([chosenTrack], (runway.targetMs - startAt) / 1000, runway.targetMs, edits, lastFade);
+      } else {
+        const chosenEnd = startAt + (b.end - b.start) * 1000;
+        const used = new Set([...plan.slice(0, current + 1).map(s => s.uri), chosenTrack.uri]);
+        const after = plan.slice(chosenIdx >= 0 ? chosenIdx + 1 : current + 1)
+          .map(s => trackOf(s.uri) ?? { uri: s.uri, title: s.title, artist: s.artist, durationMs: s.songDurSec * 1000, albumArtUrl: s.albumArtUrl })
+          .filter(t => t.uri !== chosenTrack.uri);
+        after.forEach(t => used.add(t.uri));
+        // More time to fill than the planned songs cover: unused songs from
+        // the same playlist go in front (the landing song stays last).
+        const spare = (cached?.tracks ?? []).filter(t => !used.has(t.uri));
+        const pool = [...spare, ...after];
+        const fill = planSpotifyRun(pool, (runway.targetMs - chosenEnd) / 1000, runway.targetMs, edits, lastFade);
+        // Single-song plan of the chosen song (planned as a non-last song: plays to its End).
+        const e = edits[chosenTrack.uri];
+        const firstSeg = {
+          uri: chosenTrack.uri, title: chosenTrack.title, artist: chosenTrack.artist, songDurSec: chosenTrack.durationMs / 1000,
+          startPosSec: b.start, endPosSec: b.end, startAt, endAt: chosenEnd, stopAt: chosenEnd,
+          fadeInSec: e?.fadeInSec, fadeOutSec: e?.fadeOutSec, trimmedEnd: b.end < chosenTrack.durationMs / 1000 - 0.05,
+          albumArtUrl: chosenTrack.albumArtUrl, key: e?.key,
+        };
+        rest = [firstSeg, ...fill];
+        const gap = fill.length ? fill[0].startAt - chosenEnd : runway.targetMs - chosenEnd;
+        if (gap > 2000) console.warn('[spotify] re-plan leaves a gap (not enough songs to fill)', { gapMs: Math.round(gap) });
+      }
+    }
+    console.log('[spotify] skip/jump', {
+      from: cur?.title, to: chosenTrack.title, keepLanding,
+      landsAt: rest.length ? new Date(rest[rest.length - 1].endAt).toLocaleTimeString() : null,
+      msBeforeServiceStart: rest.length ? Math.round(runway.targetMs - rest[rest.length - 1].endAt) : null,
+    });
+    state.patchCurrentRunway({ spotify: { ...runway.spotify, segments: [...plan.slice(0, current + 1), ...rest] } });
+    spotifyServiceRun.cutTo(rest);
   }
 
   /** Hands a Spotify runway's planned songs to the Spotify runner. */
@@ -2294,6 +2389,14 @@ export class ServiceController {
       if (st.status === 'landed' || st.status === 'error') {
         console.log(`[spotify] runway ${st.status}`, { message: st.message, landingErrorMs: st.landingErrorMs });
         unsub();
+        // Music ran out before 0:00 (a skip that moved everything earlier):
+        // the pad takes over now, as on a Runway playlist.
+        const r = this.store.getState().currentRunway;
+        if (st.status === 'landed' && this.spotifyEpoch === epoch && r?.spotify && !r.isPostService
+          && r.phase === 'music' && r.targetMs - Date.now() > 3000) {
+          console.log('[spotify] music ended before 0:00: pad takes over', { msEarly: r.targetMs - Date.now() });
+          void this.beginPad();
+        }
         if (st.status === 'error') void this.restartSpotifyRunner(targetMs, sp, playlistId, restart + 1, epoch);
       }
     });
@@ -2351,7 +2454,9 @@ export class ServiceController {
       void this.restartSpotifyRunner(targetMs, sp, playlistId, restart + 1, epoch);
       return;
     }
-    this.startSpotifyRunner(targetMs, sp, playlistId, restart);
+    // The plan as it is now (a skip / jump may have re-planned it).
+    const fresh = this.store.getState().currentRunway?.spotify ?? sp;
+    this.startSpotifyRunner(targetMs, fresh, playlistId, restart);
   }
 
   private stopSpotify(): void {

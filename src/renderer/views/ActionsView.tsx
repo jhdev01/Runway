@@ -547,6 +547,8 @@ function PayloadEditor({
   const ppPlaylists = useAppStore(s => s.ppPlaylists);
   const midiDevices = useAppStore(s => s.config.midiDevices);
   const appPlaylists = useAppStore(s => s.config.playlists);
+  const allTracks = useAppStore(s => s.config.tracks);
+  const spotifyCache = useAppStore(s => s.config.spotify?.playlistCache);
   const outputPorts = useMemo(
     () => midiDevices.filter(d => d.outputEnabled).map(d => d.name),
     [midiDevices],
@@ -762,12 +764,38 @@ function PayloadEditor({
             <option value="jump_to_track">Jump to specific track</option>
           </select>
           {payload.op === 'jump_to_track' && (
-            <input
-              className="action-id-input"
-              placeholder="Track ID"
+            <select
               value={payload.trackId ?? ''}
               onChange={e => onChange({ ...payload, trackId: e.target.value || undefined })}
-            />
+              title="Song to jump to. Runway playlists' songs, and songs from your imported Spotify playlists (for Spotify runways)."
+            >
+              <option value="">— song —</option>
+              {appPlaylists.map(pl => (
+                <optgroup key={pl.id} label={pl.name}>
+                  {pl.trackIds.map(id => {
+                    const t = allTracks.find(x => x.id === id);
+                    return t ? <option key={`${pl.id}-${id}`} value={id}>{t.title}{t.artist ? ` · ${t.artist}` : ''}</option> : null;
+                  })}
+                </optgroup>
+              ))}
+              {importedSpotifyPlaylists().map(pl => (
+                <optgroup key={`sp-${pl.id}`} label={`${pl.name} (Spotify)`}>
+                  {(spotifyCache?.[pl.id]?.tracks ?? []).map((t, i) => (
+                    <option key={`${pl.id}-${t.uri}-${i}`} value={t.uri}>{t.title}{t.artist ? ` · ${t.artist}` : ''}</option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
+          )}
+          {(payload.op === 'skip_to_next' || payload.op === 'jump_to_track') && (
+            <label className="action-toggle-field" title="On: the rest of the runway is re-planned so the last song still lands exactly on 0:00. Off: everything after moves earlier and the music ends before 0:00 (the pad covers the rest). Re-planning works on Spotify playlists now; regular playlists keep moving earlier until that's added.">
+              <input
+                type="checkbox"
+                checked={!!payload.keepLanding}
+                onChange={e => onChange({ ...payload, keepLanding: e.target.checked || undefined })}
+              />
+              Still land on 0:00
+            </label>
           )}
         </div>
       );

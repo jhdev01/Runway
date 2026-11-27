@@ -275,7 +275,10 @@ export type ActionPayload =
   | {
       type: 'music_action';
       op: 'start_early' | 'skip_to_next' | 'jump_to_track';
-      trackId?: string;       // required for jump_to_track
+      trackId?: string;       // required for jump_to_track (a Runway track id, or spotify:track:… for Spotify runways)
+      // Skip / jump: true = re-plan the rest so the last song still lands on
+      // 0:00; false (default, as before) = everything after moves earlier.
+      keepLanding?: boolean;
     }
   // Swap the currently-playing playlist for a different one. Use case:
   // "prayer set plays for 10 min, then transition to the standard
