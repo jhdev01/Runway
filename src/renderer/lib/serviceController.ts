@@ -780,6 +780,17 @@ export class ServiceController {
       if (cur?.armEpoch === epoch && cur.isPostService) {
         if (st.status === 'landed') console.log('[spotify] post-service finished', { playlist: name });
         this.spotifyEpoch = null;
+        // An "Arm playlist" / "Change playlist" action set for the end of
+        // this playlist takes over the runway itself (as with a Runway
+        // post-service): leave it in place a few seconds so it can fire.
+        if (st.status === 'landed' && this.isPostServiceActionImminent(this.store.getState(), cur, Date.now(), 3)) {
+          console.log('[spotify] post-service finished; an action takes over');
+          window.setTimeout(() => {
+            const again = this.store.getState().currentRunway;
+            if (again?.armEpoch === epoch) this.store.getState().setCurrentRunway(null);
+          }, 8000);
+          return;
+        }
         this.store.getState().setCurrentRunway(null);
       }
     });
@@ -1987,11 +1998,28 @@ export class ServiceController {
     if (this.audio && state.currentRunway) {
       this.audio.fadeOutMusic(fade);
     }
+    // Spotify music playing now (a Spotify post-service, or a Spotify
+    // runway): fade it out and let it finish pausing BEFORE the next
+    // runway arms. Otherwise the new Spotify runway can't start (Spotify is
+    // still busy with the old one) and its pause would stop the new song.
+    const spotifyStops: Promise<void>[] = [];
+    if (spotifyServiceRun.isActive()) {
+      this.spotifyEpoch = null;
+      spotifyStops.push(spotifyServiceRun.stop(fade));
+    }
+    if (spotifyFreePlay.isActive()) {
+      this.spotifyPostEpoch = null;
+      spotifyStops.push(spotifyFreePlay.stop(fade));
+    }
     // Clear any queued runway synchronously so armService doesn't see
     // a stale "already armed" state. Also clear post-service so the
     // tick doesn't try to advance it after we install the new runway.
     if (state.currentRunway) {
       state.setCurrentRunway(null);
+    }
+    if (spotifyStops.length) {
+      console.log('[arm_playlist] waiting for Spotify to fade out', { fadeSec: fade });
+      await Promise.all(spotifyStops).catch(() => undefined);
     }
     try {
       // fillWithMusic = "fill the window with music starting now."
@@ -2483,6 +2511,8 @@ export class ServiceController {
     const stops: Promise<void>[] = [];
     if (spotifyTestRun.isActive()) stops.push(spotifyTestRun.stop());
     if (spotifyFreePlay.isActive()) stops.push(spotifyFreePlay.stop(1.5));
+    // A previous Spotify run (post-service) still going or fading out.
+    if (spotifyServiceRun.isActive()) stops.push(spotifyServiceRun.stop(1.5));
     const playlistId = sp.playlistId;
     const epoch = this.spotifyEpoch;
     void Promise.all(stops).then(() => {
