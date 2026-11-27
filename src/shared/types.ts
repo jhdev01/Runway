@@ -1220,7 +1220,8 @@ export interface SpotifyTrackEdit {
 /** One command to the Spotify desktop app (macOS, experimental). */
 export type SpotifyPlayerCommand =
   | { op: 'check' }
-  | { op: 'play'; uri: string; contextUri?: string }
+  | { op: 'play'; uri: string; contextUri?: string; /** start the usual way, not through Spotify Connect */ noQuiet?: boolean }
+  | { op: 'stateWithLength' }
   | { op: 'background' }
   | { op: 'nowPlaying' }
   | { op: 'seek'; positionSec: number }
@@ -1257,6 +1258,7 @@ export interface SpotifyPlayerReply {
   /** 'nowPlaying' only: details of the current song. */
   title?: string;
   artist?: string;
+  /** 'nowPlaying' / 'stateWithLength': the current song's length. */
   durationSec?: number;
   artworkUrl?: string;
 }

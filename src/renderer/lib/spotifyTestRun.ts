@@ -27,6 +27,7 @@ const PREROLL_MS = 4000;          // gap between pressing Start and the first so
 const LOAD_LEAD_MS = 700;         // start each song this early, silent
 const LOAD_TIMEOUT_MS = 5000;
 const RESTART_MAX_SEC = 5;        // "loaded" = playing near the top of the song
+const START_ATTEMPTS = 3;         // a song that won't start: try this many times, then skip it
 const SEEK_AIM_AHEAD_SEC = 0.1;   // starting aim: jumps landed ~0.07–0.13 s late in testing
 const AIM_MIN_SEC = 0;
 const AIM_MAX_SEC = 0.25;
@@ -422,18 +423,52 @@ export class SpotifyTestRunner {
       this.set({ currentIndex: i });
 
       // 1. Start the song silently and wait until Spotify reports it playing.
-      const play = await this.cmd({ op: 'play', uri: seg.uri, contextUri: this.contextUri });
-      if (!play.ok) throw new Error(play.reason ?? 'Spotify didn’t respond.');
-      const loadStart = Date.now();
+      //    Failsafe: if it doesn't start, try again the usual way (not through
+      //    Spotify Connect); a song started late still lands on time, because
+      //    it's put at the spot it should be at by then. If it still won't
+      //    start, skip to the next song rather than ending the runway.
+      const before = await this.cmd({ op: 'state' });
+      let play: Awaited<ReturnType<typeof this.cmd>> = { ok: false };
+      let nowUri = seg.uri;
       let loaded = false;
-      while (Date.now() - loadStart < LOAD_TIMEOUT_MS) {
-        const st = await this.cmd({ op: 'state' });
-        if (st.ok && st.trackUri === seg.uri && st.playerState === 'playing'
-          && (st.positionSec ?? 99) < RESTART_MAX_SEC) { loaded = true; break; }
-        await sleep(80);
-        if (!live()) return;
+      for (let attempt = 0; attempt < START_ATTEMPTS && !loaded; attempt++) {
+        if (attempt > 0) {
+          const left = (i === last ? seg.stopAt : seg.endAt) - Date.now();
+          if (left < 6000) break;   // too little of the song left to be worth it
+          console.log('[spotify] song didn’t start; trying again', { title: seg.title, attempt: attempt + 1, msLeft: left });
+          this.set({ message: `Spotify didn’t start “${seg.title}”. Trying again…` });
+          await this.cmd({ op: 'volume', volume: 0 });
+        }
+        play = await this.cmd({ op: 'play', uri: seg.uri, contextUri: attempt > 0 ? undefined : this.contextUri, noQuiet: attempt > 0 });
+        if (!play.ok) { await sleep(500); continue; }
+        const loadStart = Date.now();
+        while (Date.now() - loadStart < LOAD_TIMEOUT_MS) {
+          const st = await this.cmd({ op: 'stateWithLength' });
+          // Joining a song mid-way (a retry) starts it from the top too.
+          const fresh = (st.positionSec ?? 99) < RESTART_MAX_SEC;
+          if (st.ok && st.playerState === 'playing' && fresh) {
+            if (st.trackUri === seg.uri) { loaded = true; break; }
+            // Spotify can play its own copy of the song for this country
+            // (same song, different id). Same length and a new track = it.
+            const sameLength = st.durationSec !== undefined && Math.abs(st.durationSec - seg.songDurSec) < 3;
+            if (st.trackUri && st.trackUri !== before.trackUri && sameLength) {
+              console.log('[spotify] Spotify played its own copy of the song', { title: seg.title, planned: seg.uri, playing: st.trackUri });
+              nowUri = st.trackUri;
+              loaded = true;
+              break;
+            }
+          }
+          await sleep(80);
+          if (!live()) return;
+        }
       }
-      if (!loaded) throw new Error(`Spotify didn’t start “${seg.title}” within 5 seconds. Check the connection and try again.`);
+      if (!loaded) {
+        console.warn('[spotify] song never started; skipping it', { title: seg.title, index: i });
+        this.set({ message: `Spotify wouldn’t start “${seg.title}”. Skipped it; the runway carries on and still lands on time.` });
+        await this.cmd({ op: 'volume', volume: 0 });
+        continue;
+      }
+      if (this.state.message?.startsWith('Spotify didn’t start')) this.set({ message: null });
       // Starting a song pulls Spotify to the front; put it back unless the
       // operator already had it in front.
       if (!play.wasFrontmost) void this.cmd({ op: 'background' });
@@ -449,7 +484,7 @@ export class SpotifyTestRunner {
         if (!r.sentAt || !r.answeredAt) return null;
         cmdTimes.push(r.answeredAt - r.sentAt);
         if (cmdTimes.length > 20) cmdTimes.shift();
-        if (r.playerState !== 'playing' || r.trackUri !== seg.uri || r.positionSec === undefined) return null;
+        if (r.playerState !== 'playing' || r.trackUri !== nowUri || r.positionSec === undefined) return null;
         return (targetPos((r.sentAt + r.answeredAt) / 2) - r.positionSec) * 1000;
       };
 
@@ -540,7 +575,7 @@ export class SpotifyTestRunner {
               let back = false;
               while (rp.ok && Date.now() - t0 < LOAD_TIMEOUT_MS) {
                 const st = await this.cmd({ op: 'state' });
-                if (st.ok && st.trackUri === seg.uri && st.playerState === 'playing') { back = true; break; }
+                if (st.ok && (st.trackUri === seg.uri || st.trackUri === nowUri) && st.playerState === 'playing') { back = true; break; }
                 await sleep(80);
                 if (!live()) return;
               }
@@ -582,6 +617,14 @@ export class SpotifyTestRunner {
       // The fade's last step lands up to STEP_MS early; make sure Spotify is
       // fully silent before the next song is started.
       if (i < last) await this.cmd({ op: 'volume', volume: 0 });
+    }
+
+    // Failsafe: the pad comes in on time even if the last song(s) were skipped.
+    if (opts.padFilePath && !this.state.padPlaying && live()) {
+      await sleep(padAt - Date.now());
+      if (!live()) return;
+      void this.audio?.playPad(opts.padFilePath, { fadeInSec: opts.padLeadInSec, loop: true });
+      this.set({ padPlaying: true });
     }
 
     // 4. Landed: Spotify off, its volume back, pad holds.

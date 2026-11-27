@@ -114,7 +114,7 @@ export async function spotifyPlayer(cmd: SpotifyPlayerCommand): Promise<SpotifyP
         // Quiet start: through Spotify Connect, which doesn't bring Spotify
         // forward. If it can't (offline, device not found), fall through to
         // the usual AppleScript start so the song still plays.
-        if (spotifyQuietStartReady() && cmd.uri.startsWith('spotify:track:')) {
+        if (!cmd.noQuiet && spotifyQuietStartReady() && cmd.uri.startsWith('spotify:track:')) {
           const ctx = cmd.contextUri && CONTEXT_RE.test(cmd.contextUri) ? cmd.contextUri : undefined;
           const q = await spotifyConnectPlay(cmd.uri, ctx);
           if (q.ok) return { ok: true, sentAt, answeredAt: Date.now(), wasFrontmost: true, quiet: true };
@@ -197,6 +197,14 @@ export async function spotifyPlayer(cmd: SpotifyPlayerCommand): Promise<SpotifyP
       case 'state':
         out = await osa(tell(READ_STATE));
         break;
+      case 'stateWithLength': {
+        // Only while a song is starting (to recognise a relinked copy), so
+        // the timing reads ('state') stay as quick as they are.
+        const o = await osa(tell(`${READ_STATE} & "|" & (duration of current track as text)`));
+        const parts = o.split('|');
+        const ms = num(parts[4] ?? '');
+        return { ok: true, sentAt, answeredAt: Date.now(), ...parseState(parts.slice(0, 4).join('|')), durationSec: Number.isFinite(ms) ? ms / 1000 : undefined };
+      }
       case 'volumeAndState':
         out = await osa(tell(
           `set sound volume to ${Math.round(Math.max(0, Math.min(100, cmd.volume)))}`,
