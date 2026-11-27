@@ -1222,6 +1222,7 @@ export type SpotifyPlayerCommand =
   | { op: 'check' }
   | { op: 'play'; uri: string; contextUri?: string; /** start the usual way, not through Spotify Connect */ noQuiet?: boolean }
   | { op: 'stateWithLength' }
+  | { op: 'launch' }
   | { op: 'background' }
   | { op: 'nowPlaying' }
   | { op: 'seek'; positionSec: number }

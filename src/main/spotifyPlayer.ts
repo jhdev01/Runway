@@ -197,6 +197,10 @@ export async function spotifyPlayer(cmd: SpotifyPlayerCommand): Promise<SpotifyP
       case 'state':
         out = await osa(tell(READ_STATE));
         break;
+      case 'launch':
+        // Opens Spotify without bringing it to the front (failsafe restart).
+        await osa(['tell application "Spotify" to launch']);
+        return { ok: true, sentAt, answeredAt: Date.now() };
       case 'stateWithLength': {
         // Only while a song is starting (to recognise a relinked copy), so
         // the timing reads ('state') stay as quick as they are.

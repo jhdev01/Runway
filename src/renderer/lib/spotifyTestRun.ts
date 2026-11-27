@@ -27,6 +27,7 @@ const PREROLL_MS = 4000;          // gap between pressing Start and the first so
 const LOAD_LEAD_MS = 700;         // start each song this early, silent
 const LOAD_TIMEOUT_MS = 5000;
 const RESTART_MAX_SEC = 5;        // "loaded" = playing near the top of the song
+const LANDING_FIX_MS = 250;       // landing song steadily further off than this: put it back in time
 const START_ATTEMPTS = 3;         // a song that won't start: try this many times, then skip it
 const SEEK_AIM_AHEAD_SEC = 0.1;   // starting aim: jumps landed ~0.07–0.13 s late in testing
 const AIM_MIN_SEC = 0;
@@ -439,7 +440,7 @@ export class SpotifyTestRunner {
           this.set({ message: `Spotify didn’t start “${seg.title}”. Trying again…` });
           await this.cmd({ op: 'volume', volume: 0 });
         }
-        play = await this.cmd({ op: 'play', uri: seg.uri, contextUri: attempt > 0 ? undefined : this.contextUri, noQuiet: attempt > 0 });
+        play = await this.cmd({ op: 'play', uri: seg.uri, contextUri: this.contextUri, noQuiet: attempt > 0 });
         if (!play.ok) { await sleep(500); continue; }
         const loadStart = Date.now();
         while (Date.now() - loadStart < LOAD_TIMEOUT_MS) {
@@ -536,6 +537,9 @@ export class SpotifyTestRunner {
       let notPlayingSince: number | null = null;
       let recoveries = 0;
       let resumedAt: number | null = null;
+      // Landing song only: a steady big miss gets fixed (see below).
+      let bigOffs: number[] = [];
+      let landingFixes = 0;
       while (Date.now() < stopAt) {
         if (!live()) return;
         const loopStart = Date.now();
@@ -602,6 +606,25 @@ export class SpotifyTestRunner {
             if (loopStart - lastSeekAt > SETTLE_AFTER_SEEK_MS) {
               songErrs.push(e);
               if (i === last && Math.abs(seg.endAt - loopStart) < LANDING_WINDOW_MS) landing.push(e);
+              // Landing failsafe: the last song decides where 0:00 lands, so a
+              // steady miss bigger than LANDING_FIX_MS is put right while there's
+              // time: a quick dip to silence, a jump to the right spot, and a
+              // short fade back in. Never in the last 15 s, at most twice.
+              if (i === last) {
+                bigOffs = Math.abs(e) > LANDING_FIX_MS ? [...bigOffs, e] : [];
+                if (bigOffs.length >= 4 && landingFixes < 2 && seg.endAt - loopStart > 15_000) {
+                  const off = median(bigOffs);
+                  landingFixes++;
+                  bigOffs = [];
+                  console.log('[spotify] landing song off; putting it back in time', { title: seg.title, offMs: Math.round(off), fix: landingFixes });
+                  this.set({ message: `“${seg.title}” was ${(Math.abs(off) / 1000).toFixed(2)}s ${off > 0 ? 'late' : 'early'}; Runway put it back in time so it lands on 0:00.` });
+                  await glideSpotifyVolume(v => this.cmd({ op: 'volume', volume: v }), Math.max(0, sentVolume), 0, 0.2);
+                  lastSeekAt = await jump();
+                  resumedAt = Date.now();
+                  sentVolume = -1;
+                  this.set({ corrections: this.state.corrections + 1 });
+                }
+              }
             }
           }
         }

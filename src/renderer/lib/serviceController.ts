@@ -35,6 +35,9 @@ export interface ControllerEngineRefs {
   pp?: PpClient;
 }
 
+/** Spotify runway failsafe: how many times a failed runway is restarted on its own. */
+const SPOTIFY_RESTARTS = 5;
+
 export class ServiceController {
   private intervalHandle: number | null = null;
   // Guards against double-fire when the tick runs faster than playback state propagates.
@@ -2270,11 +2273,14 @@ export class ServiceController {
     targetMs: number,
     sp: NonNullable<NonNullable<ReturnType<Store['getState']>['currentRunway']>['spotify']>,
     playlistId: string,
+    restart = 0,
   ): void {
+    const epoch = this.spotifyEpoch;
     const unsub = spotifyServiceRun.subscribe(st => {
       if (st.status === 'landed' || st.status === 'error') {
         console.log(`[spotify] runway ${st.status}`, { message: st.message, landingErrorMs: st.landingErrorMs });
         unsub();
+        if (st.status === 'error') void this.restartSpotifyRunner(targetMs, sp, playlistId, restart + 1, epoch);
       }
     });
     void spotifyServiceRun.startPlanned({
@@ -2284,6 +2290,54 @@ export class ServiceController {
       firstFadeInSec: sp.firstFadeInSec,
       playlistId,
     });
+  }
+
+  /**
+   * Failsafe: the Spotify runway stopped with an error (Spotify closed, a
+   * song wouldn't start, lost contact). Restart the SAME playlist plan for
+   * the SAME landing time, like re-arming by hand: the runner skips songs
+   * that are already over and joins the current one at the spot it should
+   * be at by now, so timing is unchanged. Opens Spotify first if it's
+   * closed. Up to SPOTIFY_RESTARTS times, and only while this runway is
+   * still armed and the service hasn't started.
+   */
+  private async restartSpotifyRunner(
+    targetMs: number,
+    sp: NonNullable<NonNullable<ReturnType<Store['getState']>['currentRunway']>['spotify']>,
+    playlistId: string,
+    restart: number,
+    epoch: number | null,
+  ): Promise<void> {
+    const still = () => this.spotifyEpoch === epoch && epoch !== null;
+    if (!still()) return;
+    if (restart > SPOTIFY_RESTARTS) {
+      console.warn('[spotify] runway failsafe: giving up after restarts', { restarts: restart - 1 });
+      return;
+    }
+    if (targetMs - Date.now() < 15_000) {
+      console.warn('[spotify] runway failsafe: too close to service start to restart', { msUntilService: targetMs - Date.now() });
+      return;
+    }
+    console.log('[spotify] runway failsafe: restarting the same playlist', { restart, playlist: sp.playlistName, msUntilService: targetMs - Date.now() });
+    await new Promise(r => setTimeout(r, 2000));
+    // Spotify closed (or not answering): open it and wait for it.
+    let check = await window.runway.spotify.player({ op: 'check' }).catch(() => ({ ok: false } as { ok: boolean }));
+    if (!check.ok) {
+      console.log('[spotify] runway failsafe: opening Spotify');
+      await window.runway.spotify.player({ op: 'launch' }).catch(() => undefined);
+      const until = Date.now() + 20_000;
+      while (!check.ok && Date.now() < until && still()) {
+        await new Promise(r => setTimeout(r, 1000));
+        check = await window.runway.spotify.player({ op: 'check' }).catch(() => ({ ok: false } as { ok: boolean }));
+      }
+    }
+    if (!still()) return;
+    if (!check.ok) {
+      // Try again shortly (counts as a restart) rather than giving up.
+      void this.restartSpotifyRunner(targetMs, sp, playlistId, restart + 1, epoch);
+      return;
+    }
+    this.startSpotifyRunner(targetMs, sp, playlistId, restart);
   }
 
   private stopSpotify(): void {
