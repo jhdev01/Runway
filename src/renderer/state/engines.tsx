@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
+import { spotifyServiceRun, spotifyNowPlaying } from '../lib/spotifyTestRun';
 import { AudioEngine } from '../lib/audioEngine';
 import { MidiEngine } from '../lib/midiEngine';
 import { ServiceController } from '../lib/serviceController';
@@ -833,6 +834,29 @@ export function EnginesProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
+      // Spotify music doesn't go through Runway's own player: take now
+      // playing / up next from the Spotify runner's plan (same source as
+      // the desktop Live page). Display only.
+      let nowPlayingOut = nowPlaying;
+      let spotifyEndAt: number | null = null;
+      {
+        const sp = spotifyServiceRun.getState();
+        if (sp.status === 'running' && sp.segments.length > 0) {
+          spotifyEndAt = sp.endAt;
+          const live = spotifyNowPlaying(sp.segments, Date.now());
+          if (live && !nowPlayingOut) {
+            nowPlayingOut = {
+              title: live.seg.title, artist: live.seg.artist, positionSec: live.positionSec,
+              durationSec: live.seg.songDurSec, albumArtUrl: live.seg.albumArtUrl,
+            };
+          }
+          const nx = live ? sp.segments[live.index + 1] : sp.segments.find(sg => sg.startAt > Date.now());
+          if (nx && !(nextTrack && nowPlaying)) nextTrack = { title: nx.title, artist: nx.artist };
+        }
+      }
+
+      if (runway && r?.isPostService && r.spotify && spotifyEndAt) runway.postEndMs = spotifyEndAt;
+
       const armed = !!(activeService && r && r.serviceId === activeService.id);
 
       const midiStatus: 'on' | 'off' | 'absent' = !state.midiConnected
@@ -861,7 +885,7 @@ export function EnginesProvider({ children }: { children: React.ReactNode }) {
       void window.runway.remote.pushSnapshot({
         activeService,
         runway,
-        nowPlaying,
+        nowPlaying: nowPlayingOut,
         nextTrack,
         armed,
         armConfirmDisarm: !!state.armConfirmDisarm,
