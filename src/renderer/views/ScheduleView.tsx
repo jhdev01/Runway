@@ -7,7 +7,8 @@ import { KeyPickerModal } from '../components/KeyPickerModal';
 import { ProPresenterServiceModal } from '../components/ProPresenterServiceModal';
 import { formatTime12h, parseTime, dayName, formatDateLong, todayISO } from '../lib/format';
 import type { KeyName, ServiceInstance, WeeklyPatternEntry } from '@shared/types';
-import { resolveServiceFirstSongKey, resolveServiceLastSongTrackId } from '@shared/types';
+import { resolveServiceFirstSongKey, resolveServiceLastSongTrackId, effectiveDuration } from '@shared/types';
+import { keyColor, displayKey } from '@shared/music';
 import { InfoTip } from '../components/InfoTip';
 
 export function ScheduleView() {
@@ -36,6 +37,9 @@ export function ScheduleView() {
   // service card's gear UX). One row's modal open at a time; closing
   // returns to null.
   const [patternSettingsId, setPatternSettingsId] = useState<string | null>(null);
+  // List view (new look): one day at a time, picked from the week strip.
+  const [pickedDate, setPickedDate] = useState<string | null>(null);
+  const [patternOpen, setPatternOpen] = useState(() => (useAppStore.getState().config.weeklyPattern ?? []).length === 0);
 
   // Group services by date — show next 14 days
   const upcoming = useMemo(() => {
@@ -73,11 +77,11 @@ export function ScheduleView() {
     for (const id of ids) deleteService(id);
   };
 
-  const onAddService = () => {
+  const onAddService = (date?: string) => {
     const today = todayISO();
     const newSvc: ServiceInstance = {
       id: generateId(),
-      date: today,
+      date: date ?? (pickedDate && pickedDate !== 'later' && pickedDate >= today ? pickedDate : today),
       startTime: '09:00',
       preServicePlaylistId: playlists.find(p => p.kind === 'pre')?.id,
       postServicePlaylistId: playlists.find(p => p.kind === 'post')?.id,
@@ -148,7 +152,7 @@ export function ScheduleView() {
 
   return (
     <div className="schedule-view">
-      <div className="sched-content">
+      <div className={`sched-content ${scheduleMode === 'list' ? 'with-aside' : ''}`}>
 
         <section className="sched-section">
           <div className="sched-section-header">
@@ -174,7 +178,7 @@ export function ScheduleView() {
                   </button>
                 ))}
               </div>
-              <button className="btn-primary" onClick={onAddService}>+ Add service</button>
+              <button className="btn-primary" onClick={() => onAddService()}>+ Add service</button>
             </div>
           </div>
 
@@ -183,36 +187,75 @@ export function ScheduleView() {
               setScheduleMode('list');
               window.setTimeout(() => document.querySelector(`[data-service-id="${id}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 120);
             }} />
-          ) : Object.keys(upcoming).length === 0 ? (
-            <div className="empty-state">
-              No services scheduled. Click "Add service", or set up a weekly
-              pattern below to add services automatically.
-            </div>
-          ) : (
-            Object.entries(upcoming).map(([date, list]) => {
-              const isToday = date === todayISO();
-              return (
-                <div key={date} className="sched-day">
-                  <div className={`sched-day-label ${isToday ? 'today' : ''}`}>
-                    {formatDateLong(date)}{isToday ? ' · TODAY' : ''}
+          ) : (() => {
+            const today = todayISO();
+            const addDays = (iso: string, n: number) => {
+              const d = new Date(iso + 'T00:00:00'); d.setDate(d.getDate() + n);
+              const p2 = (x: number) => String(x).padStart(2, '0');
+              return `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`;
+            };
+            const week = Array.from({ length: 7 }, (_, i) => addDays(today, i));
+            const laterDates = Object.keys(upcoming).filter(d => d > week[6]);
+            const firstWithServices = Object.keys(upcoming)[0];
+            const sel = pickedDate && (pickedDate === 'later' || pickedDate >= today) ? pickedDate
+              : firstWithServices && firstWithServices <= week[6] ? firstWithServices
+              : firstWithServices ? 'later' : today;
+            const dayList = sel === 'later'
+              ? laterDates.flatMap(d => upcoming[d])
+              : (upcoming[sel] ?? []);
+            const relLabel = (d: string) => d === today ? 'Today' : d === addDays(today, 1) ? 'Tomorrow' : null;
+            const eyebrow = sel === 'later' ? 'Later' : [relLabel(sel), formatDateLong(sel)].filter(Boolean).join(' · ');
+            return (
+              <>
+                <div className="sched-a-week" role="tablist" aria-label="Days">
+                  {week.map(d => {
+                    const n = upcoming[d]?.length ?? 0;
+                    const dt = new Date(d + 'T00:00:00');
+                    return (
+                      <button key={d} type="button" role="tab" aria-selected={sel === d}
+                        className={`sched-a-day ${sel === d ? 'on' : ''}`} onClick={() => setPickedDate(d)}>
+                        <span className="dow">{d === today ? 'Today' : dt.toLocaleDateString([], { weekday: 'short' })}</span>
+                        <span className="num">{dt.getDate()}</span>
+                        <span className={`cnt ${n ? 'has' : ''}`}>{n ? `${n} service${n === 1 ? '' : 's'}` : '—'}</span>
+                      </button>
+                    );
+                  })}
+                  {laterDates.length > 0 && (
+                    <button type="button" role="tab" aria-selected={sel === 'later'}
+                      className={`sched-a-day ${sel === 'later' ? 'on' : ''}`} onClick={() => setPickedDate('later')}>
+                      <span className="dow">Later</span>
+                      <span className="num">+</span>
+                      <span className="cnt has">{laterDates.reduce((t, d) => t + upcoming[d].length, 0)} more</span>
+                    </button>
+                  )}
+                </div>
+                <div className="sched-a-dayhead">
+                  <div className="sched-a-eyebrow">{eyebrow}</div>
+                  <div className="sched-a-title">{dayList.length === 0 ? 'No services' : `${dayList.length} service${dayList.length === 1 ? '' : 's'}`}</div>
+                </div>
+                {dayList.length === 0 ? (
+                  <div className="sched-a-empty">
+                    Nothing scheduled{sel === 'later' ? ' later' : ' on this day'}.
+                    {sel !== 'later' && <button className="btn-secondary" onClick={() => onAddService(sel)}>+ Add a service on this day</button>}
                   </div>
-                  {list.map(svc => (
-                    <div key={svc.id} data-service-id={svc.id}>
+                ) : dayList.map(svc => (
+                  <div key={svc.id} data-service-id={svc.id}>
+                    {sel === 'later' && <div className="sched-a-later-date">{formatDateLong(svc.date)}</div>}
                     <ServiceCard
                       service={svc}
                       onEditKey={() => setKeyEditingServiceId(svc.id)}
                       onUpdate={patch => upsertService({ ...svc, ...patch })}
                       onDelete={() => deleteService(svc.id)}
                     />
-                    </div>
-                  ))}
-                </div>
-              );
-            })
-          )}
+                  </div>
+                ))}
+              </>
+            );
+          })()}
         </section>
 
-        <section className="sched-section">
+        {(patternOpen || scheduleMode !== 'list') && (
+        <section className="sched-section sched-pattern-section">
           <div className="sched-section-header">
             <div>
               <div className="sched-section-title">
@@ -480,8 +523,43 @@ export function ScheduleView() {
             </div>
           </div>
         </section>
+        )}
 
       </div>
+      {scheduleMode === 'list' && (
+        <aside className="sched-a-aside">
+          <div className="sched-a-aside-head">
+            <span>Weekly pattern</span>
+            <span className={`sched-a-mode ${weeklyPatternMode === 'auto_rotate' ? 'auto' : ''}`}>
+              {weeklyPatternMode === 'auto_rotate' ? 'Adds services automatically' : 'Manual'}
+            </span>
+          </div>
+          {weeklyPattern.length === 0 ? (
+            <div className="sched-a-aside-note">No weekly times yet. Add the times you meet every week and Runway schedules them for you.</div>
+          ) : (
+            [...weeklyPattern]
+              .sort((x, y) => x.dayOfWeek - y.dayOfWeek || x.startTime.localeCompare(y.startTime))
+              .map(p => (
+                <button key={p.id} type="button" className={`sched-a-pat ${p.enabled ? '' : 'off'}`}
+                  onClick={() => { setActiveDayOfWeek(p.dayOfWeek); setPatternOpen(true); window.setTimeout(() => document.querySelector('.sched-pattern-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60); }}
+                  title={p.enabled ? 'Edit this weekly time' : 'Off: kept, but adds no services. Click to edit'}>
+                  <span className="d">{dayName(p.dayOfWeek).slice(0, 3)}</span>
+                  <span className="t">
+                    <strong>{formatTime12h(parseTime(p.startTime))}</strong>
+                    <span>{p.name || playlists.find(pl => pl.id === p.preServicePlaylistId)?.name || (p.spotifyPlaylistName ? `${p.spotifyPlaylistName} · Spotify` : 'No playlist')}</span>
+                  </span>
+                  <span className="chev" aria-hidden>›</span>
+                </button>
+              ))
+          )}
+          <button type="button" className="sched-a-pat-edit" onClick={() => { setPatternOpen(o => !o); window.setTimeout(() => document.querySelector('.sched-pattern-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60); }}>
+            {patternOpen ? 'Hide pattern editor' : 'Edit weekly pattern'}
+          </button>
+          <div className="sched-a-aside-foot">
+            Services from the pattern appear in the schedule on their own. Deleting one blocks that time slot so it doesn’t come back.
+          </div>
+        </aside>
+      )}
 
       {ppPatternModalId && (() => {
         const row = weeklyPattern.find(p => p.id === ppPatternModalId);
@@ -719,71 +797,128 @@ function ServiceCard({ service, onEditKey, onUpdate, onDelete }: {
   // truth for the rest; the gear lets you override per-occurrence when
   // needed.
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const keyMode = useAppStore(s => s.config.defaults.keyDisplayMode ?? 'sharp');
 
   return (
     <div className={`service-card ${isLive ? 'live' : ''} ${settingsOpen ? 'settings-open' : ''}`}>
-      <div className="service-card-header">
-        <div className="service-time">
-          <label className="service-when-field service-when-time" title="Service start time">
-            <span className="service-when-tag">TIME</span>
-            <input
-              type="time"
-              value={service.startTime}
-              onChange={e => onUpdate({ startTime: e.target.value, status: 'scheduled' })}
-            />
-          </label>
-          <label className="service-when-field service-when-date" title="Service date">
-            <span className="service-when-tag">DATE</span>
-            <input
-              type="date"
-              value={service.date}
-              onChange={e => { if (e.target.value) onUpdate({ date: e.target.value, status: 'scheduled' }); }}
-            />
-          </label>
-        </div>
-        <input
-          className="service-name-input"
-          type="text"
-          value={service.name ?? ''}
-          placeholder="Service name (e.g. “First Service”)"
-          onChange={e => onUpdate({ name: e.target.value || undefined })}
-        />
-        <div className="service-header-key" title={keyInheritFrom ? 'Inherited key — click to override' : 'First song’s key — click to set'}>
-          <span className="service-when-tag">KEY</span>
-          <button
-            className={`key-picker-display ${effectiveKey ? '' : 'empty'} ${keyInheritFrom ? 'inherited' : ''}`}
-            onClick={onEditKey}
-          >
-            {effectiveKey || '—'}
-          </button>
-        </div>
-        <div className="service-status-block">
-          <div className={`service-status-pill ${service.status}`}>
-            {service.status.toUpperCase()}
-          </div>
-          {minutesUntil && (
-            <div className="service-status-detail">{minutesUntil}</div>
-          )}
-        </div>
-        <div className="service-card-actions">
-          <button
-            className={`btn-secondary service-card-gear ${settingsOpen ? 'btn-active' : ''}`}
-            onClick={() => setSettingsOpen(o => !o)}
-            title={settingsOpen ? 'Hide service settings' : 'Service settings: playlists, actions, ProPresenter, pad bridge, lead time'}
-            aria-label="Toggle service settings"
-          >
-            <span className="service-card-gear-icon" aria-hidden>⚙</span>
-          </button>
-          <button
-            className="btn-danger"
-            onClick={onDelete}
-            title="Remove this service"
-            aria-label="Remove service"
-          >
-            <span aria-hidden style={{ fontSize: 28, lineHeight: 1 }}>×</span>
-          </button>
-        </div>
-      </div>
+      {(() => {
+        const cfgAll = useAppStore.getState().config;
+        const lead = Math.max(0, service.autoStartTargetSec);
+        const fmtMin = (sec: number) => `${Math.floor(sec / 60)}:${String(Math.round(sec % 60)).padStart(2, '0')}`;
+        const spotifyName = (id: string) => cfgAll.spotify?.playlistCache?.[id]?.name ?? 'Spotify playlist';
+        const prePl = service.preServicePlaylistId ? playlists.find(p => p.id === service.preServicePlaylistId) : undefined;
+        const preName = service.spotifyPlaylistId
+          ? `${service.spotifyPlaylistName ?? spotifyName(service.spotifyPlaylistId)} · Spotify`
+          : prePl?.name;
+        const postId = service.postServicePlaylistId;
+        const postName = !postId ? undefined
+          : postId.startsWith('spotify:') ? `${spotifyName(postId.slice(8))} · Spotify`
+          : playlists.find(p => p.id === postId)?.name;
+        const postSeqId = service.postActionSequenceIdOverride !== undefined
+          ? service.postActionSequenceIdOverride
+          : postId?.startsWith('spotify:')
+            ? cfgAll.spotify?.playlistSettings?.[postId.slice(8)]?.actionSequenceId
+            : playlists.find(p => p.id === postId)?.actionSequenceId;
+        const postSeqName = postSeqId ? actionSequences.find(a => a.id === postSeqId)?.name : undefined;
+
+        // Readiness (display only).
+        const preTotal = service.spotifyPlaylistId
+          ? (cfgAll.spotify?.playlistCache?.[service.spotifyPlaylistId]?.tracks ?? []).reduce((t, x) => t + x.durationMs / 1000, 0)
+          : (prePl?.trackIds ?? []).reduce((t, id) => { const tr = tracks.find(x => x.id === id); return t + (tr ? effectiveDuration(tr) : 0); }, 0);
+        const repeat = cfgAll.defaults.repeatToFill ?? true;
+        const checks: { text: string; tone: 'ok' | 'warn' | 'off' }[] = [];
+        if (!preName) checks.push({ text: 'No pre-service playlist', tone: 'warn' });
+        else if (lead > 0 && preTotal >= lead) checks.push({ text: `Playlist fills ${fmtMin(lead)}`, tone: 'ok' });
+        else if (lead > 0 && repeat) checks.push({ text: `Playlist repeats to fill ${fmtMin(lead)}`, tone: 'ok' });
+        else if (lead > 0) checks.push({ text: `Playlist is ${fmtMin(lead - preTotal)} short, so music starts later`, tone: 'warn' });
+        if (effectiveKey) {
+          checks.push({ text: keyInheritFrom ? `Lands in ${effectiveKey} (${inheritHint(keyInheritFrom).toLowerCase()})` : `Lands in ${effectiveKey}`, tone: 'ok' });
+          const hasPad = (cfgAll.pads ?? []).some(pd => pd.key === effectiveKey);
+          checks.push({ text: hasPad ? `Pad for ${effectiveKey}` : `No pad for ${effectiveKey}`, tone: hasPad ? 'ok' : 'warn' });
+        } else {
+          checks.push({ text: 'No first-song key yet', tone: 'warn' });
+        }
+        const pp = cfgAll.proPresenterSync;
+        checks.push(pp?.enabled && pp.timerUuid
+          ? { text: 'ProPresenter countdown', tone: 'ok' }
+          : { text: 'ProPresenter countdown off', tone: 'off' });
+
+        const startMs = new Date(`${service.date}T${service.startTime}:00`).getTime();
+        const musicMs = startMs - lead * 1000;
+        const now = Date.now();
+        const until = (ms: number) => {
+          const min = Math.max(0, Math.floor((ms - now) / 60000));
+          const h = Math.floor(min / 60), d = Math.floor(h / 24);
+          return d >= 2 ? `${d} days` : h > 0 ? `${h}h ${min % 60}m` : `${min}m`;
+        };
+        const when = service.status === 'live' ? 'running now'
+          : now < musicMs ? `music in ${until(musicMs)}`
+          : now < startMs ? `service in ${until(startMs)}`
+          : '';
+        const statusLabel = service.status === 'queued' ? 'Armed' : service.status === 'live' ? 'Live' : service.status === 'completed' ? 'Done' : 'Scheduled';
+        const musicPct = Math.max(45, Math.min(80, 40 + lead / 60));
+
+        return (
+          <>
+            <div className="svc-a-top">
+              <div className="svc-a-when">
+                <div className="svc-a-time">{formatTime12h(parseTime(service.startTime))}</div>
+                <div className="svc-a-name">{service.name || 'Service'}</div>
+              </div>
+              <div className="svc-a-info">
+                <span className="svc-a-lbl">Before</span>
+                <span className="svc-a-line">
+                  <strong>{preName ?? 'No pre-service playlist'}</strong>
+                  <button
+                    type="button"
+                    className={`svc-a-key ${effectiveKey ? '' : 'empty'}`}
+                    style={effectiveKey ? { background: keyColor(effectiveKey).bg, color: keyColor(effectiveKey).fg } : undefined}
+                    onClick={onEditKey}
+                    title={keyInheritFrom ? 'Same key as the earlier service. Click to set this one’s own key' : 'First song’s key. Click to change'}
+                  >{effectiveKey ? displayKey(effectiveKey, keyMode) : 'Set key'}</button>
+                  {effectiveKey && <span className="svc-a-dim">lands in key</span>}
+                </span>
+                <span className="svc-a-lbl">After</span>
+                <span className="svc-a-line">
+                  <strong>{postName ?? 'No post-service playlist'}</strong>
+                  {postName && <><span className="svc-a-dim">· actions:</span><span className={`svc-a-chip ${postSeqName ? 'seq' : ''}`}>{postSeqName ?? 'none'}</span></>}
+                </span>
+              </div>
+              <div className="svc-a-side">
+                <div className="svc-a-status">
+                  <span className={`svc-a-pill ${service.status}`}>{statusLabel}</span>
+                  {when && <span className="svc-a-until">{when}</span>}
+                </div>
+                <div className="svc-a-buttons">
+                  <button type="button" className="btn-secondary" onClick={() => setSettingsOpen(true)} title="Time, name, playlists, actions, ProPresenter, pad bridge">Edit</button>
+                  {(service.status === 'queued' || service.status === 'live') && (
+                    <button type="button" className="btn-primary" onClick={() => useAppStore.getState().setView('live')}>Open Live</button>
+                  )}
+                  <button
+                    type="button"
+                    className={`svc-a-x ${confirmDelete ? 'confirm' : ''}`}
+                    onClick={() => {
+                      if (!confirmDelete) { setConfirmDelete(true); window.setTimeout(() => setConfirmDelete(false), 3000); return; }
+                      onDelete();
+                    }}
+                    title="Remove this service"
+                    aria-label="Remove service"
+                  >{confirmDelete ? 'Remove?' : '×'}</button>
+                </div>
+              </div>
+            </div>
+            <div className="svc-a-bar" aria-hidden>
+              <span className="music" style={{ width: `${musicPct}%` }}>{lead > 0 ? `Music ${fmtMin(lead)}` : 'Music'}</span>
+              <span className="pad">Pad</span>
+              <span className="svc">Service{postName ? ' · then post-service' : ''}</span>
+            </div>
+            <div className="svc-a-checks">
+              {checks.map((c, i) => <span key={i} className={`svc-a-check ${c.tone}`}><i />{c.text}</span>)}
+            </div>
+          </>
+        );
+      })()}
 
       {settingsOpen && (
       <div className="settings-modal-backdrop" onClick={() => setSettingsOpen(false)}>
@@ -796,6 +931,34 @@ function ServiceCard({ service, onEditKey, onUpdate, onDelete }: {
           <button className="settings-modal-close" onClick={() => setSettingsOpen(false)} aria-label="Close settings">×</button>
         </div>
       <div className="service-card-body settings-modal-body">
+        <div className="service-field">
+          <span className="service-field-label">Name</span>
+          <input
+            className="select"
+            type="text"
+            value={service.name ?? ''}
+            placeholder="Service name (e.g. “First Service”)"
+            onChange={e => onUpdate({ name: e.target.value || undefined })}
+          />
+        </div>
+        <div className="service-field">
+          <span className="service-field-label">Date and start time</span>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <input
+              className="select"
+              type="date"
+              value={service.date}
+              onChange={e => { if (e.target.value) onUpdate({ date: e.target.value, status: 'scheduled' }); }}
+            />
+            <input
+              className="select"
+              type="time"
+              value={service.startTime}
+              onChange={e => onUpdate({ startTime: e.target.value, status: 'scheduled' })}
+            />
+          </div>
+        </div>
+
         {/* Row 1: Pre playlist | Post playlist
             Row 2: Pre action seq | Post action seq  (immediately under their playlists)
             Row 3: Last song | Auto-start target
