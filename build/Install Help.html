@@ -6,8 +6,8 @@
 <title>Install Runway</title>
 <style>
   :root {
-    --bg: #070b0e; --panel: #0d1418; --line: #1c262c;
-    --fg: #e6eef0; --muted: #93a4ab; --accent: #2dd4bf; --accent-ink: #04201c;
+    --bg: #08090b; --panel: #121418; --line: #23272e;
+    --fg: #f2f4f7; --muted: #a3abb6; --accent: #007ad1; --accent-ink: #ffffff; --accent-text: #3ba0e6;
   }
   * { box-sizing: border-box; }
   body {
@@ -21,12 +21,12 @@
   li { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px 20px; counter-increment: step; }
   li::before {
     content: "Step " counter(step); display: block; margin-bottom: 4px;
-    font-size: 12px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--accent);
+    font-size: 12px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--accent-text);
   }
   .cmd { display: flex; gap: 10px; align-items: stretch; margin-top: 12px; flex-wrap: wrap; }
   code {
     flex: 1 1 280px; min-width: 0; display: block; padding: 12px 14px; border-radius: 8px;
-    background: #020405; border: 1px solid var(--line); color: #99f2eb;
+    background: #050607; border: 1px solid var(--line); color: #8cc8f2;
     font: 15px/1.4 ui-monospace, Menlo, monospace; user-select: all; overflow-x: auto; white-space: nowrap;
   }
   button {
@@ -34,8 +34,8 @@
     border: 0; border-radius: 8px; background: var(--accent); color: var(--accent-ink); cursor: pointer;
   }
   button:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
-  .ok { background: #8ff0c4; }
-  kbd { font: 13px ui-monospace, Menlo, monospace; padding: 1px 6px; border: 1px solid var(--line); border-radius: 4px; background: #020405; }
+  .ok { background: #1f9d55; }
+  kbd { font: 13px ui-monospace, Menlo, monospace; padding: 1px 6px; border: 1px solid var(--line); border-radius: 4px; background: #050607; }
   .why { margin-top: 36px; color: var(--muted); font-size: 14px; }
   .why h2 { color: var(--fg); font-size: 15px; margin: 0 0 6px; }
 </style>

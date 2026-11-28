@@ -40,18 +40,20 @@ FONT_DIRS = [
     "/Library/Fonts",
 ]
 
-BG_TOP = (10, 15, 26)
-BG_BOTTOM = (5, 8, 13)
-TEAL_STRIPE = (21, 184, 166)
-TEAL_TEXT = (102, 235, 217)
-ARROW = (77, 217, 199)
+# Light design: Finder draws the icon names in dark text (light mode), so
+# they must sit on a light background to be readable.
+BG = (245, 247, 250)
+BLUE = (0, 122, 209)
+INK = (17, 20, 24)
+SOFT = (60, 68, 78)
+DIM = (96, 104, 115)
+CODE = (140, 200, 242)
+CODE_BOX = (17, 20, 24)
+RULE = (221, 226, 232)
+TARGET = (150, 190, 228)
+FOLDER_BACK = (88, 160, 226)
+FOLDER_FRONT = (120, 182, 238)
 WHITE = (255, 255, 255)
-SOFT = (199, 207, 211)
-DIM = (140, 150, 156)
-CODE = (153, 242, 235)
-CODE_BOX = (3, 5, 8)
-RULE = (34, 42, 48)
-TARGET = (45, 120, 110)
 
 
 def find_font(kind, extra_dirs):
@@ -68,12 +70,8 @@ def render(scale, fonts):
     img = Image.new("RGB", (W * s, H * s))
     d = ImageDraw.Draw(img)
 
-    # vertical gradient
-    for y in range(H * s):
-        t = y / (H * s - 1)
-        c = tuple(round(BG_TOP[i] + (BG_BOTTOM[i] - BG_TOP[i]) * t) for i in range(3))
-        d.line([(0, y), (W * s, y)], fill=c)
-    d.rectangle([0, 0, W * s, 3 * s - 1], fill=TEAL_STRIPE)
+    d.rectangle([0, 0, W * s, H * s], fill=BG)
+    d.rectangle([0, 0, W * s, 4 * s - 1], fill=BLUE)
 
     def font(kind, size):
         return ImageFont.truetype(fonts[kind], size * s)
@@ -91,15 +89,31 @@ def render(scale, fonts):
             w = d.textlength(text, font=f)
             d.text(((W * s - w) / 2, y_top * s), text, font=f, fill=fill)
 
-    centred("Install Runway", 22, font("bold", 24), WHITE)
+    centred("Install Runway", 22, font("bold", 24), INK)
     centred("Two steps, about a minute. Only needed once per new version.", 58, font("regular", 12), DIM)
 
-    centred("STEP 1   DRAG RUNWAY ONTO APPLICATIONS", 98, font("semibold", 12), TEAL_TEXT, tracking=1.2)
+    centred("STEP 1   DRAG RUNWAY ONTO APPLICATIONS", 98, font("semibold", 12), BLUE, tracking=1.2)
 
     # arrow at icon-centre height
     y = 190 * s
-    d.line([(240 * s, y), (400 * s, y)], fill=ARROW, width=round(2.5 * s))
-    d.polygon([(412 * s, y), (398 * s, y - 7 * s), (398 * s, y + 7 * s)], fill=ARROW)
+    d.line([(240 * s, y), (400 * s, y)], fill=BLUE, width=round(2.5 * s))
+    d.polygon([(412 * s, y), (398 * s, y - 7 * s), (398 * s, y + 7 * s)], fill=BLUE)
+
+    # Stand-in Applications folder drawn under the real one: newer macOS
+    # versions sometimes draw the Applications shortcut with no icon in a
+    # disk image. When Finder does draw it, it sits on top and covers this.
+    cx, cy = 480, 190
+    fw, fh = 84, 66
+    x0, y0 = cx - fw / 2, cy - fh / 2 + 4
+    d.rounded_rectangle([x0 * s, (y0 - 8) * s, (x0 + 34) * s, (y0 + 10) * s], radius=5 * s, fill=FOLDER_BACK)
+    d.rounded_rectangle([x0 * s, y0 * s, (x0 + fw) * s, (y0 + fh) * s], radius=7 * s, fill=FOLDER_BACK)
+    d.rounded_rectangle([x0 * s, (y0 + 10) * s, (x0 + fw) * s, (y0 + fh) * s], radius=7 * s, fill=FOLDER_FRONT)
+    # the "A" of the Applications folder
+    ax, ay = cx, y0 + 12 + (fh - 10) / 2
+    lw = round(3.2 * s)
+    d.line([((ax - 12) * s, (ay + 14) * s), (ax * s, (ay - 14) * s)], fill=WHITE, width=lw)
+    d.line([(ax * s, (ay - 14) * s), ((ax + 12) * s, (ay + 14) * s)], fill=WHITE, width=lw)
+    d.line([((ax - 7) * s, (ay + 4) * s), ((ax + 7) * s, (ay + 4) * s)], fill=WHITE, width=lw)
 
     # drop-target outline around the Applications icon and its label
     d.rounded_rectangle(
@@ -110,7 +124,7 @@ def render(scale, fonts):
     # divider between the steps
     d.line([(60 * s, 292 * s), ((W - 60) * s, 292 * s)], fill=RULE, width=s)
 
-    centred("STEP 2   CLEAR THE DOWNLOAD BLOCK", 310, font("semibold", 12), TEAL_TEXT, tracking=1.2)
+    centred("STEP 2   CLEAR THE DOWNLOAD BLOCK", 310, font("semibold", 12), BLUE, tracking=1.2)
     centred("Open Install Help below and click Copy, then paste into Terminal:", 334, font("regular", 12), SOFT)
 
     d.rounded_rectangle([150 * s, 356 * s, 490 * s, 386 * s], radius=7 * s, fill=CODE_BOX)
