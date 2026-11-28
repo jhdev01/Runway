@@ -801,6 +801,9 @@ export function LiveView() {
   const waitingForMusic = !!activeService && currentRunway?.serviceId === activeService.id
     && currentRunway?.phase === 'queued' && displayMusicFireMs > Date.now();
   const padHolding = currentRunway?.phase === 'pad' && padOffMs > Date.now();
+  // The service has started and the pad is still holding / fading. Takes
+  // over the hero even when the next service is already the "active" one.
+  const padAfterStart = padHolding && !!currentRunway && currentRunway.targetMs <= Date.now();
   // Nothing armed yet: a short "ready?" checklist for the next service.
   const readiness: { ok: boolean | null; title: string; sub: string }[] = (() => {
     if (!activeService || isArmed || anyMusicPlaying || !(targetMs > Date.now())) return [];
@@ -1042,7 +1045,7 @@ export function LiveView() {
 
         {/* Hero — amber-tint everything in here while armed-but-waiting. */}
         <section
-          className={`hero ${anyMusicPlaying && !!activeService && targetMs > Date.now() ? 'hero-compact' : ''} ${padHolding ? 'hero-pad' : ''} ${
+          className={`hero ${!padAfterStart && anyMusicPlaying && !!activeService && targetMs > Date.now() ? 'hero-compact' : ''} ${padAfterStart ? 'hero-pad' : ''} ${
             activeService
             && currentRunway?.serviceId === activeService.id
             && currentRunway?.phase === 'queued'
@@ -1054,8 +1057,7 @@ export function LiveView() {
             // Suppress the default header when the pad is in its
             // post-service finishing phase — the pad-finishing panel
             // renders its own header.
-            const padFinishing = currentRunway?.phase === 'pad' && padOffMs > Date.now();
-            if (padFinishing) return null;
+            if (padAfterStart) return null;
             // Suppress when the post-service-ready prompt is rendering.
             // (active service exists but target has passed and we're not
             // in pad/post-service phase.)
@@ -1071,7 +1073,17 @@ export function LiveView() {
               </div>
             );
           })()}
-          {activeService && targetMs > Date.now() ? (
+          {padAfterStart && currentRunway ? (
+            <PadHoldView
+              keyLabel={currentRunway.landInKey ? displayKey(currentRunway.landInKey, keyDisplayModeForSpotify) : null}
+              startMs={currentRunway.targetMs}
+              holdSec={currentRunway.padBridgeSec || 0}
+              fadeSec={currentRunway.padFadeOutSec || 0}
+              next={activeService && activeService.id !== currentRunway.serviceId && targetMs > Date.now()
+                ? `${activeService.name || 'Next service'} · ${formatTime12h(parseTime(activeService.startTime))}`
+                : null}
+            />
+          ) : activeService && targetMs > Date.now() ? (
             <>
               <CountdownClock
                 targetMs={waitingForMusic ? displayMusicFireMs : targetMs}
@@ -1203,7 +1215,7 @@ export function LiveView() {
             </div>
           )}
 
-          {activeService && (
+          {activeService && !padAfterStart && (
             <div className="hero-meta">
               <div className="hero-meta-item">
                 <span className="hero-meta-label">Target</span>
@@ -2190,6 +2202,69 @@ function PostServicePill({ endMs, onStop, confirmStop }: {
       >
         {confirmStop ? 'Click again to stop' : 'Stop'}
       </button>
+    </div>
+  );
+}
+
+/**
+ * Service has started; the pad is holding, then fading. Display only:
+ * counts to the times the runway already set (start + hold, + fade).
+ */
+function PadHoldView({ keyLabel, startMs, holdSec, fadeSec, next }: {
+  keyLabel: string | null;
+  startMs: number;
+  holdSec: number;
+  fadeSec: number;
+  next: string | null;
+}) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    let raf = 0;
+    const tick = () => { setNow(Date.now()); raf = requestAnimationFrame(tick); };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+  const holdEnd = startMs + holdSec * 1000;
+  const offAt = holdEnd + fadeSec * 1000;
+  const fading = now >= holdEnd;
+  const remaining = Math.max(0, offAt - now);
+  const totalSec = Math.floor(remaining / 1000);
+  const m = Math.floor(totalSec / 60);
+  const sec = totalSec % 60;
+  const ms = Math.floor(remaining % 1000);
+  const span = Math.max(1, offAt - startMs);
+  const holdPct = ((holdEnd - startMs) / span) * 100;
+  const donePct = Math.min(100, Math.max(0, ((now - startMs) / span) * 100));
+  const sinceStart = Math.max(0, Math.floor((now - startMs) / 1000));
+  return (
+    <div className="pad-hold">
+      {keyLabel && (
+        <div className={`pad-key-badge ${fading ? 'fading' : ''}`} aria-label={`Pad in ${keyLabel}`}>
+          <span>{keyLabel}</span>
+          <small>pad</small>
+        </div>
+      )}
+      <div className="pad-hold-main">
+        <div className="pad-hold-eyebrow">
+          <span className="pad-hold-dot" aria-hidden />
+          Service started {sinceStart}s ago · {fading ? 'pad fading out' : 'pad holding'}
+        </div>
+        <div className="pad-hold-clock" role="timer">
+          <span className="pad-hold-label">Pad off in</span>
+          <span className="pad-hold-digits">{m}:{String(sec).padStart(2, '0')}</span>
+          <span className="pad-hold-ms">.{String(ms).padStart(3, '0')}</span>
+        </div>
+        <div className="pad-hold-bar" aria-hidden>
+          <span className="hold" style={{ width: `${holdPct}%` }} />
+          <span className="fade" style={{ width: `${100 - holdPct}%` }} />
+          <i style={{ left: `${donePct}%` }} />
+        </div>
+        <div className="pad-hold-legend">
+          <span>Hold {holdSec.toFixed(1)}s</span>
+          <span>Fade {fadeSec.toFixed(1)}s</span>
+        </div>
+        {next && <div className="pad-hold-next">Next: {next}</div>}
+      </div>
     </div>
   );
 }
