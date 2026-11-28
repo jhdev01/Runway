@@ -1,3 +1,4 @@
+import { ScheduleDayView } from '../components/ScheduleDayView';
 import React, { useMemo, useState } from 'react';
 import { PreServicePlaylistSelect, PostServicePlaylistSelect } from '../components/PreServicePlaylistSelect';
 import { useAppStore, generateId } from '../state/store';
@@ -24,6 +25,9 @@ export function ScheduleView() {
   const deleteService = (id: string) => controller.deleteServiceWithFade(id);
 
   const [keyEditingServiceId, setKeyEditingServiceId] = useState<string | null>(null);
+  // List (cards, for editing) or Day (timeline). Remembered.
+  const scheduleMode = useAppStore(s => s.config.ui?.scheduleView ?? 'list');
+  const setScheduleMode = (m: 'list' | 'day') => updateConfig({ ui: { ...useAppStore.getState().config.ui, scheduleView: m } });
   const [activeDayOfWeek, setActiveDayOfWeek] = useState(0);
   const [generateMsg, setGenerateMsg] = useState<string | null>(null);
   const [confirmClearAll, setConfirmClearAll] = useState(false);
@@ -163,11 +167,23 @@ export function ScheduleView() {
                     : `Clear all (${upcomingCount})`}
                 </button>
               )}
+              <div className="runway-view-switch" role="group" aria-label="Schedule view">
+                {(['list', 'day'] as const).map(m => (
+                  <button key={m} type="button" className={scheduleMode === m ? 'on' : ''} onClick={() => setScheduleMode(m)}>
+                    {m === 'list' ? 'List' : 'Day'}
+                  </button>
+                ))}
+              </div>
               <button className="btn-primary" onClick={onAddService}>+ Add service</button>
             </div>
           </div>
 
-          {Object.keys(upcoming).length === 0 ? (
+          {scheduleMode === 'day' ? (
+            <ScheduleDayView onEdit={(id) => {
+              setScheduleMode('list');
+              window.setTimeout(() => document.querySelector(`[data-service-id="${id}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 120);
+            }} />
+          ) : Object.keys(upcoming).length === 0 ? (
             <div className="empty-state">
               No services scheduled. Click "Add service", or set up a weekly
               pattern below to add services automatically.
@@ -181,13 +197,14 @@ export function ScheduleView() {
                     {formatDateLong(date)}{isToday ? ' · TODAY' : ''}
                   </div>
                   {list.map(svc => (
+                    <div key={svc.id} data-service-id={svc.id}>
                     <ServiceCard
-                      key={svc.id}
                       service={svc}
                       onEditKey={() => setKeyEditingServiceId(svc.id)}
                       onUpdate={patch => upsertService({ ...svc, ...patch })}
                       onDelete={() => deleteService(svc.id)}
                     />
+                    </div>
                   ))}
                 </div>
               );

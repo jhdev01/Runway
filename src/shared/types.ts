@@ -850,6 +850,8 @@ export interface AppConfig {
     showPlayedTracks?: boolean;
     /** Live page runway: the "Up next" song list (default) or the horizontal strip. */
     runwayView?: 'list' | 'strip';
+    /** Schedule page: service cards (default) or the day timeline. */
+    scheduleView?: 'list' | 'day';
     // Shows testing tools meant for development (e.g. the Library "Key
     // test" that scores key detection against the operator's own tags).
     developerMode?: boolean;

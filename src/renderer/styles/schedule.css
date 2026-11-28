@@ -860,3 +860,46 @@
   /* Keep the existing 4-col grid look from service-card-body so each
      field renders identically — modal just provides the surround. */
 }
+
+/* ───────── New look · Schedule › Day (timeline) ───────── */
+.sched-day-view { display: flex; flex-direction: column; gap: 16px; }
+.sched-week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; }
+.sched-week-day {
+  height: 72px; border-radius: 12px; border: 1px solid var(--border);
+  background: var(--bg-elev); color: var(--text);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+}
+.sched-week-day.on { background: rgba(0, 122, 209, 0.14); border-color: rgba(0, 122, 209, 0.6); }
+.sched-week-dow { font-size: 12px; font-weight: 600; color: var(--text-dim); }
+.sched-week-num { font-family: var(--font-display); font-size: 21px; font-weight: 800; }
+.sched-week-count { font-size: 11.5px; color: var(--accent-bright); }
+.sched-week-count.none { color: var(--text-faint); }
+.sched-day-body { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 16px; align-items: start; }
+.sched-timeline {
+  position: relative; border-radius: 16px; background: var(--bg-elev); border: 1px solid var(--border);
+  overflow: hidden; min-height: 300px;
+}
+.sched-hour { position: absolute; left: 0; right: 0; border-top: 1px solid #1a1d22; }
+.sched-hour span { position: absolute; left: 12px; top: 4px; font-family: 'IBM Plex Mono', monospace; font-size: 11.5px; color: var(--text-faint); }
+.sched-day-empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--text-faint); }
+.sched-block-group {
+  position: absolute; left: 90px; right: 18px; display: flex; flex-direction: column;
+  border: none; padding: 0; background: transparent; text-align: left; cursor: pointer; border-radius: 10px; overflow: hidden;
+}
+.sched-block-group.on { outline: 2px solid var(--accent); outline-offset: 2px; }
+.sched-block { padding: 8px 12px; display: flex; flex-direction: column; gap: 2px; overflow: hidden; min-height: 0; color: var(--text); }
+.sched-block strong { font-size: 13.5px; }
+.sched-block span { font-size: 12px; color: #b7bec8; }
+.sched-block.music { background: rgba(0, 122, 209, 0.22); border-left: 4px solid var(--accent); }
+.sched-block.service { background: #2a2f37; border-left: 4px solid #a78bfa; }
+.sched-now { position: absolute; left: 70px; right: 0; border-top: 2px solid #f87171; z-index: 2; pointer-events: none; }
+.sched-now span { position: absolute; left: 0; top: -10px; padding: 1px 6px; border-radius: 5px; background: #f87171; color: #1b0a0a; font-size: 11px; font-weight: 800; }
+.sched-day-detail {
+  border-radius: 16px; background: var(--bg-elev); border: 1px solid rgba(0, 122, 209, 0.45);
+  padding: 18px; display: flex; flex-direction: column; gap: 10px;
+}
+.sched-day-detail-eyebrow { font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent-bright); }
+.sched-day-detail-title { font-family: var(--font-display); font-weight: 800; font-size: 20px; }
+.sched-day-detail-row { display: flex; justify-content: space-between; gap: 12px; font-size: 13.5px; padding: 6px 0; border-bottom: 1px solid #1a1d22; }
+.sched-day-detail-row span { color: var(--text-dim); }
+.sched-day-detail-row strong { font-weight: 600; text-align: right; }
