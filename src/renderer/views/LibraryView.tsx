@@ -1,3 +1,4 @@
+import { LibrarySongPanel } from '../components/LibrarySongPanel';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { SpotifyLibrary } from '../components/SpotifyLibrary';
 import { useAppStore, generateId } from '../state/store';
@@ -119,11 +120,14 @@ function LocalLibraryView() {
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [search, setSearch] = useState('');
   const [orphansOnly, setOrphansOnly] = useState(false);
+  const [editedOnly, setEditedOnly] = useState(false);
   // Key filter — 'all' shows everything, '_none' shows untagged tracks,
   // otherwise filters by exact key match.
   const [keyFilter, setKeyFilter] = useState<string>('all');
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  // New look: the song whose details show in the right-hand panel.
+  const [focusId, setFocusId] = useState<string | null>(null);
   const [confirmBulk, setConfirmBulk] = useState(false);
   const [confirmAllOrphans, setConfirmAllOrphans] = useState(false);
   const [previewingId, setPreviewingId] = useState<string | null>(null);
@@ -788,6 +792,7 @@ function LocalLibraryView() {
         const refs = playlistsByTrackId.get(t.id);
         if (refs && refs.length > 0) return false;
       }
+      if (editedOnly && !(t.trimStartSec || t.trimEndSec || t.editFadeInSec || t.editFadeOutSec || typeof t.editServiceLandSec === 'number')) return false;
       if (keyFilter !== 'all') {
         if (keyFilter === '_none') {
           if (t.key) return false;
@@ -803,7 +808,7 @@ function LocalLibraryView() {
         || (t.key ?? '').toLowerCase().includes(q)
       );
     });
-  }, [tracks, search, orphansOnly, keyFilter, playlistsByTrackId]);
+  }, [tracks, search, orphansOnly, keyFilter, playlistsByTrackId, editedOnly]);
 
   const sorted = useMemo(() => {
     const out = [...filtered];
@@ -1208,6 +1213,30 @@ function LocalLibraryView() {
         </div>
       )}
 
+      {/* New look: quick filters, and a nudge when songs have no key. */}
+      <div className="library-chips" role="group" aria-label="Filter songs">
+        {([
+          ['All', !orphansOnly && !editedOnly && keyFilter === 'all', () => { setOrphansOnly(false); setEditedOnly(false); setKeyFilter('all'); }],
+          ['No key yet', keyFilter === '_none', () => setKeyFilter(keyFilter === '_none' ? 'all' : '_none')],
+          ['Edited', editedOnly, () => setEditedOnly(v => !v)],
+          ['Not in a playlist', orphansOnly, () => setOrphansOnly(v => !v)],
+        ] as [string, boolean, () => void][]).map(([label, on, fn]) => (
+          <button key={label} type="button" className={`library-chip ${on ? 'on' : ''}`} onClick={fn}>{label}</button>
+        ))}
+        <span className="library-chips-count">{sorted.length} of {tracks.length} songs</span>
+      </div>
+      {(() => {
+        const noKey = tracks.filter(t => !t.key).length;
+        if (noKey === 0 || detecting) return null;
+        return (
+          <div className="library-nokey">
+            <span className="library-nokey-dot" aria-hidden />
+            <span><strong>{noKey} song{noKey === 1 ? ' has' : 's have'} no key yet.</strong> Runway can listen and find {noKey === 1 ? 'it' : 'them'}.</span>
+            <button type="button" className="library-nokey-btn" onClick={() => void runDetectKeys()} disabled={keyTestRunning}>Find keys</button>
+          </div>
+        );
+      })()}
+      <div className={`library-body ${focusId ? 'has-panel' : ''}`}>
       <div className="library-table">
         <div className="library-row library-head">
           <div className="library-cell-check">
@@ -1262,7 +1291,15 @@ function LocalLibraryView() {
             const isSelected = selectedIds.has(t.id);
             const isPlaying = previewingId === t.id;
             return (
-              <div key={t.id} className={`library-row ${isOrphan ? 'orphan' : ''} ${isSelected ? 'selected' : ''} ${previewingId === t.id ? 'previewing' : ''}`}>
+              <div
+                key={t.id}
+                className={`library-row ${isOrphan ? 'orphan' : ''} ${isSelected ? 'selected' : ''} ${previewingId === t.id ? 'previewing' : ''} ${focusId === t.id ? 'focused' : ''}`}
+                onClick={(e) => {
+                  // A click on the row itself (not a button, box or menu) shows its details.
+                  if ((e.target as HTMLElement).closest('button, input, select, a, [role="menu"], .library-art-wrap')) return;
+                  setFocusId(t.id);
+                }}
+              >
                 <div className="library-cell-check">
                   <input
                     type="checkbox"
@@ -1429,6 +1466,17 @@ function LocalLibraryView() {
             );
           })
         )}
+      </div>
+      {focusId && tracks.some(x => x.id === focusId) && (
+        <LibrarySongPanel
+          track={tracks.find(x => x.id === focusId)!}
+          playlists={playlistsByTrackId.get(focusId) ?? []}
+          previewing={previewingId === focusId}
+          onPreview={() => onPreviewToggle(tracks.find(x => x.id === focusId)!)}
+          onEdit={() => openEditor(focusId)}
+          onClose={() => setFocusId(null)}
+        />
+      )}
       </div>
       {(() => {
         if (!previewingId) return null;
