@@ -2482,3 +2482,76 @@
 @media (max-width: 1500px) {
   .stage > .actions .action-btn-icon { display: none; }
 }
+
+/* ───── New look · Live situations ───── */
+/* Service started, pad holding: a purple card with the pad's key. */
+.stage > .hero.hero-pad {
+  background: #1a1430;
+  border-color: #3b2f66;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 36px;
+}
+.pad-key-badge {
+  width: 150px; height: 150px; border-radius: 50%;
+  background: rgba(167, 139, 250, 0.14);
+  border: 2px solid #a78bfa;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.pad-key-badge span { font-family: var(--font-display); font-weight: 800; font-size: 56px; line-height: 1; color: #e9e2ff; }
+.pad-key-badge small { font-size: 13px; color: #c4b5fd; margin-top: 6px; }
+
+/* Post-service: what happens next. */
+.stage > .then-card {
+  margin: 0 28px;
+  padding: 16px 20px;
+  border-radius: 16px;
+  background: rgba(0, 122, 209, 0.08);
+  border: 1px solid rgba(0, 122, 209, 0.45);
+  display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
+}
+.then-card-when { font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent-bright); }
+.then-card-what { font-family: var(--font-display); font-size: 17px; }
+.then-card-actions { display: flex; gap: 8px; margin-left: auto; flex-wrap: wrap; }
+.then-chip { padding: 4px 10px; border-radius: 999px; border: 1px solid; font-size: 12.5px; font-weight: 600; background: #121418; }
+
+/* Spotify runway problem: what Runway is doing about it. */
+.stage > .spotify-fix-card {
+  margin: 0 28px;
+  padding: 14px 20px;
+  border-radius: 16px;
+  background: rgba(225, 29, 72, 0.10);
+  border: 1px solid rgba(248, 113, 113, 0.45);
+  display: flex; align-items: center; gap: 14px;
+}
+.spotify-fix-dot { width: 10px; height: 10px; border-radius: 50%; background: #f87171; flex-shrink: 0; }
+.spotify-fix-title { font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #fca5a5; }
+.spotify-fix-text { font-size: 14.5px; }
+.spotify-fix-landing { margin-left: auto; font-size: 13px; font-weight: 600; color: #34d399; white-space: nowrap; }
+
+/* Nothing armed: readiness checklist. */
+.stage > .readiness {
+  margin: 0 28px;
+  padding: 18px 22px;
+  border-radius: 18px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+}
+.readiness-title { font-size: 17px; font-weight: 700; margin-bottom: 8px; }
+.readiness-row { display: flex; align-items: flex-start; gap: 12px; padding: 10px 0; border-bottom: 1px solid #1a1d22; }
+.readiness-row:last-child { border-bottom: none; }
+.readiness-mark {
+  width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 800;
+}
+.readiness-mark.ok { background: rgba(52, 211, 153, 0.16); color: #34d399; }
+.readiness-mark.bad { background: rgba(248, 113, 113, 0.16); color: #f87171; }
+.readiness-mark.meh { background: #1c1f25; color: #a3abb6; }
+.readiness-row-title { font-size: 14.5px; font-weight: 600; }
+.readiness-row-sub { font-size: 13px; color: var(--text-dim); }
+.stage > .hero { order: -3; }
+.stage > .readiness { order: -2; }
+.stage:not(.music-on) > .now-playing:not(.fade-holding) { display: none; }

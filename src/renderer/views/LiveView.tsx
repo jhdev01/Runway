@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { SpotifyRunwayList, useSpotifyNow } from '../components/SpotifyRunwayList';
 import { loadSpotifyPlaylists } from '../components/PreServicePlaylistSelect';
 import { spotifyFreePlay } from '../lib/spotifyPost';
+import { spotifyServiceRun } from '../lib/spotifyTestRun';
+import { compatibleKeys } from '@shared/music';
 import { SpotifyBadge } from '../components/SpotifyBadge';
 import { useAppStore } from '../state/store';
 import { useEngines } from '../state/engines';
@@ -429,6 +431,9 @@ export function LiveView() {
 
   // ── New look: the runway as an "Up next" list (default) or the strip.
   const runwayView = useAppStore(s => s.config.ui?.runwayView ?? 'list');
+  const ppStatus = useAppStore(s => s.ppStatus);
+  const [spRun, setSpRun] = useState(spotifyServiceRun.getState());
+  useEffect(() => spotifyServiceRun.subscribe(setSpRun), []);
   const npTrack = tracks.find(t => t.id === musicPlayback.trackId);
   const npSpotifyUri = spotifyRunwayNow?.seg.uri;
   // Waveform of the playing song (from the file, or a Spotify scan).
@@ -791,6 +796,43 @@ export function LiveView() {
   }, [currentChipKey]);
 
 
+  // ── New look: situations ──
+  // Armed and waiting for the music: the music start is the big count.
+  const waitingForMusic = !!activeService && currentRunway?.serviceId === activeService.id
+    && currentRunway?.phase === 'queued' && displayMusicFireMs > Date.now();
+  const padHolding = currentRunway?.phase === 'pad' && padOffMs > Date.now();
+  // Nothing armed yet: a short "ready?" checklist for the next service.
+  const readiness: { ok: boolean | null; title: string; sub: string }[] = (() => {
+    if (!activeService || isArmed || anyMusicPlaying || !(targetMs > Date.now())) return [];
+    const cfg = useAppStore.getState().config;
+    const out: { ok: boolean | null; title: string; sub: string }[] = [];
+    const lead = activeService.autoStartTargetSec;
+    const key = resolveServiceFirstSongKey(activeService, services).value as KeyName | undefined;
+    let keys: (KeyName | undefined)[] = [];
+    if (activeService.spotifyPlaylistId) {
+      const pl = cfg.spotify?.playlistCache?.[activeService.spotifyPlaylistId];
+      const edits = cfg.spotify?.trackEdits ?? {};
+      const tot = (pl?.tracks ?? []).reduce((a, t) => a + t.durationMs / 1000, 0);
+      keys = (pl?.tracks ?? []).map(t => edits[t.uri]?.key as KeyName | undefined);
+      out.push({ ok: !!pl, title: `Pre-service music: ${activeService.spotifyPlaylistName ?? 'Spotify playlist'}`, sub: pl ? `${pl.tracks?.length ?? 0} songs · ${formatDuration(tot)} for a ${Math.round(lead / 60)}-min runway` : 'Not imported. Import it in Playlists › Spotify.' });
+    } else {
+      const pl = activeService.preServicePlaylistId ? playlists.find(x => x.id === activeService.preServicePlaylistId) : undefined;
+      const pts = (pl?.trackIds ?? []).map(id => tracks.find(t => t.id === id)).filter(Boolean) as typeof tracks;
+      const tot = pts.reduce((a, t) => a + effectiveDuration(t), 0);
+      keys = pts.map(t => t.key);
+      out.push({ ok: !!pl, title: pl ? `Pre-service music: ${pl.name}` : 'No pre-service music chosen', sub: pl ? `${pts.length} songs · ${formatDuration(tot)}${tot < lead ? ' · repeats to fill' : ''} for a ${Math.round(lead / 60)}-min runway` : 'Pick a playlist for this service in Schedule.' });
+    }
+    if (key) {
+      const exact = keys.includes(key);
+      const compat = !exact && keys.some(k => k && compatibleKeys(key).includes(k));
+      out.push({ ok: exact ? true : compat ? null : false, title: `A song that lands in ${displayKey(key, keyDisplayModeForSpotify)}`, sub: exact ? 'Found in the playlist' : compat ? 'Only a compatible key; the pad bridge may be skipped' : 'No song in this key; set song keys or the service key' });
+      const pad = cfg.pads.some(pd => pd.key === key);
+      out.push({ ok: pad ? true : cfg.pads.length ? null : false, title: `${displayKey(key, keyDisplayModeForSpotify)} pad`, sub: pad ? 'Loaded' : cfg.pads.length ? 'Not loaded; the closest pad plays instead' : 'No pads loaded (Settings › Pads)' });
+    }
+    out.push({ ok: ppStatus === 'ok' ? true : ppStatus === 'disabled' ? null : false, title: 'ProPresenter', sub: ppStatus === 'ok' ? 'Connected' : ppStatus === 'disabled' ? 'Not in use' : 'Not connected; countdown and slide cues won’t fire' });
+    return out;
+  })();
+
   // −2 / +2 min and + Song live in the bottom bar (new look).
   const timeShiftEl = (activeService && targetMs > Date.now() - 60_000 && (() => {
                 const fireShift = (
@@ -1000,7 +1042,7 @@ export function LiveView() {
 
         {/* Hero — amber-tint everything in here while armed-but-waiting. */}
         <section
-          className={`hero ${anyMusicPlaying ? 'hero-compact' : ''} ${
+          className={`hero ${anyMusicPlaying ? 'hero-compact' : ''} ${padHolding ? 'hero-pad' : ''} ${
             activeService
             && currentRunway?.serviceId === activeService.id
             && currentRunway?.phase === 'queued'
@@ -1023,14 +1065,14 @@ export function LiveView() {
             if (targetPassed && !padHolding && !postRolling) return null;
             return (
               <div className="hero-label">
-                {activeService ? 'Service Starts In' : 'No Service Selected'}
+                {waitingForMusic ? 'Music Starts In' : activeService ? 'Service Starts In' : 'No Service Selected'}
               </div>
             );
           })()}
           {activeService && targetMs > Date.now() ? (
             <>
               <CountdownClock
-                targetMs={targetMs}
+                targetMs={waitingForMusic ? displayMusicFireMs : targetMs}
                 variant={
                   // While post-service music is the active audio, the
                   // countdown to the *next* service is supplementary —
@@ -1074,6 +1116,13 @@ export function LiveView() {
                     </div>
                   );
                 }
+                if (waitingForMusic) {
+                  return (
+                    <div className="sub-countdown-row">
+                      <SubCountdown targetMs={targetMs} label="Service starts in" variant="amber" />
+                    </div>
+                  );
+                }
                 if (displayMusicFireMs > 0 && displayMusicFireMs > Date.now()) {
                   return (
                     <div className="sub-countdown-row">
@@ -1093,12 +1142,20 @@ export function LiveView() {
             // regardless of activeService status — the service may have
             // already been marked completed, but the pad is still on.
             // Purely a visual indicator; no PP traffic.
+            <>
+            {currentRunway?.landInKey && (
+              <div className="pad-key-badge" aria-label={`Pad in ${currentRunway.landInKey}`}>
+                <span>{displayKey(currentRunway.landInKey, keyDisplayModeForSpotify)}</span>
+                <small>pad</small>
+              </div>
+            )}
             <MediumCountdown
               header="Service started · pad finishing"
               label="Pad off in"
               targetMs={padOffMs}
               showMs
             />
+            </>
           ) : currentRunway?.isPostService && postServiceEndMs > Date.now() ? (
             <MediumCountdown
               header="Post-service playing"
@@ -1392,7 +1449,7 @@ export function LiveView() {
             </div>
           </div>
           {currentRunway && runwayView === 'list' && !isTestRunway && !(currentRunway.spotifyPost && !currentRunway.spotify) ? (
-            <UpNextList rows={upNextRows} keyMode={keyDisplayModeForSpotify} showPlayed={showPlayedTracks} />
+            <UpNextList rows={upNextRows} keyMode={keyDisplayModeForSpotify} showPlayed={showPlayedTracks || currentRunway.phase === 'pad' || currentRunway.phase === 'done'} />
           ) : (() => {
             const currentIdx = currentRunway?.currentTrackIndex ?? 0;
             const remainingCount = Math.max(0, queueTracks.length - currentIdx);
@@ -1762,6 +1819,45 @@ export function LiveView() {
             })()}
           </div>
         </section>
+
+        {/* Post-service: what happens next. */}
+        {isPostServiceRolling && runwayTruncation && !runwayTruncation.missing && (
+          <section className="then-card">
+            <div className="then-card-when">At {new Date(runwayTruncation.fireMs).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</div>
+            <div className="then-card-what">Then <strong>{runwayTruncation.swapToPlaylistName}</strong> takes over</div>
+            <div className="then-card-actions">
+              {armedActions.filter(a => Math.abs(a.fireMs - runwayTruncation.fireMs) < 5000).map(({ action }) => {
+                const meta = ACTION_META[action.payload.type];
+                return <span key={action.id} className="then-chip" style={{ borderColor: meta.color, color: meta.color }}>{meta.icon} {action.label || meta.label}</span>;
+              })}
+            </div>
+          </section>
+        )}
+
+        {/* Spotify runway: what Runway is doing about a problem. */}
+        {currentRunway?.spotify && spRun.status === 'running' && spRun.message && (
+          <section className="spotify-fix-card" role="status">
+            <span className="spotify-fix-dot" aria-hidden />
+            <div>
+              <div className="spotify-fix-title">Spotify</div>
+              <div className="spotify-fix-text">{spRun.message}</div>
+            </div>
+            <div className="spotify-fix-landing">Landing on 0:00 is kept</div>
+          </section>
+        )}
+
+        {/* Nothing armed yet: is the next service ready? */}
+        {readiness.length > 0 && (
+          <section className="readiness">
+            <h2 className="readiness-title">Ready for {activeService?.name || 'the next service'}?</h2>
+            {readiness.map((r, i) => (
+              <div key={i} className="readiness-row">
+                <span className={`readiness-mark ${r.ok === true ? 'ok' : r.ok === false ? 'bad' : 'meh'}`} aria-hidden>{r.ok === true ? '✓' : r.ok === false ? '!' : '–'}</span>
+                <div><div className="readiness-row-title">{r.title}</div><div className="readiness-row-sub">{r.sub}</div></div>
+              </div>
+            ))}
+          </section>
+        )}
 
         {/* Transition test controls — Quick Test and rehearsal services. Hidden
             for real armed services and post-service so live ops can't accidentally
