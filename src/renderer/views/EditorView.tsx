@@ -1136,7 +1136,7 @@ function drawWaveform(
   const x = (sec: number) => ((sec / dur) * zoomX - scrollX) * w;
   const startPx = x(opts.startSec);
   const endPx = x(opts.endSec);
-  ctx.fillStyle = 'rgba(20, 184, 166, 0.10)';
+  ctx.fillStyle = 'rgba(0, 122, 209,  0.10)';
   ctx.fillRect(startPx, 0, endPx - startPx, h);
 
   // Waveform: use channel 0, peak per pixel of the visible window.
@@ -1173,7 +1173,7 @@ function drawWaveform(
     ctx.beginPath();
     ctx.rect(Math.max(0, startPx), 0, Math.min(w, endPx) - Math.max(0, startPx), h);
     ctx.clip();
-    ctx.strokeStyle = '#14b8a6';
+    ctx.strokeStyle = '#007ad1';
     ctx.lineWidth = 1;
     ctx.beginPath();
     for (let px = Math.max(0, Math.floor(startPx)); px < Math.min(w, Math.ceil(endPx)); px++) {
@@ -1216,7 +1216,7 @@ function drawWaveform(
   }
 
   // Markers
-  ctx.fillStyle = '#14b8a6';
+  ctx.fillStyle = '#007ad1';
   ctx.fillRect(startPx - 1, 0, 2, h);
   ctx.fillRect(endPx - 1, 0, 2, h);
 

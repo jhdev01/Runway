@@ -100,9 +100,9 @@
   background: var(--bg-elev-2);
 }
 .service-name-input:focus {
-  border-color: var(--accent-bright, #14b8a6);
+  border-color: var(--accent-bright, #007ad1);
   background: var(--bg-elev-2);
-  box-shadow: 0 0 0 2px rgba(20, 184, 166, 0.15);
+  box-shadow: 0 0 0 2px rgba(0, 122, 209,  0.15);
 }
 
 .service-card-header {
@@ -132,7 +132,7 @@
   transition: border-color 0.12s ease, background 0.12s ease;
 }
 .service-header-key:hover {
-  border-color: var(--accent-bright, #14b8a6);
+  border-color: var(--accent-bright, #007ad1);
   background: var(--bg-elev-2);
 }
 .service-header-key .key-picker-display {
@@ -173,15 +173,15 @@
 }
 
 .service-when-field:hover {
-  border-color: var(--accent-bright, #14b8a6);
+  border-color: var(--accent-bright, #007ad1);
   background: var(--bg-elev-2);
 }
 
 .service-when-field:focus-within {
-  border-color: var(--accent-bright, #14b8a6);
+  border-color: var(--accent-bright, #007ad1);
   background: var(--bg-elev-2);
   outline: none;
-  box-shadow: 0 0 0 2px rgba(20, 184, 166, 0.15);
+  box-shadow: 0 0 0 2px rgba(0, 122, 209,  0.15);
 }
 
 .service-when-tag {
@@ -262,9 +262,9 @@
 }
 
 .service-status-pill.queued {
-  background: rgba(20, 184, 166, 0.1);
+  background: rgba(0, 122, 209,  0.1);
   color: var(--accent-bright);
-  border-color: rgba(20, 184, 166, 0.3);
+  border-color: rgba(0, 122, 209,  0.3);
 }
 
 .service-status-detail {
@@ -384,13 +384,13 @@
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  box-shadow: 0 0 14px rgba(20, 184, 166, 0.12);
+  box-shadow: 0 0 14px rgba(0, 122, 209,  0.12);
   line-height: 1;
   flex-shrink: 0;
 }
 
 .key-picker-display:hover {
-  background: rgba(20, 184, 166, 0.08);
+  background: rgba(0, 122, 209,  0.08);
   border-color: var(--accent-bright);
 }
 
@@ -649,7 +649,7 @@
 .pattern-pp-btn.active {
   border-color: var(--accent);
   color: var(--accent-bright);
-  background: rgba(20, 184, 166, 0.08);
+  background: rgba(0, 122, 209,  0.08);
 }
 
 .pattern-service-row.pattern-service-disabled { opacity: 0.45; }
@@ -707,9 +707,9 @@
   background: var(--bg-elev-2);
 }
 .pattern-name-input:focus {
-  border-color: var(--accent-bright, #14b8a6);
+  border-color: var(--accent-bright, #007ad1);
   background: var(--bg-elev-2);
-  box-shadow: 0 0 0 2px rgba(20, 184, 166, 0.15);
+  box-shadow: 0 0 0 2px rgba(0, 122, 209,  0.15);
 }
 
 /* Inline editable inputs in the time/name cell. Default to looking like
@@ -733,7 +733,7 @@
   background: var(--bg-elev);
 }
 .pattern-inline-input:focus {
-  border-color: var(--accent-bright, #14b8a6);
+  border-color: var(--accent-bright, #007ad1);
   background: var(--bg-elev-2);
 }
 
@@ -852,8 +852,8 @@
   transition: border-color 0.12s ease, color 0.12s ease;
 }
 .settings-modal-close:hover {
-  border-color: var(--accent-bright, #14b8a6);
-  color: var(--accent-bright, #14b8a6);
+  border-color: var(--accent-bright, #007ad1);
+  color: var(--accent-bright, #007ad1);
 }
 .settings-modal-body {
   padding: 20px 22px 22px;

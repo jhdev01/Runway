@@ -323,7 +323,7 @@ export function SpotifyWaveformView({ track, edit, onChange, full = false, showN
         continue;
       }
       const hh = Math.min(h / 2, Math.max(0.5, v * norm * amp));
-      g.fillStyle = inside ? '#14b8a6' : 'rgba(255,255,255,0.18)';
+      g.fillStyle = inside ? '#007ad1' : 'rgba(255,255,255,0.18)';
       g.fillRect(px, mid - hh, 1, hh * 2);
     }
     // Fade ramps (amber), as in the audio editor.
@@ -331,7 +331,7 @@ export function SpotifyWaveformView({ track, edit, onChange, full = false, showN
     g.lineWidth = 1.5;
     if (d.fadeIn > 0) { g.beginPath(); g.moveTo(x(d.start), h - 1); g.lineTo(x(d.start + d.fadeIn), 1); g.stroke(); }
     if (d.fadeOut > 0) { g.beginPath(); g.moveTo(x(d.end - d.fadeOut), 1); g.lineTo(x(d.end), h - 1); g.stroke(); }
-    g.fillStyle = '#14b8a6';
+    g.fillStyle = '#007ad1';
     g.fillRect(x(d.start) - 1, 0, 2, h);
     g.fillRect(x(d.end) - 1, 0, 2, h);
   }, [wave, d, zoomX, zoomY, scrollX, sizeTick]); // eslint-disable-line react-hooks/exhaustive-deps

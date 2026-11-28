@@ -330,7 +330,7 @@ function PlaylistEditor({ playlist }: { playlist: Playlist }) {
                   className="pl-stat-value"
                   style={{
                     color: fillsTarget
-                      ? 'var(--accent-bright, #14b8a6)'
+                      ? 'var(--accent-bright, #007ad1)'
                       : repeatToFill
                         ? 'var(--text-dim)'
                         : 'var(--amber, #f59e0b)',
@@ -576,8 +576,8 @@ function PlaylistEditor({ playlist }: { playlist: Playlist }) {
                           letterSpacing: 0.06,
                           textTransform: 'uppercase',
                           background: 'transparent',
-                          color: 'var(--accent-bright, #14b8a6)',
-                          border: '1px solid var(--accent-bright, #14b8a6)',
+                          color: 'var(--accent-bright, #007ad1)',
+                          border: '1px solid var(--accent-bright, #007ad1)',
                           padding: '2px 6px',
                           borderRadius: 3,
                         }}
@@ -967,7 +967,7 @@ function EditableText({ value, onChange, className, placeholder }: {
         }}
         placeholder={placeholder}
         style={{
-          background: 'rgba(20,184,166,0.08)',
+          background: 'rgba(0, 122, 209, 0.08)',
           border: '1px solid var(--accent)',
           color: 'inherit',
           font: 'inherit',

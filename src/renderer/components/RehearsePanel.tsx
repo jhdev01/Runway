@@ -204,7 +204,7 @@ export function RehearsePanel() {
                   padding: '10px 12px',
                   fontWeight: 600,
                   cursor: 'pointer',
-                  background: isQuickPlaying ? 'var(--red, #ef4444)' : 'var(--accent-bright, #14b8a6)',
+                  background: isQuickPlaying ? 'var(--red, #ef4444)' : 'var(--accent-bright, #007ad1)',
                   color: '#000',
                   border: 'none',
                 }}
@@ -303,7 +303,7 @@ export function RehearsePanel() {
                           padding: '6px 10px',
                           fontSize: 13,
                           cursor: 'pointer',
-                          background: active ? 'var(--accent, #14b8a6)' : inputStyle.background,
+                          background: active ? 'var(--accent, #007ad1)' : inputStyle.background,
                           color: active ? '#000' : 'var(--text)',
                         }}
                       >

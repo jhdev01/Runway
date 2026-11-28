@@ -1,19 +1,24 @@
 :root {
   /* Dark app: native pop-ups (time / date pickers, select menus, scrollbars)
-     draw in their dark style, highlighted in Runway's teal. */
+     draw in their dark style, highlighted in Runway's blue. */
   color-scheme: dark;
   accent-color: var(--accent);
-  --bg: #06090d;
-  --bg-elev: #0c1116;
-  --bg-elev-2: #11171f;
-  --border: #1a2330;
-  --border-bright: #243142;
-  --text: #e6f0f5;
-  --text-dim: #7a8a98;
-  --text-faint: #4a5868;
-  --accent: #14b8a6;
-  --accent-bright: #2dd4bf;
-  --accent-dim: #0d5d56;
+  /* New look: black / charcoal, Runway blue #007AD1. */
+  --bg: #08090b;
+  --bg-elev: #121418;
+  --bg-elev-2: #16191e;
+  --border: #1d2127;
+  --border-bright: #2a2f37;
+  --text: #f2f4f7;
+  --text-dim: #a3abb6;
+  --text-faint: #6b7480;
+  --accent: #007ad1;
+  --accent-bright: #3ba0e6;
+  --accent-dim: #0b3f66;
+  /* Text on a solid blue fill. */
+  --on-accent: #ffffff;
+  --font-ui: 'Inter Variable', 'Inter', system-ui, sans-serif;
+  --font-display: 'Manrope Variable', 'Manrope', 'Inter Variable', system-ui, sans-serif;
   --green: #10b981;
   --amber: #67e8f9;
   --amber-glow: #22d3ee;
@@ -35,7 +40,7 @@
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 body, html, #root {
-  font-family: 'IBM Plex Sans', sans-serif;
+  font-family: var(--font-ui);
   background: var(--bg);
   color: var(--text);
   font-size: 16px;
@@ -45,6 +50,9 @@ body, html, #root {
 }
 
 .mono { font-family: 'IBM Plex Mono', monospace; }
+
+/* New look: headings in Manrope. */
+h1, h2, h3 { font-family: var(--font-display); letter-spacing: -0.01em; }
 
 button {
   font-family: inherit;
@@ -184,10 +192,10 @@ html { scrollbar-color: var(--border-bright) transparent; scrollbar-width: thin;
 }
 .toggle-switch:hover { background: rgba(255, 255, 255, 0.12); }
 .toggle-switch.on {
-  background: rgba(20, 184, 166, 0.4);
+  background: rgba(0, 122, 209,  0.4);
   border-color: var(--accent-bright);
 }
-.toggle-switch.on:hover { background: rgba(20, 184, 166, 0.55); }
+.toggle-switch.on:hover { background: rgba(0, 122, 209,  0.55); }
 .toggle-switch:disabled { opacity: 0.4; cursor: not-allowed; }
 .toggle-switch:focus-visible { outline: 2px solid var(--accent-bright); outline-offset: 2px; }
 
@@ -427,8 +435,8 @@ input[type="checkbox"]:checked::after {
   content: '';
   width: 9px;
   height: 5px;
-  border-left: 2px solid #04201d;
-  border-bottom: 2px solid #04201d;
+  border-left: 2px solid #ffffff;
+  border-bottom: 2px solid #ffffff;
   transform: translateY(-1px) rotate(-45deg);
 }
 input[type="checkbox"]:indeterminate {
@@ -439,7 +447,7 @@ input[type="checkbox"]:indeterminate::after {
   content: '';
   width: 8px;
   height: 2px;
-  background: #04201d;
+  background: #ffffff;
 }
 input[type="checkbox"]:focus-visible { outline: 2px solid var(--accent-bright); outline-offset: 2px; }
 input[type="checkbox"]:disabled { opacity: 0.4; cursor: default; }

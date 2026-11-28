@@ -66,7 +66,7 @@
 }
 
 .service-header-status.queued {
-  background: rgba(20, 184, 166, 0.1);
+  background: rgba(0, 122, 209,  0.1);
   color: var(--accent-bright);
 }
 
@@ -241,7 +241,7 @@
 .post-ready-cta {
   margin-top: 6px;
   background: var(--accent);
-  color: #0a0a0a;
+  color: var(--on-accent);
   border: none;
   padding: 14px 32px;
   font-size: 16px;
@@ -285,7 +285,7 @@
   font-variant-numeric: tabular-nums;
   line-height: 1;
   letter-spacing: -0.05em;
-  text-shadow: 0 0 32px rgba(20, 184, 166, 0.55);
+  text-shadow: 0 0 32px rgba(0, 122, 209,  0.55);
   min-width: 50px;
   text-align: center;
 }
@@ -353,7 +353,7 @@
   margin-left: 8px;
   min-width: 70px;
   text-align: left;
-  text-shadow: 0 0 16px rgba(20, 184, 166, 0.4);
+  text-shadow: 0 0 16px rgba(0, 122, 209,  0.4);
 }
 
 .hero-meta {
@@ -467,8 +467,8 @@
    match the countdown's teal accent so the running-state visual
    story is consistent across both elements. */
 .sub-countdown-amber {
-  border-color: rgba(20, 184, 166, 0.4);
-  background: rgba(20, 184, 166, 0.06);
+  border-color: rgba(0, 122, 209,  0.4);
+  background: rgba(0, 122, 209,  0.06);
 }
 .sub-countdown-amber .sub-countdown-value { color: var(--accent-bright); }
 
@@ -547,9 +547,9 @@
   gap: 10px;
   padding: 11px 18px;
   border-radius: 7px;
-  border: 1px solid var(--accent-bright, #14b8a6);
-  background: rgba(20, 184, 166, 0.08);
-  color: var(--accent-bright, #14b8a6);
+  border: 1px solid var(--accent-bright, #007ad1);
+  background: rgba(0, 122, 209,  0.08);
+  color: var(--accent-bright, #007ad1);
   font-family: inherit;
   font-weight: 700;
   font-size: 15px;
@@ -560,7 +560,7 @@
   flex-shrink: 0;
 }
 
-.arm-toggle:hover { background: rgba(20, 184, 166, 0.18); }
+.arm-toggle:hover { background: rgba(0, 122, 209,  0.18); }
 
 .arm-toggle-dot {
   width: 10px;
@@ -571,12 +571,12 @@
 }
 
 .arm-toggle[data-armed='true'] {
-  border-color: var(--accent-bright, #14b8a6);
-  background: rgba(20, 184, 166, 0.16);
-  color: var(--accent-bright, #14b8a6);
+  border-color: var(--accent-bright, #007ad1);
+  background: rgba(0, 122, 209,  0.16);
+  color: var(--accent-bright, #007ad1);
 }
 
-.arm-toggle[data-armed='true']:hover { background: rgba(20, 184, 166, 0.28); }
+.arm-toggle[data-armed='true']:hover { background: rgba(0, 122, 209,  0.28); }
 
 .arm-toggle[data-confirm='true'],
 .arm-toggle[data-armed='true'][data-confirm='true'] {
@@ -759,7 +759,7 @@
 .tl-seg-scrub-fill {
   position: absolute;
   inset: 0 auto 0 0;
-  background: var(--accent-bright, #14b8a6);
+  background: var(--accent-bright, #007ad1);
   pointer-events: none;
   transition: width 0.15s linear;
   box-shadow: 0 0 4px currentColor;
@@ -772,17 +772,17 @@
 }
 
 .timeline-segment.played {
-  background: rgba(20, 184, 166, 0.1);
+  background: rgba(0, 122, 209,  0.1);
   opacity: 0.55;
 }
 
 .timeline-segment.current {
-  background: rgba(20, 184, 166, 0.18);
+  background: rgba(0, 122, 209,  0.18);
   border-top: 2px solid var(--accent-bright);
 }
 
 .timeline-segment.target {
-  background: rgba(20, 184, 166, 0.08);
+  background: rgba(0, 122, 209,  0.08);
   border-top: 2px solid var(--accent);
 }
 
@@ -1107,7 +1107,7 @@
   font-family: inherit;
 }
 .post-pick-row:hover { background: rgba(255, 255, 255, 0.05); }
-.post-pick-row.active { background: rgba(20, 184, 166, 0.12); color: var(--accent-bright); }
+.post-pick-row.active { background: rgba(0, 122, 209,  0.12); color: var(--accent-bright); }
 .post-pick-check {
   width: 14px;
   text-align: center;
@@ -1166,14 +1166,14 @@
 }
 
 .action-btn.post {
-  background: linear-gradient(135deg, #0d5d56 0%, var(--accent) 100%);
+  background: linear-gradient(135deg, #0b3f66 0%, var(--accent) 100%);
   color: white;
-  box-shadow: 0 4px 24px rgba(20, 184, 166, 0.18), inset 0 1px 0 rgba(255,255,255,0.1);
+  box-shadow: 0 4px 24px rgba(0, 122, 209,  0.18), inset 0 1px 0 rgba(255,255,255,0.1);
 }
 
 .action-btn.post:hover:not(:disabled) {
   background: linear-gradient(135deg, var(--accent) 0%, var(--accent-bright) 100%);
-  box-shadow: 0 8px 32px rgba(20, 184, 166, 0.32), inset 0 1px 0 rgba(255,255,255,0.15);
+  box-shadow: 0 8px 32px rgba(0, 122, 209,  0.32), inset 0 1px 0 rgba(255,255,255,0.15);
 }
 
 .action-btn.post .action-btn-icon { background: rgba(255,255,255,0.18); color: white; }
@@ -1275,19 +1275,19 @@
 
 /* Post-panic Re-arm state — same slot, different intent. */
 .action-btn.panic.rearm {
-  background: linear-gradient(135deg, #115e59 0%, var(--accent-bright, #14b8a6) 100%);
-  box-shadow: 0 4px 24px rgba(20, 184, 166, 0.25), inset 0 1px 0 rgba(255,255,255,0.1);
+  background: linear-gradient(135deg, #0b4f80 0%, var(--accent-bright, #007ad1) 100%);
+  box-shadow: 0 4px 24px rgba(0, 122, 209,  0.25), inset 0 1px 0 rgba(255,255,255,0.1);
   animation: rearm-pulse 1.6s ease-in-out infinite;
 }
 
 .action-btn.panic.rearm:hover:not(:disabled) {
-  background: linear-gradient(135deg, var(--accent-bright, #14b8a6) 0%, #99f6e4 100%);
-  box-shadow: 0 8px 32px rgba(20, 184, 166, 0.45), inset 0 1px 0 rgba(255,255,255,0.15);
+  background: linear-gradient(135deg, var(--accent-bright, #007ad1) 0%, #bfe0f7 100%);
+  box-shadow: 0 8px 32px rgba(0, 122, 209,  0.45), inset 0 1px 0 rgba(255,255,255,0.15);
 }
 
 @keyframes rearm-pulse {
-  0%, 100% { box-shadow: 0 4px 24px rgba(20, 184, 166, 0.25), inset 0 1px 0 rgba(255,255,255,0.1); }
-  50% { box-shadow: 0 6px 32px rgba(20, 184, 166, 0.55), inset 0 1px 0 rgba(255,255,255,0.18); }
+  0%, 100% { box-shadow: 0 4px 24px rgba(0, 122, 209,  0.25), inset 0 1px 0 rgba(255,255,255,0.1); }
+  50% { box-shadow: 0 6px 32px rgba(0, 122, 209,  0.55), inset 0 1px 0 rgba(255,255,255,0.18); }
 }
 
 /* Right panel */
@@ -1480,7 +1480,7 @@
 .pad-t-btn[data-loop='true'] {
   border-color: var(--accent);
   color: var(--accent-bright);
-  background: rgba(20, 184, 166, 0.12);
+  background: rgba(0, 122, 209,  0.12);
 }
 
 /* Gear button sits at the far right of the transport row, aligned with the
@@ -1602,13 +1602,13 @@
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  background: var(--accent-bright, #14b8a6);
+  background: var(--accent-bright, #007ad1);
   cursor: grab;
-  box-shadow: 0 0 0 4px rgba(20, 184, 166, 0.18);
+  box-shadow: 0 0 0 4px rgba(0, 122, 209,  0.18);
   transition: box-shadow 0.12s ease;
 }
 .master-fader-slider::-webkit-slider-thumb:hover {
-  box-shadow: 0 0 0 6px rgba(20, 184, 166, 0.30);
+  box-shadow: 0 0 0 6px rgba(0, 122, 209,  0.30);
 }
 .master-fader-slider::-webkit-slider-thumb:active { cursor: grabbing; }
 
@@ -1631,7 +1631,7 @@
   border-radius: 3px;
   cursor: pointer;
 }
-.master-fader-unity:hover { border-color: var(--accent-bright, #14b8a6); color: var(--accent-bright, #14b8a6); }
+.master-fader-unity:hover { border-color: var(--accent-bright, #007ad1); color: var(--accent-bright, #007ad1); }
 
 .eq-toggle {
   display: flex;
@@ -1651,16 +1651,16 @@
 }
 .eq-toggle:hover { border-color: var(--accent); color: var(--text); }
 .eq-toggle.active {
-  border-color: var(--accent-bright, #14b8a6);
-  color: var(--accent-bright, #14b8a6);
-  background: rgba(20, 184, 166, 0.08);
+  border-color: var(--accent-bright, #007ad1);
+  color: var(--accent-bright, #007ad1);
+  background: rgba(0, 122, 209,  0.08);
 }
 .eq-toggle-dot {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--accent-bright, #14b8a6);
-  box-shadow: 0 0 6px var(--accent-bright, #14b8a6);
+  background: var(--accent-bright, #007ad1);
+  box-shadow: 0 0 6px var(--accent-bright, #007ad1);
 }
 
 .eq-panel {
@@ -1703,9 +1703,9 @@
   height: 4px;
   border-radius: 2px;
   background: linear-gradient(90deg,
-    rgba(20, 184, 166, 0.20) 0%,
+    rgba(0, 122, 209,  0.20) 0%,
     var(--bg-elev-2) 50%,
-    rgba(20, 184, 166, 0.20) 100%);
+    rgba(0, 122, 209,  0.20) 100%);
   outline: none;
 }
 .eq-band-slider::-webkit-slider-thumb {
@@ -1714,9 +1714,9 @@
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background: var(--accent-bright, #14b8a6);
+  background: var(--accent-bright, #007ad1);
   cursor: grab;
-  box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.18);
+  box-shadow: 0 0 0 3px rgba(0, 122, 209,  0.18);
 }
 
 .eq-band-value {
@@ -1867,10 +1867,10 @@
 .runway-row-top.clickable:hover { background: rgba(255, 255, 255, 0.03); }
 
 .runway-row.current {
-  background: rgba(20, 184, 166, 0.08);
+  background: rgba(0, 122, 209,  0.08);
   border-left-color: var(--accent-bright);
 }
-.runway-row.current .runway-row-top.clickable:hover { background: rgba(20, 184, 166, 0.14); }
+.runway-row.current .runway-row-top.clickable:hover { background: rgba(0, 122, 209,  0.14); }
 .runway-row.missing { opacity: 0.45; }
 /* Played rows fade so the eye can pick out current/upcoming first.
    The .current row keeps full strength even if it also matches .played,

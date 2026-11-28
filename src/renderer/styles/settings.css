@@ -46,7 +46,7 @@
 
 .settings-nav-item.active {
   color: var(--accent-bright);
-  background: rgba(20, 184, 166, 0.15);
+  background: rgba(0, 122, 209,  0.15);
   font-weight: 500;
 }
 
@@ -118,8 +118,8 @@
 }
 
 .device-card.active {
-  border-color: rgba(20, 184, 166, 0.4);
-  background: rgba(20, 184, 166, 0.04);
+  border-color: rgba(0, 122, 209,  0.4);
+  background: rgba(0, 122, 209,  0.04);
 }
 
 .device-icon {
@@ -137,7 +137,7 @@
 
 .device-card.active .device-icon {
   color: var(--accent-bright);
-  border-color: rgba(20, 184, 166, 0.4);
+  border-color: rgba(0, 122, 209,  0.4);
 }
 
 .device-icon svg { width: 22px; height: 22px; }
@@ -380,15 +380,15 @@
 }
 
 .midi-learn-btn.listening {
-  background: rgba(20, 184, 166, 0.12);
+  background: rgba(0, 122, 209,  0.12);
   border-color: var(--accent-bright);
   color: var(--accent-bright);
   animation: midi-learn-pulse 1.1s ease-in-out infinite;
 }
 
 @keyframes midi-learn-pulse {
-  0%, 100% { background: rgba(20, 184, 166, 0.12); }
-  50% { background: rgba(20, 184, 166, 0.28); }
+  0%, 100% { background: rgba(0, 122, 209,  0.12); }
+  50% { background: rgba(0, 122, 209,  0.28); }
 }
 
 .midi-learn-clear {
@@ -511,7 +511,7 @@
   cursor: pointer;
 }
 .tc-toggle.on {
-  background: rgba(20, 184, 166, 0.12);
+  background: rgba(0, 122, 209,  0.12);
   border-color: var(--accent-bright);
   color: var(--accent-bright);
 }
@@ -580,7 +580,7 @@
   cursor: pointer;
 }
 .pp-toggle.on {
-  background: rgba(20, 184, 166, 0.12);
+  background: rgba(0, 122, 209,  0.12);
   border-color: var(--accent-bright);
   color: var(--accent-bright);
 }
@@ -712,7 +712,7 @@
 .btn-secondary.btn-active {
   border-color: var(--accent);
   color: var(--accent-bright);
-  background: rgba(20, 184, 166, 0.08);
+  background: rgba(0, 122, 209,  0.08);
 }
 
 /* Pad player volume + gain. */
@@ -791,7 +791,7 @@
   gap: 6px;
   user-select: none;
 }
-.rotary-knob.dragging svg { filter: drop-shadow(0 0 8px rgba(20, 184, 166, 0.45)); }
+.rotary-knob.dragging svg { filter: drop-shadow(0 0 8px rgba(0, 122, 209,  0.45)); }
 .rotary-knob-labels {
   display: flex;
   flex-direction: column;
@@ -903,8 +903,8 @@
 }
 .pp-card-status.on {
   color: var(--accent-bright);
-  border-color: rgba(20, 184, 166, 0.4);
-  background: rgba(20, 184, 166, 0.08);
+  border-color: rgba(0, 122, 209,  0.4);
+  background: rgba(0, 122, 209,  0.08);
 }
 .pp-card-status.err {
   color: #f87171;
@@ -932,11 +932,11 @@
   margin-top: 18px;
 }
 .pp-hook { border-left: 3px solid var(--border); margin-bottom: 0; }
-.pp-hook.tone-music   { border-left-color: #14b8a6; }   /* teal */
+.pp-hook.tone-music   { border-left-color: #007ad1; }   /* teal */
 .pp-hook.tone-service { border-left-color: #22c55e; }   /* green */
 .pp-hook.tone-post    { border-left-color: hsl(300, 68%, 70%); } /* pink */
 .pp-hook.tone-disarm  { border-left-color: #ef4444; }   /* red */
-.pp-hook.tone-music   .pp-card-icon { color: #14b8a6; }
+.pp-hook.tone-music   .pp-card-icon { color: #007ad1; }
 .pp-hook.tone-service .pp-card-icon { color: #22c55e; }
 .pp-hook.tone-post    .pp-card-icon { color: hsl(300, 68%, 70%); }
 .pp-hook.tone-disarm  .pp-card-icon { color: #ef4444; }

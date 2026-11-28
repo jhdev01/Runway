@@ -200,7 +200,7 @@
 .pl-add-btn:hover {
   border-color: var(--accent);
   color: var(--accent-bright);
-  background: rgba(20, 184, 166, 0.06);
+  background: rgba(0, 122, 209,  0.06);
 }
 .pl-add-icon {
   width: 18px;
@@ -231,12 +231,12 @@
 .pl-drop:hover {
   border-color: var(--accent);
   color: var(--text);
-  background: rgba(20, 184, 166, 0.04);
+  background: rgba(0, 122, 209,  0.04);
 }
 
 .pl-drop.drag-over {
   border-color: var(--accent-bright);
-  background: rgba(20, 184, 166, 0.08);
+  background: rgba(0, 122, 209,  0.08);
   color: var(--text);
 }
 
@@ -347,7 +347,7 @@
 }
 
 .pl-track.drop-target {
-  border-top: 2px solid var(--accent-bright, #14b8a6);
+  border-top: 2px solid var(--accent-bright, #007ad1);
   padding-top: 8px;
 }
 
@@ -375,8 +375,8 @@
   color: var(--accent-bright);
   text-align: center;
   padding: 3px 8px;
-  background: rgba(20, 184, 166, 0.1);
-  border: 1px solid rgba(20, 184, 166, 0.2);
+  background: rgba(0, 122, 209,  0.1);
+  border: 1px solid rgba(0, 122, 209,  0.2);
   border-radius: 4px;
   font-weight: 600;
   cursor: pointer;
@@ -436,7 +436,7 @@
   cursor: pointer;
 }
 
-.pl-track-action:hover { color: var(--text); border-color: var(--accent); background: rgba(20, 184, 166, 0.06); }
+.pl-track-action:hover { color: var(--text); border-color: var(--accent); background: rgba(0, 122, 209,  0.06); }
 .pl-track-action.danger:hover { color: var(--red-bright); border-color: var(--red); background: rgba(239, 68, 68, 0.06); }
 .pl-track-action svg { width: 18px; height: 18px; }
 
@@ -531,7 +531,7 @@
   justify-content: center;
 }
 
-.pl-stepper-btn:hover { color: var(--accent-bright); background: rgba(20, 184, 166, 0.08); }
+.pl-stepper-btn:hover { color: var(--accent-bright); background: rgba(0, 122, 209,  0.08); }
 .pl-stepper-btn:disabled { color: var(--text-faint); cursor: not-allowed; }
 
 .pl-stepper-value {
@@ -567,7 +567,7 @@
 }
 
 .pl-stepper-text::placeholder { color: var(--text-faint); font-weight: 500; font-style: italic; }
-.pl-stepper-text:focus { background: rgba(20, 184, 166, 0.08); }
+.pl-stepper-text:focus { background: rgba(0, 122, 209,  0.08); }
 
 /* Library picker — modal that lets the operator multi-select existing
    library tracks and link them to a playlist without re-importing. */
@@ -667,8 +667,8 @@
 }
 .pl-picker-row:hover { background: rgba(255, 255, 255, 0.04); }
 .pl-picker-row.selected {
-  background: rgba(20, 184, 166, 0.1);
-  border-color: rgba(20, 184, 166, 0.5);
+  background: rgba(0, 122, 209,  0.1);
+  border-color: rgba(0, 122, 209,  0.5);
 }
 
 .pl-picker-check {
@@ -686,7 +686,7 @@
 .pl-picker-check.on {
   background: var(--accent);
   border-color: var(--accent);
-  color: var(--bg);
+  color: var(--on-accent);
 }
 
 .pl-picker-name {

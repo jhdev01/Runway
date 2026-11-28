@@ -19,20 +19,25 @@
 }
 
 .logo {
-  font-weight: 700;
-  font-size: 17px;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 18px;
   letter-spacing: -0.02em;
   display: flex;
   align-items: center;
-  gap: 9px;
+  gap: 10px;
 }
 
+/* The app icon: white mark on a Runway-blue tile. */
 .logo-mark {
-  height: 18px;
-  width: auto;
-  color: var(--accent);
+  height: 14px;
+  width: 17px;
+  padding: 8px 7px;
+  box-sizing: content-box;
+  border-radius: 8px;
+  background: var(--accent);
+  color: #ffffff;
   flex-shrink: 0;
-  filter: drop-shadow(0 0 6px rgba(20, 184, 166, 0.35));
 }
 
 .topbar-nav {
@@ -91,8 +96,8 @@
 
 /* Brief pulse when a MIDI message arrives. */
 .midi-dot.blink {
-  background: var(--accent-bright, #2dd4bf);
-  box-shadow: 0 0 14px var(--accent-bright, #2dd4bf), 0 0 4px var(--accent-bright, #2dd4bf);
+  background: var(--accent-bright, #3ba0e6);
+  box-shadow: 0 0 14px var(--accent-bright, #3ba0e6), 0 0 4px var(--accent-bright, #3ba0e6);
   transform: scale(1.5);
   transition: transform 0.08s ease, box-shadow 0.08s ease, background 0.08s ease;
 }

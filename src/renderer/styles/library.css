@@ -40,9 +40,9 @@
 }
 
 .library-upload {
-  background: var(--accent, #14b8a6);
-  border: 1px solid var(--accent-bright, #14b8a6);
-  color: #0a0a0a;
+  background: var(--accent, #007ad1);
+  border: 1px solid var(--accent-bright, #007ad1);
+  color: var(--on-accent);
   font-size: 12px;
   font-weight: 600;
   padding: 6px 12px;
@@ -52,7 +52,7 @@
   white-space: nowrap;
   transition: background 0.12s ease, opacity 0.12s ease;
 }
-.library-upload:hover { background: var(--accent-bright, #14b8a6); }
+.library-upload:hover { background: var(--accent-bright, #007ad1); }
 .library-upload:disabled { opacity: 0.6; cursor: progress; }
 
 .library-refresh {
@@ -77,12 +77,12 @@
    than just hovered. */
 .library-refresh.active {
   background: var(--accent-bright);
-  color: #0a0a0a;
+  color: #08090b;
   border-color: var(--accent-bright);
 }
 .library-refresh.active:hover {
   background: var(--accent-bright);
-  color: #0a0a0a;
+  color: #08090b;
 }
 
 .library-search {
@@ -151,7 +151,7 @@
    title/artist/album stack with a progress bar underneath, transport
    controls on the right. The previewing row keeps a subtle accent
    tint so the operator can correlate which row is feeding the bar. */
-.library-row.previewing { background: rgba(20, 184, 166, 0.04); }
+.library-row.previewing { background: rgba(0, 122, 209,  0.04); }
 
 .library-miniplayer {
   flex-shrink: 0;
@@ -244,7 +244,7 @@
   top: 0;
   left: 0;
   height: 100%;
-  background: var(--accent-bright, #14b8a6);
+  background: var(--accent-bright, #007ad1);
   pointer-events: none;
   transition: width 0.05s linear;
 }
@@ -265,7 +265,7 @@
 .library-miniplayer-stop:hover {
   color: var(--accent-bright);
   border-color: var(--accent-bright);
-  background: rgba(20, 184, 166, 0.08);
+  background: rgba(0, 122, 209,  0.08);
 }
 .library-cell-num {
   font-family: 'IBM Plex Mono', monospace;
@@ -302,10 +302,10 @@
 .library-row.orphan { opacity: 0.78; }
 .library-row.orphan:hover { opacity: 1; }
 .library-row.selected {
-  background: rgba(20, 184, 166, 0.08);
+  background: rgba(0, 122, 209,  0.08);
 }
 .library-row.selected:hover:not(.library-head) {
-  background: rgba(20, 184, 166, 0.12);
+  background: rgba(0, 122, 209,  0.12);
 }
 
 .library-cell-check {
@@ -339,9 +339,9 @@
   border-color: var(--accent-bright);
 }
 .library-preview-btn.playing {
-  color: var(--accent-bright, #14b8a6);
-  border-color: var(--accent-bright, #14b8a6);
-  background: rgba(20, 184, 166, 0.16);
+  color: var(--accent-bright, #007ad1);
+  border-color: var(--accent-bright, #007ad1);
+  background: rgba(0, 122, 209,  0.16);
 }
 
 .library-bulkbar {
@@ -349,7 +349,7 @@
   align-items: center;
   gap: 12px;
   padding: 8px 26px;
-  background: rgba(20, 184, 166, 0.08);
+  background: rgba(0, 122, 209,  0.08);
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
@@ -369,7 +369,7 @@
   padding: 2px 6px;
   border-radius: 3px;
 }
-.library-bulkbar-link:hover { background: rgba(20, 184, 166, 0.14); }
+.library-bulkbar-link:hover { background: rgba(0, 122, 209,  0.14); }
 .library-bulkbar-spacer { flex: 1; }
 .library-bulkbar-delete {
   background: transparent;
@@ -528,7 +528,7 @@
 }
 .library-art-picker-tile:hover {
   border-color: var(--accent-bright);
-  background: rgba(20, 184, 166, 0.06);
+  background: rgba(0, 122, 209,  0.06);
 }
 .library-art-picker-tile.current {
   border-color: var(--accent);
@@ -881,12 +881,12 @@
 /* Color by playlist kind so the library tag matches the pre/post/special
    dot color used in the playlist sidebar. */
 .library-playlist-pill.kind-pre {
-  background: rgba(20, 184, 166, 0.12);
-  border-color: rgba(20, 184, 166, 0.45);
-  color: var(--accent-bright, #14b8a6);
+  background: rgba(0, 122, 209,  0.12);
+  border-color: rgba(0, 122, 209,  0.45);
+  color: var(--accent-bright, #007ad1);
 }
 .library-playlist-pill.kind-pre:hover {
-  background: rgba(20, 184, 166, 0.22);
+  background: rgba(0, 122, 209,  0.22);
   border-color: var(--accent-bright);
 }
 .library-playlist-pill.kind-post {
@@ -930,8 +930,8 @@
   flex-shrink: 0;
 }
 .library-pill.trimmed {
-  color: var(--accent-bright, #14b8a6);
-  border-color: var(--accent-bright, #14b8a6);
+  color: var(--accent-bright, #007ad1);
+  border-color: var(--accent-bright, #007ad1);
 }
 .library-pill.timer {
   color: hsl(280, 80%, 75%);
@@ -973,9 +973,9 @@
   animation: arm-confirm-pulse 1s ease-in-out infinite;
 }
 .library-action.active {
-  color: var(--accent-bright, #14b8a6);
-  border-color: var(--accent-bright, #14b8a6);
-  background: rgba(20, 184, 166, 0.14);
+  color: var(--accent-bright, #007ad1);
+  border-color: var(--accent-bright, #007ad1);
+  background: rgba(0, 122, 209,  0.14);
 }
 
 .library-action-pop {
@@ -1112,11 +1112,11 @@
   border-radius: 2px;
   background: linear-gradient(
     to right,
-    rgba(20, 184, 166, 0.35) 0%,
+    rgba(0, 122, 209,  0.35) 0%,
     rgba(255, 255, 255, 0.18) 47%,
-    rgba(20, 184, 166, 0.6) 50%,
+    rgba(0, 122, 209,  0.6) 50%,
     rgba(255, 255, 255, 0.18) 53%,
-    rgba(20, 184, 166, 0.35) 100%
+    rgba(0, 122, 209,  0.35) 100%
   );
 }
 .key-tester-crossfade input[type='range']::-webkit-slider-thumb {

@@ -952,7 +952,7 @@ function MidiDeviceRow({ device, onToggleInput, onToggleOutput, onToggleBoth, on
         }}
         style={{
           color: isLive ? 'var(--accent-bright)' : 'var(--text-faint)',
-          filter: isLive ? 'drop-shadow(0 0 4px rgba(20, 184, 166, 0.45))' : 'none',
+          filter: isLive ? 'drop-shadow(0 0 4px rgba(0, 122, 209,  0.45))' : 'none',
           transition: 'color 0.15s ease, filter 0.15s ease',
           cursor: device.connected ? 'pointer' : 'default',
         }}
@@ -1016,7 +1016,7 @@ function MidiDeviceRow({ device, onToggleInput, onToggleOutput, onToggleBoth, on
         style={{
           padding: '4px 10px',
           fontSize: 12,
-          background: testFlash ? 'rgba(20, 184, 166, 0.25)' : undefined,
+          background: testFlash ? 'rgba(0, 122, 209,  0.25)' : undefined,
           borderColor: testFlash ? 'var(--accent-bright)' : undefined,
           color: testFlash ? 'var(--accent-bright)' : undefined,
           transition: 'background 0.12s, border-color 0.12s, color 0.12s',
@@ -3076,8 +3076,8 @@ function FactoryResetModal({ onClose, onExport, exporting }: {
         </div>
 
         <div style={{
-          background: 'rgba(20,184,166,0.06)',
-          border: '1px solid rgba(20,184,166,0.3)',
+          background: 'rgba(0, 122, 209, 0.06)',
+          border: '1px solid rgba(0, 122, 209, 0.3)',
           borderRadius: 6,
           padding: '10px 12px',
           display: 'flex',

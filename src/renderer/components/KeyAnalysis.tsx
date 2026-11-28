@@ -217,7 +217,7 @@ export function NoteMapStrip({ noteMap, durSec, zoomX, scrollX, height = 140, hi
         const tx = plotEnd + 6;
         for (let pc = 0; pc < 12; pc++) {
           const len = (totals[pc] / maxT) * TOTAL_W;
-          g.fillStyle = scale[0] === pc ? '#f5a524' : scale.includes(pc) ? 'rgba(45,212,191,0.9)' : 'rgba(255,255,255,0.22)';
+          g.fillStyle = scale[0] === pc ? '#f5a524' : scale.includes(pc) ? 'rgba(59, 160, 230, 0.9)' : 'rgba(255,255,255,0.22)';
           g.fillRect(tx, height - (pc + 1) * rowH + 1.5, Math.max(1, len), Math.max(1, rowH - 3));
         }
         g.fillStyle = 'rgba(255,255,255,0.5)';
@@ -351,7 +351,7 @@ export function KeyAnalysisPanel({ currentKey, heard, onSetKey, lookupMultitrack
                 {chip(r.key, '', i === 0 ? 'Most likely key. Click to use it.' : 'Click to use this key.', r.key === currentKey)}
                 <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: 11, opacity: 0.7 }} title="Camelot number (the Pad player shows these)">{camelotOf(r.key)}</span>
                 <div style={{ height: 8, borderRadius: 4, background: 'rgba(255,255,255,0.08)', overflow: 'hidden' }} title={`${r.fit}% of the best fit`}>
-                  <div style={{ width: `${r.fit}%`, height: '100%', background: i === 0 ? 'var(--accent-bright, #2dd4bf)' : 'rgba(255,255,255,0.35)' }} />
+                  <div style={{ width: `${r.fit}%`, height: '100%', background: i === 0 ? 'var(--accent-bright, #3ba0e6)' : 'rgba(255,255,255,0.35)' }} />
                 </div>
                 <span className="settings-field-sub">{r.note}</span>
               </React.Fragment>
@@ -393,7 +393,7 @@ export function KeyAnalysisPanel({ currentKey, heard, onSetKey, lookupMultitrack
               <div key={pc} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
                 <div style={{
                   width: 14, height: Math.max(2, (v / maxP) * 56), borderRadius: 2,
-                  background: scale[0] === pc ? '#f5a524' : scale.includes(pc) ? 'var(--accent-bright, #2dd4bf)' : 'rgba(255,255,255,0.18)',
+                  background: scale[0] === pc ? '#f5a524' : scale.includes(pc) ? 'var(--accent-bright, #3ba0e6)' : 'rgba(255,255,255,0.18)',
                 }} />
                 <span style={{ fontSize: 9, fontFamily: 'IBM Plex Mono, monospace', opacity: scale.includes(pc) ? 0.9 : 0.45 }}>{NOTE_NAMES[pc]}</span>
               </div>
