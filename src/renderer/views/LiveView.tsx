@@ -1042,7 +1042,7 @@ export function LiveView() {
 
         {/* Hero — amber-tint everything in here while armed-but-waiting. */}
         <section
-          className={`hero ${anyMusicPlaying ? 'hero-compact' : ''} ${padHolding ? 'hero-pad' : ''} ${
+          className={`hero ${anyMusicPlaying && !!activeService && targetMs > Date.now() ? 'hero-compact' : ''} ${padHolding ? 'hero-pad' : ''} ${
             activeService
             && currentRunway?.serviceId === activeService.id
             && currentRunway?.phase === 'queued'
@@ -1063,6 +1063,8 @@ export function LiveView() {
             const padHolding = currentRunway?.phase === 'pad' && padOffMs > Date.now();
             const postRolling = currentRunway?.isPostService && postServiceEndMs > Date.now();
             if (targetPassed && !padHolding && !postRolling) return null;
+            // No service today: the post-service / pad panels say what's happening.
+            if (!activeService) return null;
             return (
               <div className="hero-label">
                 {waitingForMusic ? 'Music Starts In' : activeService ? 'Service Starts In' : 'No Service Selected'}
@@ -1448,7 +1450,7 @@ export function LiveView() {
               )}
             </div>
           </div>
-          {currentRunway && runwayView === 'list' && !isTestRunway && !(currentRunway.spotifyPost && !currentRunway.spotify) ? (
+          {currentRunway && runwayView === 'list' && !(isTestRunway && !currentRunway.isPostService) && !(currentRunway.spotifyPost && !currentRunway.spotify) ? (
             <UpNextList rows={upNextRows} keyMode={keyDisplayModeForSpotify} showPlayed={showPlayedTracks || currentRunway.phase === 'pad' || currentRunway.phase === 'done'} />
           ) : (() => {
             const currentIdx = currentRunway?.currentTrackIndex ?? 0;
@@ -2222,47 +2224,16 @@ function MediumCountdown({ header, label, targetMs, showMs = false }: {
   // Pink — matches the key-A pad color (Camelot hue 300). Distinct from
   // the teal pre-service timer so the operator can tell at a glance
   // which phase they're in. Same glowy treatment as CountdownClock.
-  const ACCENT = 'hsl(300, 68%, 75%)';
-  const GLOW_NEAR = 'hsla(300, 68%, 70%, 0.6)';
-  const GLOW_FAR = 'hsla(300, 68%, 60%, 0.35)';
+  // New look: a status line and a clean clock in the post-service pink.
   return (
-    <div style={{
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      padding: '32px 0 24px',
-      gap: 6,
-    }}>
-      <div style={{
-        color: ACCENT,
-        fontSize: 13,
-        fontWeight: 700,
-        letterSpacing: 0.16,
-        textTransform: 'uppercase',
-      }}>
+    <div className="medium-countdown">
+      <div className="medium-countdown-header">
+        <span className="medium-countdown-dot" aria-hidden />
         {header}
       </div>
-      <div style={{
-        fontSize: 11,
-        fontWeight: 600,
-        letterSpacing: 0.16,
-        textTransform: 'uppercase',
-        color: 'var(--text-faint)',
-        fontFamily: 'IBM Plex Mono, monospace',
-      }}>
-        {label}
-      </div>
-      <div style={{
-        fontSize: 64,
-        fontWeight: 700,
-        letterSpacing: -0.02,
-        color: ACCENT,
-        textShadow: `0 0 14px ${GLOW_NEAR}, 0 0 30px ${GLOW_FAR}`,
-        lineHeight: 1,
-        fontFamily: 'IBM Plex Mono, monospace',
-        fontVariantNumeric: 'tabular-nums',
-      }}>
-        {display}
+      <div className="medium-countdown-row">
+        <span className="medium-countdown-label">{label}</span>
+        <span className="medium-countdown-clock">{display}</span>
       </div>
     </div>
   );

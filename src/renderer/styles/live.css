@@ -2555,3 +2555,19 @@
 .stage > .hero { order: -3; }
 .stage > .readiness { order: -2; }
 .stage:not(.music-on) > .now-playing:not(.fade-holding) { display: none; }
+
+/* New look: post-service / pad-finishing countdown. */
+.medium-countdown { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 18px 0 10px; }
+.medium-countdown-header {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12.5px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #f472b6;
+}
+.medium-countdown-dot { width: 8px; height: 8px; border-radius: 50%; background: #f472b6; }
+.medium-countdown-row { display: flex; align-items: baseline; gap: 14px; }
+.medium-countdown-label { font-size: 13px; font-weight: 600; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.06em; }
+.medium-countdown-clock {
+  font-family: 'IBM Plex Mono', monospace; font-weight: 500; font-size: 56px; line-height: 1;
+  letter-spacing: -0.03em; color: #ffffff; font-variant-numeric: tabular-nums;
+}
+.hero-pad .medium-countdown-header { color: #c4b5fd; }
+.hero-pad .medium-countdown-dot { background: #a78bfa; }
