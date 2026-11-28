@@ -2718,3 +2718,10 @@
 .midi-clock-not-armed .midi-clock-ms { color: rgba(252, 165, 165, 0.75); }
 .midi-clock-idle .midi-clock-ms { color: hsla(300, 50%, 82%, 0.75); }
 .hero.hero-compact .midi-clock-ms { font-size: 28px; color: rgba(255, 255, 255, 0.8); }
+
+/* Waiting for music: deeper Runway blue */
+.midi-clock-pre-music .midi-clock-digit, .midi-clock-pre-music .midi-clock-sep { color: #1f8ce0; }
+.midi-clock-pre-music .midi-clock-ms { color: rgba(31, 140, 224, 0.8); }
+.hero.is-pre-music .hero-label, .hero.is-pre-music .hero-meta-value.key { color: #1f8ce0; }
+.hero.is-pre-music .sub-countdown { border-color: rgba(0, 122, 209, 0.6); background: rgba(0, 122, 209, 0.16); }
+.hero.is-pre-music .sub-countdown-label { color: #3ba0e6; }
