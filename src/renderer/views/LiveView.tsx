@@ -17,11 +17,13 @@ import { AlbumArtLightbox } from '../components/AlbumArtLightbox';
 import { Tooltip } from '../components/Tooltip';
 import { RehearsePanel } from '../components/RehearsePanel';
 import { Toggle } from '../components/Toggle';
+import { UpNextList, NpWaveform, type UpNextRow } from '../components/UpNextList';
+import { trackEnvelope, spotifyEnvelope } from '../lib/landLearning';
 import { ACTION_META, describeAction, resolveActionFireMs } from '../lib/actionMeta';
 import { todayISO, formatTime12h, parseTime, formatDuration } from '../lib/format';
-import { keyColor } from '@shared/music';
+import { keyColor, displayKey } from '@shared/music';
 import { effectiveDuration, resolveServiceFirstSongKey } from '@shared/types';
-import type { Playlist } from '@shared/types';
+import type { Playlist, KeyName } from '@shared/types';
 
 /** Condense an arm-error message into a short chip label. Full message is the tooltip. */
 function shortArmWarning(msg: string): string {
@@ -425,6 +427,94 @@ export function LiveView() {
 
   const isPostServiceRolling = currentRunway?.isPostService === true;
 
+  // ── New look: the runway as an "Up next" list (default) or the strip.
+  const runwayView = useAppStore(s => s.config.ui?.runwayView ?? 'list');
+  const npTrack = tracks.find(t => t.id === musicPlayback.trackId);
+  const npSpotifyUri = spotifyRunwayNow?.seg.uri;
+  // Waveform of the playing song (from the file, or a Spotify scan).
+  const [npPeaks, setNpPeaks] = useState<number[] | null>(null);
+  useEffect(() => {
+    let alive = true;
+    setNpPeaks(null);
+    const done = (env: { peaks: ArrayLike<number> } | null) => {
+      if (!alive || !env || env.peaks.length === 0) return;
+      const BARS = 96;
+      const src = Array.from(env.peaks);
+      const step = src.length / BARS;
+      const out: number[] = [];
+      for (let i = 0; i < BARS; i++) {
+        let m = 0;
+        for (let j = Math.floor(i * step); j < Math.floor((i + 1) * step); j++) m = Math.max(m, src[j] ?? 0);
+        out.push(m);
+      }
+      setNpPeaks(out);
+    };
+    if (npSpotifyUri) void spotifyEnvelope(npSpotifyUri).then(done).catch(() => undefined);
+    else if (npTrack?.filePath) void trackEnvelope(npTrack.id, npTrack.filePath).then(done).catch(() => undefined);
+    return () => { alive = false; };
+  }, [npSpotifyUri, npTrack?.id, npTrack?.filePath]);
+
+  const [listTick, setListTick] = useState(0);
+  useEffect(() => {
+    const t = window.setInterval(() => setListTick(x => x + 1), 1000);
+    return () => window.clearInterval(t);
+  }, []);
+  const upNextRows: UpNextRow[] = useMemo(() => {
+    void listTick;
+    const r = currentRunway;
+    if (!r) return [];
+    const now = Date.now();
+    const rows: UpNextRow[] = [];
+    let lastEnd = 0;
+    if (r.spotify) {
+      const segs = runwayTruncation?.visibleSpotifySegments ?? r.spotify.segments;
+      const cur = spotifyRunwayNow?.index ?? -1;
+      segs.forEach((sg, i) => {
+        const state = i === cur ? 'current' : (cur >= 0 ? i < cur : now >= sg.stopAt) ? 'played' : 'next';
+        rows.push({
+          kind: 'song', id: `s${i}-${sg.uri}`, n: i + 1, title: sg.title, artist: sg.artist, art: sg.albumArtUrl,
+          keyName: sg.key as KeyName | undefined, startMs: sg.startAt, durSec: (sg.stopAt - sg.startAt) / 1000,
+          state, progressPct: state === 'current' && spotifyRunwayNow ? ((now - sg.startAt) / Math.max(1, sg.stopAt - sg.startAt)) * 100 : 0,
+          lands: !r.isPostService && i === segs.length - 1,
+        });
+        lastEnd = sg.stopAt;
+      });
+    } else {
+      const startOff = r.startOffsetSec ?? 0;
+      let cum = 0;
+      queueTracks.forEach((t, i) => {
+        const adj = i >= 1 ? startOff : 0;
+        const startMs = r.musicStartMs + (cum - adj) * 1000;
+        const dur = t ? effectiveDuration(t) : 60;
+        const state = i < r.currentTrackIndex ? 'played' : i === r.currentTrackIndex && r.phase === 'music' ? 'current' : r.phase === 'pad' || r.phase === 'done' ? 'played' : 'next';
+        rows.push({
+          kind: 'song', id: `t${i}-${t?.id ?? 'missing'}`, n: i + 1, title: t?.title ?? 'Missing track', artist: t?.artist,
+          art: t?.albumArtUrl, keyName: t?.key, startMs, durSec: dur, state,
+          progressPct: state === 'current' && musicPlayback.durationSec > 0 ? (musicPlayback.positionSec / musicPlayback.durationSec) * 100 : 0,
+          lands: !r.isPostService && r.serviceId !== null && i === queueTracks.length - 1,
+        });
+        cum += dur;
+        lastEnd = startMs + dur * 1000;
+      });
+    }
+    const svc = r.serviceId ? services.find(sv => sv.id === r.serviceId) : undefined;
+    if (!r.isPostService && r.serviceId && !svc?.disablePadBridge && !r.skipPadBridge && (r.padBridgeSec || 0) > 0) {
+      rows.push({
+        kind: 'pad', id: 'pad', keyName: r.landInKey, startMs: r.padStartMs || lastEnd, durSec: (r.padBridgeSec || 0) + (r.padFadeOutSec || 0),
+        state: r.phase === 'pad' ? 'current' : r.phase === 'done' ? 'played' : 'next',
+      });
+    }
+    for (const { action, fireMs } of armedActions) {
+      const meta = ACTION_META[action.payload.type];
+      rows.push({
+        kind: 'action', id: `a-${action.id}`, icon: meta.icon, color: meta.color,
+        label: action.label || meta.label, detail: describeAction(action), atMs: fireMs, past: fireMs < now,
+      });
+    }
+    const at = (x: UpNextRow) => (x.kind === 'action' ? x.atMs - 0.5 : x.startMs);
+    return rows.sort((a, b) => at(a) - at(b));
+  }, [currentRunway, queueTracks, runwayTruncation, spotifyRunwayNow, musicPlayback.positionSec, musicPlayback.durationSec, armedActions, services, listTick]);
+
   // Post-service playlist dropdown — always available so the operator can
   // fire a post-service even when no service is on the schedule. Defaults
   // from the active service's saved playlist; user can override per session.
@@ -701,6 +791,82 @@ export function LiveView() {
   }, [currentChipKey]);
 
 
+  // −2 / +2 min and + Song live in the bottom bar (new look).
+  const timeShiftEl = (activeService && targetMs > Date.now() - 60_000 && (() => {
+                const fireShift = (
+                  sec: number,
+                  confirmFlag: boolean,
+                  setFlag: (b: boolean) => void,
+                  timerRef: React.MutableRefObject<number | null>,
+                ) => {
+                  if (!confirmFlag) {
+                    setFlag(true);
+                    if (timerRef.current !== null) window.clearTimeout(timerRef.current);
+                    timerRef.current = window.setTimeout(() => {
+                      setFlag(false);
+                      timerRef.current = null;
+                    }, 3000);
+                    return;
+                  }
+                  extendServiceStart(activeService.id, sec);
+                  // Re-plan so the music lands on the NEW start: re-arms a
+                  // runway whose music hasn't started, re-plans Spotify
+                  // music in place. Runway music playing: +N fills the new
+                  // time with a song (it fades at the new start), as before.
+                  setArmError(null);
+                  void controller.retargetAfterShift(sec).then(r => {
+                    if (!r.addSong) return;
+                    void controller.addSongLive().then(res => {
+                      if (!res.ok) setArmError(res.reason ?? null);
+                    });
+                  });
+                  setFlag(false);
+                  if (timerRef.current !== null) {
+                    window.clearTimeout(timerRef.current);
+                    timerRef.current = null;
+                  }
+                };
+                const runwayLive = currentRunway?.serviceId === activeService.id
+                  && (currentRunway?.phase === 'music' || currentRunway?.phase === 'pad');
+                return (
+                  <div className="time-shift-group">
+                    {runwayLive && (
+                      <button
+                        className="time-shift-btn"
+                        type="button"
+                        onClick={() => {
+                          setArmError(null);
+                          void controller.addSongLive().then(res => {
+                            if (!res.ok) setArmError(res.reason ?? 'Could not add a song');
+                          });
+                        }}
+                        title="Play one more song now, fading out exactly at service start. Prefers the pad's key; does not move the start time."
+                      >
+                        + Song
+                      </button>
+                    )}
+                    <button
+                      className="time-shift-btn"
+                      type="button"
+                      data-confirm={confirmSubTime ? 'true' : 'false'}
+                      onClick={() => fireShift(-120, confirmSubTime, setConfirmSubTime, subTimeTimerRef)}
+                      title="Pull service start IN by 2 minutes (also updates the ProPresenter timer). Two-click to confirm."
+                    >
+                      {confirmSubTime ? 'Confirm −2' : '−2 min'}
+                    </button>
+                    <button
+                      className="time-shift-btn"
+                      type="button"
+                      data-confirm={confirmAddTime ? 'true' : 'false'}
+                      onClick={() => fireShift(120, confirmAddTime, setConfirmAddTime, addTimeTimerRef)}
+                      title="Push service start BACK by 2 minutes and add a song to fill the extra time (also updates the ProPresenter timer). Two-click to confirm."
+                    >
+                      {confirmAddTime ? 'Confirm +2' : '+2 min'}
+                    </button>
+                  </div>
+                );
+              })());
+
   return (
     <div className="live-view">
 
@@ -788,80 +954,6 @@ export function LiveView() {
                   service header bar. Light-grey neutral tint keeps the
                   visual emphasis on Arm. Two-step confirm mirrors the
                   disarm pattern. */}
-              {activeService && targetMs > Date.now() - 60_000 && (() => {
-                const fireShift = (
-                  sec: number,
-                  confirmFlag: boolean,
-                  setFlag: (b: boolean) => void,
-                  timerRef: React.MutableRefObject<number | null>,
-                ) => {
-                  if (!confirmFlag) {
-                    setFlag(true);
-                    if (timerRef.current !== null) window.clearTimeout(timerRef.current);
-                    timerRef.current = window.setTimeout(() => {
-                      setFlag(false);
-                      timerRef.current = null;
-                    }, 3000);
-                    return;
-                  }
-                  extendServiceStart(activeService.id, sec);
-                  // Re-plan so the music lands on the NEW start: re-arms a
-                  // runway whose music hasn't started, re-plans Spotify
-                  // music in place. Runway music playing: +N fills the new
-                  // time with a song (it fades at the new start), as before.
-                  setArmError(null);
-                  void controller.retargetAfterShift(sec).then(r => {
-                    if (!r.addSong) return;
-                    void controller.addSongLive().then(res => {
-                      if (!res.ok) setArmError(res.reason ?? null);
-                    });
-                  });
-                  setFlag(false);
-                  if (timerRef.current !== null) {
-                    window.clearTimeout(timerRef.current);
-                    timerRef.current = null;
-                  }
-                };
-                const runwayLive = currentRunway?.serviceId === activeService.id
-                  && (currentRunway?.phase === 'music' || currentRunway?.phase === 'pad');
-                return (
-                  <div className="time-shift-group">
-                    {runwayLive && (
-                      <button
-                        className="time-shift-btn"
-                        type="button"
-                        onClick={() => {
-                          setArmError(null);
-                          void controller.addSongLive().then(res => {
-                            if (!res.ok) setArmError(res.reason ?? 'Could not add a song');
-                          });
-                        }}
-                        title="Play one more song now, fading out exactly at service start. Prefers the pad's key; does not move the start time."
-                      >
-                        + Song
-                      </button>
-                    )}
-                    <button
-                      className="time-shift-btn"
-                      type="button"
-                      data-confirm={confirmSubTime ? 'true' : 'false'}
-                      onClick={() => fireShift(-120, confirmSubTime, setConfirmSubTime, subTimeTimerRef)}
-                      title="Pull service start IN by 2 minutes (also updates the ProPresenter timer). Two-click to confirm."
-                    >
-                      {confirmSubTime ? 'Confirm −2' : '−2 min'}
-                    </button>
-                    <button
-                      className="time-shift-btn"
-                      type="button"
-                      data-confirm={confirmAddTime ? 'true' : 'false'}
-                      onClick={() => fireShift(120, confirmAddTime, setConfirmAddTime, addTimeTimerRef)}
-                      title="Push service start BACK by 2 minutes and add a song to fill the extra time (also updates the ProPresenter timer). Two-click to confirm."
-                    >
-                      {confirmAddTime ? 'Confirm +2' : '+2 min'}
-                    </button>
-                  </div>
-                );
-              })()}
             </>
           ) : null}
         </div>
@@ -1176,7 +1268,7 @@ export function LiveView() {
         </section>
 
         {/* Auto-start status */}
-        <section className="auto-start">
+        <section className={`auto-start ${armError ? 'has-warning' : ''}`}>
           <div className={`auto-start-indicator ${anyMusicPlaying ? '' : 'idle'}`} />
           <div className="auto-start-text">
             {anyMusicPlaying ? (
@@ -1238,8 +1330,22 @@ export function LiveView() {
               )}
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginLeft: 'auto' }}>
+              {currentRunway && (
+                <div className="runway-view-switch" role="group" aria-label="Runway view">
+                  {(['list', 'strip'] as const).map(v => (
+                    <button
+                      key={v}
+                      type="button"
+                      className={runwayView === v ? 'on' : ''}
+                      onClick={() => updateConfig({ ui: { ...useAppStore.getState().config.ui, runwayView: v } })}
+                    >
+                      {v === 'list' ? 'List' : 'Strip'}
+                    </button>
+                  ))}
+                </div>
+              )}
               {/* Toggle whether already-played tracks stay visible. */}
-              {currentRunway && (currentRunway.currentTrackIndex ?? 0) > 0 && (
+              {currentRunway && ((currentRunway.currentTrackIndex ?? 0) > 0 || runwayView === 'list') && (
                 <label
                   style={{
                     display: 'flex',
@@ -1285,7 +1391,9 @@ export function LiveView() {
               )}
             </div>
           </div>
-          {(() => {
+          {currentRunway && runwayView === 'list' && !isTestRunway && !(currentRunway.spotifyPost && !currentRunway.spotify) ? (
+            <UpNextList rows={upNextRows} keyMode={keyDisplayModeForSpotify} showPlayed={showPlayedTracks} />
+          ) : (() => {
             const currentIdx = currentRunway?.currentTrackIndex ?? 0;
             const remainingCount = Math.max(0, queueTracks.length - currentIdx);
             // When the operator opts to keep played tracks on screen we
@@ -1609,35 +1717,49 @@ export function LiveView() {
           <div className="np-info">
             <div className={`np-label ${fadeToPadActive ? 'holding' : ''}`}>
               {fadeToPadActive ? 'Holding on Pad' : 'Now Playing'}
+              {currentRunway && (currentRunway.spotify || playlistInUse) && (
+                <span className="np-context">
+                  {' · '}{currentRunway.spotify ? currentRunway.spotify.playlistName : playlistInUse?.name}
+                  {(() => {
+                    const songRows = upNextRows.filter(r => r.kind === 'song');
+                    const i = songRows.findIndex(r => r.kind === 'song' && r.state === 'current');
+                    return i >= 0 ? ` · song ${i + 1} of ${songRows.length}` : '';
+                  })()}
+                </span>
+              )}
             </div>
             <div className="np-title">
-              {spotifyNow ? `${spotifyNow.title}${spotifyNow.artist ? ` — ${spotifyNow.artist}` : ''}` : (() => {
-                const t = tracks.find(t => t.id === musicPlayback.trackId);
-                return t ? t.title : (musicPlayback.isPlaying ? 'Untitled' : 'Nothing playing');
-              })()}
+              {spotifyNow ? spotifyNow.title : (npTrack ? npTrack.title : (musicPlayback.isPlaying ? 'Untitled' : 'Nothing playing'))}
             </div>
-            <div className="np-progress">
-              <span>{formatDuration(spotifyNow ? spotifyNow.positionSec : musicPlayback.positionSec)}</span>
-              <div className="np-progress-bar">
-                <div className="np-progress-fill" style={{
-                  width: spotifyNow
-                    ? `${spotifyNow.durationSec > 0 ? Math.min(100, (spotifyNow.positionSec / spotifyNow.durationSec) * 100) : 0}%`
-                    : musicPlayback.durationSec > 0
-                      ? `${(musicPlayback.positionSec / musicPlayback.durationSec) * 100}%`
-                      : '0%'
-                }} />
-              </div>
-              <span>{formatDuration(spotifyNow ? spotifyNow.durationSec : musicPlayback.durationSec)}</span>
-            </div>
-          </div>
-          <div className="np-key">
-            <div className="np-key-label">Key</div>
-            <div className="np-key-value">
-              {spotifyNow ? (spotifyNow.key || '—') : (() => {
-                const t = tracks.find(t => t.id === musicPlayback.trackId);
-                return t?.key || '—';
-              })()}
-            </div>
+            {(spotifyNow?.artist || (!spotifyNow && npTrack?.artist)) && (
+              <div className="np-artist">{spotifyNow ? spotifyNow.artist : npTrack?.artist}</div>
+            )}
+            {(() => {
+              const k = (spotifyNow ? spotifyNow.key : npTrack?.key) as KeyName | undefined;
+              const bpm = spotifyNow ? undefined : npTrack?.bpm;
+              const playing = !!spotifyNow || musicPlayback.isPlaying;
+              if (!playing) return null;
+              const c = k ? keyColor(k) : null;
+              return (
+                <div className="np-tags">
+                  {k && c && <span className="np-tag" style={{ background: c.bg, color: c.fg }}>Key {displayKey(k, keyDisplayModeForSpotify)}</span>}
+                  {bpm ? <span className="np-tag">{Math.round(bpm)} BPM</span> : null}
+                  <span className="np-tag">{spotifyNow ? 'Spotify' : 'Library'}</span>
+                </div>
+              );
+            })()}
+            {(() => {
+              const pos = spotifyNow ? spotifyNow.positionSec : musicPlayback.positionSec;
+              const dur = spotifyNow ? spotifyNow.durationSec : musicPlayback.durationSec;
+              const pct = dur > 0 ? Math.min(100, (pos / dur) * 100) : 0;
+              return (
+                <div className="np-progress">
+                  <span>{formatDuration(pos)}</span>
+                  <NpWaveform peaks={(spotifyNow || musicPlayback.isPlaying) ? npPeaks : null} progressPct={pct} />
+                  <span>−{formatDuration(Math.max(0, dur - pos))}</span>
+                </div>
+              );
+            })()}
           </div>
         </section>
 
@@ -1681,6 +1803,18 @@ export function LiveView() {
         {/* Action buttons — single horizontal row.
             Order: Start Post-Service → Fade to Pad → Stop All. */}
         <section className="actions">
+          {(spotifyNow || musicPlayback.isPlaying) && (
+            <div className="actions-np">
+              {(spotifyNow?.art || npTrack?.albumArtUrl)
+                ? <img className="actions-np-art" src={spotifyNow?.art || npTrack?.albumArtUrl} alt="" />
+                : <div className="actions-np-art" aria-hidden>♪</div>}
+              <div className="actions-np-text">
+                <div className="actions-np-title">{spotifyNow ? spotifyNow.title : npTrack?.title ?? 'Untitled'}</div>
+                <div className="actions-np-artist">{spotifyNow ? spotifyNow.artist ?? '' : npTrack?.artist ?? ''}</div>
+              </div>
+            </div>
+          )}
+          {timeShiftEl}
           {(() => {
             // Only treat the pre-service runway as a hard lock when it's
             // actually producing audio (music or pad). A queued runway

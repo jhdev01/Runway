@@ -848,6 +848,8 @@ export interface AppConfig {
     // ahead. Toggle on to keep the full runway visible (useful for
     // post-mortem during a service or just personal preference).
     showPlayedTracks?: boolean;
+    /** Live page runway: the "Up next" song list (default) or the horizontal strip. */
+    runwayView?: 'list' | 'strip';
     // Shows testing tools meant for development (e.g. the Library "Key
     // test" that scores key detection against the operator's own tags).
     developerMode?: boolean;

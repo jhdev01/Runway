@@ -2327,3 +2327,158 @@
   margin-top: 0;
 }
 .hero.hero-compact > .sub-countdown-row { display: none; }
+
+/* ───── New look · Live page (phase 2, step 2) ───── */
+/* Now-playing card details */
+.np-context { color: var(--text-dim); font-weight: 500; letter-spacing: 0.02em; text-transform: none; }
+.np-artist { font-size: 16px; color: #b7bec8; margin-top: 4px; }
+.np-tags { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+.np-tag {
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: #1c1f25;
+  color: #c9cfd7;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.np-wave {
+  flex: 1;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.np-wave span { flex: 1; min-width: 1px; border-radius: 2px; background: #2e343d; }
+.np-wave span.on { background: var(--accent); }
+.stage:not(.music-on) .np-wave { height: 24px; }
+
+/* Status line: folded into the now-playing card while music plays (it
+   stays when there's a warning to show). */
+.stage.music-on > .auto-start:not(.has-warning) { display: none; }
+
+/* Countdown as a solid blue tile while music plays. */
+.hero.hero-compact > .hero-label,
+.hero.hero-compact > .midi-clock {
+  background: var(--accent);
+  color: #ffffff;
+  padding-left: 20px;
+  padding-right: 20px;
+  justify-self: start;
+  width: 100%;
+}
+.hero.hero-compact > .hero-label { border-radius: 14px 14px 0 0; padding-top: 14px; margin: 0; color: rgba(255,255,255,0.85); }
+.hero.hero-compact > .midi-clock { border-radius: 0 0 14px 14px; padding-bottom: 14px; justify-content: flex-start; }
+.hero.hero-compact .midi-clock-digit,
+.hero.hero-compact .midi-clock-sep,
+.hero.hero-compact .midi-clock-ms { color: #ffffff; }
+.hero.hero-compact .midi-clock-sep { opacity: 0.6; }
+
+/* Up next list */
+.runway-view-switch { display: inline-flex; background: var(--bg-elev-2); border-radius: 8px; padding: 3px; gap: 2px; }
+.runway-view-switch button {
+  border: none; background: transparent; color: var(--text-dim);
+  font-size: 12px; font-weight: 600; padding: 5px 10px; border-radius: 6px;
+}
+.runway-view-switch button.on { background: #2a3240; color: #ffffff; }
+.upnext { display: flex; flex-direction: column; }
+.upnext-head,
+.upnext-row {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) 120px 64px 64px;
+  gap: 12px;
+  align-items: center;
+}
+.upnext-head {
+  padding: 4px 10px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  border-bottom: 1px solid var(--border);
+}
+.upnext-row {
+  position: relative;
+  padding: 8px 10px;
+  border-bottom: 1px solid #16191e;
+  border-radius: 8px;
+}
+.upnext-row.current { background: rgba(0, 122, 209, 0.12); }
+.upnext-row.played { opacity: 0.45; }
+.upnext-n { font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: var(--text-dim); text-align: center; }
+.upnext-row.current .upnext-n { color: var(--accent-bright); }
+.upnext-title-cell { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.upnext-art {
+  width: 40px; height: 40px; border-radius: 6px; object-fit: cover; flex-shrink: 0;
+  background: #1c1f25; display: flex; align-items: center; justify-content: center;
+  color: var(--text-faint); font-size: 16px;
+}
+.upnext-art.pad { background: rgba(167, 139, 250, 0.18); color: #c4b5fd; font-size: 11px; font-weight: 700; }
+.upnext-titles { min-width: 0; }
+.upnext-title { font-size: 14.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.upnext-artist { font-size: 12.5px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.upnext-lands { color: var(--accent-bright); }
+.upnext-time { font-family: 'IBM Plex Mono', monospace; font-size: 12.5px; color: #b7bec8; }
+.upnext-right { text-align: right; }
+.upnext-key { justify-self: start; padding: 3px 8px; border-radius: 5px; font-size: 12px; font-weight: 700; }
+.upnext-key.none { color: var(--text-faint); }
+.upnext-progress { position: absolute; left: 10px; right: 10px; bottom: 2px; height: 2px; background: transparent; }
+.upnext-progress span { display: block; height: 100%; background: var(--accent); border-radius: 2px; }
+.upnext-action {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) 120px;
+  gap: 12px;
+  align-items: center;
+  padding: 6px 10px;
+  font-size: 13px;
+  color: #c9cfd7;
+}
+.upnext-action.past { opacity: 0.45; }
+.upnext-action-icon {
+  justify-self: center;
+  width: 22px; height: 22px; border-radius: 50%;
+  border: 1px solid; display: flex; align-items: center; justify-content: center;
+  font-size: 11px;
+}
+.upnext-action-label { font-weight: 600; }
+
+/* Bottom bar: current song on the left, then time buttons, then actions. */
+.stage > .actions { align-items: center; gap: 10px; }
+.actions-np { display: flex; align-items: center; gap: 12px; flex: 0 1 260px; min-width: 0; }
+.actions-np-art {
+  width: 46px; height: 46px; border-radius: 8px; object-fit: cover; flex-shrink: 0;
+  background: #1c1f25; display: flex; align-items: center; justify-content: center; color: var(--text-faint);
+}
+.actions-np-text { min-width: 0; }
+.actions-np-title { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.actions-np-artist { font-size: 12.5px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stage > .actions .time-shift-group { margin-left: 0; }
+.stage > .actions .time-shift-btn {
+  height: 46px;
+  padding: 0 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border-bright);
+  background: var(--bg-elev-2);
+  color: var(--text);
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 13.5px;
+}
+.stage > .actions .action-btn { padding: 10px 14px; min-height: 52px; }
+
+/* Right side: each panel as a card. */
+.right-panel { background: var(--bg); padding: 16px 16px 24px; }
+.right-panel > * {
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding-top: 16px;
+  padding-bottom: 12px;
+  margin-bottom: 14px;
+}
+.panel-header { padding: 0 18px; }
+.actions-np { flex: 0 1 210px; }
+.stage > .actions .action-btn-sub { font-size: 10.5px; }
+@media (max-width: 1500px) {
+  .stage > .actions .action-btn-icon { display: none; }
+}

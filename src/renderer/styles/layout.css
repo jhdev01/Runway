@@ -185,3 +185,23 @@
   padding: 4px 6px;
 }
 .spotify-alert-close:hover { color: var(--text); }
+
+/* ───────── New look · top bar ───────── */
+.topbar { height: 60px; background: #0e1013; }
+.topbar-nav {
+  gap: 4px;
+  padding: 4px;
+  background: var(--bg-elev-2);
+  border-radius: 10px;
+}
+.nav-item { font-size: 14px; border-radius: 7px; padding: 7px 14px; }
+.nav-item.active { background: #23272e; color: #ffffff; font-weight: 600; }
+.midi-status,
+.midi-status-button {
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: 999px;
+  padding: 6px 12px;
+  color: #c9cfd7;
+}
