@@ -2670,3 +2670,43 @@
 .action-btn.panic:hover:not(:disabled) { background: #f43f5e; box-shadow: none; }
 .action-btn:disabled { opacity: 0.38; }
 .stage > .actions .time-shift-btn { height: 52px; border-radius: 12px; font-weight: 700; font-size: 14.5px; }
+
+/* ── Countdown, reworked: dot separators, fixed-width digits, quiet ms ── */
+.midi-clock { align-items: center; gap: 0; padding: 4px 0; }
+.midi-clock-digit {
+  display: inline-block;
+  width: 0.6em;
+  text-align: center;
+  font-size: 112px;
+  line-height: 1;
+  letter-spacing: 0;
+}
+.midi-clock-sep {
+  display: inline-flex; flex-direction: column; justify-content: center; gap: 0.2em;
+  height: 0.7em; margin: 0 0.12em;
+  font-size: 112px;
+}
+.midi-clock-sep i { display: block; width: 0.1em; height: 0.1em; border-radius: 50%; background: currentColor; opacity: 0.45; }
+.midi-clock-ms {
+  align-self: flex-end;
+  margin: 0 0 0.62em 0.25em;
+  font-size: 26px;
+  min-width: 2.6em;
+  font-variant-numeric: tabular-nums;
+}
+.hero.hero-compact .midi-clock-digit, .hero.hero-compact .midi-clock-sep { font-size: 60px; }
+.hero.hero-compact .midi-clock-ms { font-size: 16px; }
+
+/* Waiting for music: Runway blue instead of purple */
+.midi-clock-pre-music .midi-clock-digit, .midi-clock-pre-music .midi-clock-sep { color: #7cc0ee; }
+.midi-clock-pre-music .midi-clock-ms { color: rgba(124, 192, 238, 0.5); }
+.hero.is-pre-music .hero-label { color: var(--accent-bright); }
+.hero.is-pre-music .hero-meta-label { color: var(--text-faint); }
+.hero.is-pre-music .hero-meta-value.key { color: var(--accent-bright); }
+.hero.is-pre-music .sub-countdown { border-color: rgba(0, 122, 209, 0.45); background: rgba(0, 122, 209, 0.1); }
+.hero.is-pre-music .sub-countdown-label { color: #7cc0ee; }
+.hero.is-pre-music .hero-early-sub { color: var(--text-faint); }
+.hero-early-cancel { border-color: rgba(0, 122, 209, 0.5) !important; color: var(--accent-bright) !important; background: rgba(0, 122, 209, 0.08) !important; }
+.hero-early-cancel:hover:not(:disabled) { border-color: var(--accent) !important; }
+.hero-early-buttons button { display: inline-flex; align-items: center; gap: 8px; border-radius: 10px; }
+.hero-early-icon { width: 15px; height: 15px; flex-shrink: 0; }

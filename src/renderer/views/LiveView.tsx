@@ -1281,7 +1281,7 @@ export function LiveView() {
                     }}
                     title="Re-roll the pre-service playlist order. The pinned last song stays put."
                   >
-                    🔀 Shuffle
+                    <svg className="hero-early-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M16 3h5v5"/><path d="M4 20 21 3"/><path d="M21 16v5h-5"/><path d="m15 15 6 6"/><path d="M4 4l5 5"/></svg>Shuffle
                   </button>
                   <button
                     className="btn-secondary"
@@ -1292,7 +1292,7 @@ export function LiveView() {
                     }}
                     title="Re-arrange the playlist to fill the remaining time and start music now"
                   >
-                    ▶ Start music early & fill
+                    <svg className="hero-early-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden><path d="M7 4.5v15l12.5-7.5z"/></svg>Start music early & fill
                   </button>
                 </div>
                 <span className="hero-early-sub">
@@ -1445,7 +1445,7 @@ export function LiveView() {
                   title="Re-roll the order of the unplayed tracks. The current song keeps playing."
                   style={{ padding: '6px 12px', fontSize: 12 }}
                 >
-                  🔀 Shuffle remaining
+                  <svg className="hero-early-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M16 3h5v5"/><path d="M4 20 21 3"/><path d="M21 16v5h-5"/><path d="m15 15 6 6"/><path d="M4 4l5 5"/></svg>Shuffle remaining
                 </button>
               )}
             </div>
