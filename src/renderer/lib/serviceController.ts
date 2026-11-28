@@ -26,6 +26,7 @@ import { effectiveDuration } from '@shared/types';
 import { resolveActionFireMs } from './actionMeta';
 import { spotifyServiceRun, spotifyTestRun, planSpotifyRun, songBounds, spotifyNowPlaying } from './spotifyTestRun';
 import { spotifyFreePlay } from './spotifyPost';
+import { applySpotifyPlaylistSettings } from './spotifyArrange';
 
 type Store = typeof useAppStore;
 
@@ -724,8 +725,17 @@ export class ServiceController {
     const cached = state.config.spotify?.playlistCache?.[spotifyPlaylistId];
     const name = cached?.name ?? 'Spotify playlist';
     const artCache = state.config.spotify?.artCache ?? {};
-    const tracks = (cached?.tracks ?? []).map(t => (artCache[t.uri] ? { ...t, albumArtUrl: artCache[t.uri] } : t));
+    const ps = state.config.spotify?.playlistSettings?.[spotifyPlaylistId];
+    let tracks = (cached?.tracks ?? []).map(t => (artCache[t.uri] ? { ...t, albumArtUrl: artCache[t.uri] } : t));
     if (tracks.length === 0) return { ok: false, reason: `Couldn’t load the Spotify playlist “${name}”. Import it in Playlists › Spotify.` };
+    // Playback order Shuffle: a new order each time, like a Runway post-service.
+    if (ps?.playbackOrder === 'shuffle' && tracks.length > 1) {
+      tracks = [...tracks];
+      for (let i = tracks.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [tracks[i], tracks[j]] = [tracks[j], tracks[i]];
+      }
+    }
 
     // Played song by song like a Runway post-service playlist: each song's
     // Start / End / fades apply, the chip strip and Now Playing follow it,
@@ -751,7 +761,7 @@ export class ServiceController {
       const probe = {
         serviceId: null, originServiceId, isPostService: true, sourcePlaylistId: undefined,
         targetMs: endAt, musicStartMs: segments[0].startAt, trackIds: [] as string[], startOffsetSec: 0,
-        spotify: { segments },
+        spotify: { segments, playlistId: spotifyPlaylistId },
       } as unknown as NonNullable<ReturnType<Store['getState']>['currentRunway']>;
       const seq = this.resolveSequence(state, probe);
       let cutAt = Infinity;
@@ -774,6 +784,8 @@ export class ServiceController {
     if (spotifyTestRun.isActive()) await spotifyTestRun.stop();
     if (spotifyFreePlay.isActive()) await spotifyFreePlay.stop(1);
 
+    // Crossfade setting: fades between songs (the song times don't move).
+    segments = applySpotifyPlaylistSettings(segments, ps ? { transitionMode: ps.transitionMode, crossfadeSec: ps.crossfadeSec } : undefined, edits, state.config.defaults.crossfadeSec ?? 5);
     const firstFadeInSec = state.config.defaults.postServiceFadeInSec ?? 4;
     const spotify = { playlistId: spotifyPlaylistId, playlistName: name, segments, lastFadeSec, firstFadeInSec };
     this.store.getState().setCurrentRunway({
@@ -1732,12 +1744,16 @@ export class ServiceController {
         return sequences.find(s => s.id === ovr) ?? null;
       }
     }
-    // Fall through to the playlist's default sequence.
+    // Fall through to the playlist's default sequence (a Spotify playlist's
+    // is in its Playlists › Spotify settings).
     const playlistId = runway.sourcePlaylistId;
-    if (!playlistId) return null;
-    const pl = state.config.playlists.find(p => p.id === playlistId);
-    if (!pl?.actionSequenceId) return null;
-    return sequences.find(s => s.id === pl.actionSequenceId) ?? null;
+    const seqId = playlistId
+      ? state.config.playlists.find(p => p.id === playlistId)?.actionSequenceId
+      : runway.spotify
+        ? state.config.spotify?.playlistSettings?.[runway.spotify.playlistId]?.actionSequenceId
+        : undefined;
+    if (!seqId) return null;
+    return sequences.find(s => s.id === seqId) ?? null;
   }
 
   private async dispatchAction(action: Action, _runway: unknown): Promise<void> {

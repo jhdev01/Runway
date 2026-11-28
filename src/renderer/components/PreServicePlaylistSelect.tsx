@@ -8,10 +8,13 @@ import type { SpotifyPlaylistSummary } from '@shared/types';
  * the whole account. Read fresh each time, so a playlist imported or
  * removed shows up straight away.
  */
-export function importedSpotifyPlaylists(): SpotifyPlaylistSummary[] {
-  const cache = useAppStore.getState().config.spotify?.playlistCache ?? {};
+export function importedSpotifyPlaylists(kind?: 'pre' | 'post'): SpotifyPlaylistSummary[] {
+  const sp = useAppStore.getState().config.spotify;
+  const cache = sp?.playlistCache ?? {};
   return Object.entries(cache)
     .filter(([, pl]) => pl?.ok)
+    // Its Playlist type (Playlists › Spotify): none set = offered in both menus.
+    .filter(([id]) => { const k = sp?.playlistSettings?.[id]?.kind; return !kind || !k || k === kind; })
     .map(([id, pl]) => ({ id, name: pl.name ?? 'Spotify playlist' }))
     .sort((a, b) => a.name.localeCompare(b.name));
 }
@@ -38,8 +41,9 @@ export function PreServicePlaylistSelect({ value, onChange }: {
   const playlists = useAppStore(s => s.config.playlists);
   // Re-render when playlists are imported / removed.
   useAppStore(s => s.config.spotify?.playlistCache);
+  useAppStore(s => s.config.spotify?.playlistSettings);
   // Imported Spotify playlists only (plus the current choice, if it was removed).
-  const spotifyOptions = importedSpotifyPlaylists();
+  const spotifyOptions = importedSpotifyPlaylists('pre');
   if (value.spotifyPlaylistId && !spotifyOptions.some(p => p.id === value.spotifyPlaylistId)) {
     spotifyOptions.push({ id: value.spotifyPlaylistId, name: value.spotifyPlaylistName ?? 'Spotify playlist' });
   }
@@ -86,7 +90,8 @@ export function PostServicePlaylistSelect({ value, onChange }: {
 }) {
   const playlists = useAppStore(s => s.config.playlists);
   useAppStore(s => s.config.spotify?.playlistCache);
-  const spotifyOptions = importedSpotifyPlaylists();
+  useAppStore(s => s.config.spotify?.playlistSettings);
+  const spotifyOptions = importedSpotifyPlaylists('post');
   const cur = value ?? '';
   if (cur.startsWith('spotify:') && !spotifyOptions.some(p => `spotify:${p.id}` === cur)) {
     spotifyOptions.push({ id: cur.slice(8), name: 'Spotify playlist' });

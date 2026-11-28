@@ -111,6 +111,26 @@ export interface Playlist {
   updatedAt: string;
 }
 
+/**
+ * A Spotify playlist's settings (Playlists › Spotify), mirroring a Runway
+ * playlist's. Every field optional: missing = the default. `kind` missing =
+ * offered in both the pre- and post-service menus.
+ */
+export interface SpotifyPlaylistSettings {
+  kind?: PlaylistKind;
+  playbackOrder?: PlaybackOrder;
+  /** Spotify plays one song at a time: 'crossfade' fades each song out and
+   *  the next in over crossfadeSec (split between the two); song times don't move. */
+  transitionMode?: TransitionMode;
+  crossfadeSec?: number;
+  autoArrangeToKey?: boolean;
+  playFirstSongFromStart?: boolean;
+  targetLeadSec?: number;
+  padBridgeSec?: number;
+  padFadeOutSec?: number;
+  actionSequenceId?: string;
+}
+
 export interface SetlistSong {
   id: string;
   title: string;
@@ -786,6 +806,9 @@ export interface AppConfig {
     waveformScanTried?: Record<string, number>;
     // Buy list: Spotify song URI → the Library track that is its bought copy.
     ownedLinks?: Record<string, string>;
+    // Playlist settings for imported Spotify playlists (by playlist id), the
+    // same ones a Runway playlist has. Missing = Runway's defaults.
+    playlistSettings?: Record<string, SpotifyPlaylistSettings>;
     // When Downloads was last checked for bought songs.
     purchaseScanAt?: number;
   };

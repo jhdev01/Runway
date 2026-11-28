@@ -88,7 +88,7 @@ export function PlaylistsView() {
       </aside>
 
       {selectedSpotifyId ? (
-        <SpotifyPlaylistPanel playlistId={selectedSpotifyId} onRemoved={() => setSelectedId(null)} />
+        <SpotifyPlaylistPanel playlistId={selectedSpotifyId} onRemoved={() => setSelectedId(null)} settings={<SpotifyPlaylistSettingsStrip playlistId={selectedSpotifyId} />} />
       ) : selected ? (
         <PlaylistEditor playlist={selected} />
       ) : (
@@ -693,24 +693,38 @@ function PlaylistEditor({ playlist }: { playlist: Playlist }) {
   );
 }
 
-function PlaylistSettingsStrip({ playlist }: { playlist: Playlist }) {
+function PlaylistSettingsStrip({ playlist, onPatch, spotify = false }: {
+  playlist: Playlist;
+  /** Where changes go (a Spotify playlist's settings); default: the Runway playlist. */
+  onPatch?: (patch: Partial<Playlist>) => void;
+  spotify?: boolean;
+}) {
   const updatePlaylist = useAppStore(s => s.updatePlaylist);
+  const update = (patch: Partial<Playlist>) => (onPatch ? onPatch(patch) : updatePlaylist(playlist.id, patch));
   const stepperKey = (current: number, delta: number, min = 0, max = 60) =>
     Math.max(min, Math.min(max, +(current + delta).toFixed(1)));
 
   return (
     <div className="pl-settings">
       <div className="pl-settings-grid">
-        <div className="pl-setting">
+        <div className="pl-setting" style={spotify ? { gridColumn: 'span 2' } : undefined}>
           <span className="pl-setting-label">Playlist type</span>
           <div className="pl-toggle">
             {(['pre', 'post', 'special'] as const).map(k => (
               <button key={k}
                 className={`pl-toggle-btn ${playlist.kind === k ? 'active' : ''}`}
-                onClick={() => updatePlaylist(playlist.id, { kind: k })}>
+                onClick={() => update({ kind: k })}>
                 {k === 'pre' ? 'Pre-Service' : k === 'post' ? 'Post-Service' : 'Special'}
               </button>
             ))}
+            {spotify && (
+              <button
+                className={`pl-toggle-btn ${!playlist.kind ? 'active' : ''}`}
+                onClick={() => update({ kind: undefined as unknown as PlaylistKind })}
+                title="Offered in both the pre-service and post-service menus">
+                Any
+              </button>
+            )}
           </div>
         </div>
 
@@ -720,7 +734,7 @@ function PlaylistSettingsStrip({ playlist }: { playlist: Playlist }) {
             {(['smart', 'sequential', 'shuffle'] as const).map(o => (
               <button key={o}
                 className={`pl-toggle-btn ${playlist.playbackOrder === o ? 'active' : ''}`}
-                onClick={() => updatePlaylist(playlist.id, { playbackOrder: o })}>
+                onClick={() => update({ playbackOrder: o })}>
                 {o === 'smart' ? 'Smart' : o === 'sequential' ? 'Sequential' : 'Shuffle'}
               </button>
             ))}
@@ -733,7 +747,7 @@ function PlaylistSettingsStrip({ playlist }: { playlist: Playlist }) {
             {(['crossfade', 'gapless'] as const).map(m => (
               <button key={m}
                 className={`pl-toggle-btn ${playlist.transitionMode === m ? 'active' : ''}`}
-                onClick={() => updatePlaylist(playlist.id, { transitionMode: m })}>
+                onClick={() => update({ transitionMode: m })}>
                 {m === 'crossfade' ? 'Crossfade' : 'Gapless'}
               </button>
             ))}
@@ -741,10 +755,13 @@ function PlaylistSettingsStrip({ playlist }: { playlist: Playlist }) {
         </div>
 
         <div className={`pl-setting ${playlist.transitionMode === 'gapless' ? 'disabled' : ''}`}>
-          <span className="pl-setting-label">Crossfade length</span>
+          <span className="pl-setting-label">
+            Crossfade length
+            {spotify && <InfoTip>Spotify plays one song at a time, so it can't overlap two songs. Here the song fades out and the next one fades in, over this length together. When songs start and end doesn't change.</InfoTip>}
+          </span>
           <Stepper
             value={playlist.crossfadeSec}
-            onChange={v => updatePlaylist(playlist.id, { crossfadeSec: v })}
+            onChange={v => update({ crossfadeSec: v })}
           />
         </div>
 
@@ -754,7 +771,7 @@ function PlaylistSettingsStrip({ playlist }: { playlist: Playlist }) {
             {[true, false].map(v => (
               <button key={String(v)}
                 className={`pl-toggle-btn ${playlist.autoArrangeToKey === v ? 'active' : ''}`}
-                onClick={() => updatePlaylist(playlist.id, { autoArrangeToKey: v })}>
+                onClick={() => update({ autoArrangeToKey: v })}>
                 {v ? 'On' : 'Off'}
               </button>
             ))}
@@ -770,20 +787,20 @@ function PlaylistSettingsStrip({ playlist }: { playlist: Playlist }) {
             {[true, false].map(v => (
               <button key={String(v)}
                 className={`pl-toggle-btn ${(playlist.playFirstSongFromStart ?? false) === v ? 'active' : ''}`}
-                onClick={() => updatePlaylist(playlist.id, { playFirstSongFromStart: v })}>
+                onClick={() => update({ playFirstSongFromStart: v })}>
                 {v ? 'On' : 'Off'}
               </button>
             ))}
           </div>
         </div>
 
-        {playlist.kind === 'pre' && (
+        {(playlist.kind === 'pre' || (spotify && !playlist.kind)) && (
           <div className="pl-setting">
             <span className="pl-setting-label">Editor target (min)</span>
             <EditorTargetInput
               valueSec={playlist.targetLeadSec}
               onChange={(secOrUndefined) =>
-                updatePlaylist(playlist.id, { targetLeadSec: secOrUndefined })
+                update({ targetLeadSec: secOrUndefined })
               }
             />
           </div>
@@ -795,7 +812,7 @@ function PlaylistSettingsStrip({ playlist }: { playlist: Playlist }) {
           </span>
           <Stepper
             value={playlist.padBridgeSec}
-            onChange={v => updatePlaylist(playlist.id, { padBridgeSec: v })}
+            onChange={v => update({ padBridgeSec: v })}
           />
         </div>
 
@@ -803,7 +820,7 @@ function PlaylistSettingsStrip({ playlist }: { playlist: Playlist }) {
           <span className="pl-setting-label">Pad fade out</span>
           <Stepper
             value={playlist.padFadeOutSec}
-            onChange={v => updatePlaylist(playlist.id, { padFadeOutSec: v })}
+            onChange={v => update({ padFadeOutSec: v })}
           />
         </div>
 
@@ -813,13 +830,47 @@ function PlaylistSettingsStrip({ playlist }: { playlist: Playlist }) {
           </span>
           <ActionSequencePicker
             value={playlist.actionSequenceId}
-            onChange={(id) => updatePlaylist(playlist.id, { actionSequenceId: id })}
+            onChange={(id) => update({ actionSequenceId: id })}
           />
         </div>
 
       </div>
     </div>
   );
+}
+
+/** The same settings strip for an imported Spotify playlist (Playlists › Spotify). */
+export function SpotifyPlaylistSettingsStrip({ playlistId }: { playlistId: string }) {
+  const settings = useAppStore(s => s.config.spotify?.playlistSettings?.[playlistId]);
+  const defaults = useAppStore(s => s.config.defaults);
+  const updateConfig = useAppStore(s => s.updateConfig);
+  const asPlaylist = {
+    id: `spotify:${playlistId}`,
+    name: '',
+    kind: settings?.kind as PlaylistKind,
+    trackIds: [],
+    playbackOrder: settings?.playbackOrder ?? 'smart',
+    transitionMode: settings?.transitionMode ?? 'gapless',
+    crossfadeSec: settings?.crossfadeSec ?? defaults.crossfadeSec ?? 5,
+    autoArrangeToKey: settings?.autoArrangeToKey ?? true,
+    playFirstSongFromStart: settings?.playFirstSongFromStart ?? false,
+    targetLeadSec: settings?.targetLeadSec,
+    padBridgeSec: settings?.padBridgeSec ?? defaults.padBridgeSec,
+    padFadeOutSec: settings?.padFadeOutSec ?? defaults.padFadeOutSec,
+    actionSequenceId: settings?.actionSequenceId,
+    createdAt: '',
+    updatedAt: '',
+  } as Playlist;
+  const onPatch = (patch: Partial<Playlist>) => {
+    const latest = useAppStore.getState().config.spotify;
+    const cur = latest?.playlistSettings?.[playlistId] ?? {};
+    const next = { ...cur } as Record<string, unknown>;
+    for (const [k, v] of Object.entries(patch)) {
+      if (v === undefined) delete next[k]; else next[k] = v;
+    }
+    updateConfig({ spotify: { ...latest, playlistSettings: { ...(latest?.playlistSettings ?? {}), [playlistId]: next } } });
+  };
+  return <PlaylistSettingsStrip playlist={asPlaylist} onPatch={onPatch} spotify />;
 }
 
 function ActionSequencePicker({

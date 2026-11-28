@@ -149,6 +149,10 @@ export function LiveView() {
   // normal-auto-arm clock. Null when there's no such action (plain
   // post-service that relies on normal auto-arm). Mirrors
   // serviceController.resolveSequence for the post-service branch.
+  // A Spotify runway's default action sequence: its playlist's settings.
+  const spotifyActionSeqs = useAppStore(s => s.config.spotify?.playlistSettings);
+  const spotifySeqId = (r: typeof currentRunway): string | undefined =>
+    r?.spotify ? spotifyActionSeqs?.[r.spotify.playlistId]?.actionSequenceId : undefined;
   const postServiceArmMs = useMemo(() => {
     const r = currentRunway;
     if (!r || !r.isPostService) return null;
@@ -162,7 +166,7 @@ export function LiveView() {
     }
     if (!seqId) {
       const pl = r.sourcePlaylistId ? playlists.find(p => p.id === r.sourcePlaylistId) : undefined;
-      seqId = pl?.actionSequenceId;
+      seqId = pl?.actionSequenceId ?? spotifySeqId(r);
     }
     if (!seqId) return null;
     const seq = actionSequences.find(s => s.id === seqId);
@@ -176,7 +180,7 @@ export function LiveView() {
       if (earliest == null || fireMs < earliest) earliest = fireMs;
     }
     return earliest;
-  }, [currentRunway, services, playlists, actionSequences, tracks]);
+  }, [currentRunway, services, playlists, actionSequences, tracks, spotifyActionSeqs]);
 
   // Time to show in the "Music fires in" / "Auto-arm scheduled for"
   // readouts. During an action-driven post-service handoff, prefer the
@@ -217,7 +221,7 @@ export function LiveView() {
     if (!seqId) {
       const playlistId = currentRunway.sourcePlaylistId;
       const playlist = playlistId ? playlists.find(p => p.id === playlistId) : undefined;
-      seqId = playlist?.actionSequenceId;
+      seqId = playlist?.actionSequenceId ?? spotifySeqId(currentRunway);
     }
     if (!seqId) return null;
     const seq = actionSequences.find(s => s.id === seqId);
@@ -284,7 +288,7 @@ export function LiveView() {
       visibleTrackIds,
       effectiveTotalSec,
     };
-  }, [currentRunway, playlists, actionSequences, tracks, services]);
+  }, [currentRunway, playlists, actionSequences, tracks, services, spotifyActionSeqs]);
 
   // Estimated time remaining in the post-service playlist — current track's
   // remaining duration plus any unplayed tracks after it. When a swap is
@@ -392,7 +396,7 @@ export function LiveView() {
     if (!seqId) {
       const playlistId = currentRunway.sourcePlaylistId;
       const pl = playlistId ? playlists.find(p => p.id === playlistId) : undefined;
-      seqId = pl?.actionSequenceId;
+      seqId = pl?.actionSequenceId ?? spotifySeqId(currentRunway);
     }
     if (!seqId) return [];
     const seq = actionSequences.find(s => s.id === seqId);
@@ -405,7 +409,7 @@ export function LiveView() {
       })
       .filter((x): x is { action: import('@shared/types').Action; fireMs: number } => !!x)
       .sort((a, b) => a.fireMs - b.fireMs);
-  }, [currentRunway, services, playlists, actionSequences, tracks]);
+  }, [currentRunway, services, playlists, actionSequences, tracks, spotifyActionSeqs]);
 
   // Keep the array aligned with runway.trackIds — don't filter out missing
   // tracks. Otherwise click indices shift out of sync with the controller.
@@ -427,6 +431,7 @@ export function LiveView() {
   // Spotify playlists join the post-service list as "spotify:<id>" entries
   // (the controller plays those through the Spotify app).
   const spotifyCache = useAppStore(s => s.config.spotify?.playlistCache);
+  const spotifyPlSettings = useAppStore(s => s.config.spotify?.playlistSettings);
   const [spotifyMine, setSpotifyMine] = useState<Array<{ id: string; name: string }>>([]);
   useEffect(() => { void loadSpotifyPlaylists().then(setSpotifyMine); }, []);
   const postPlaylists = useMemo(() => {
@@ -436,9 +441,10 @@ export function LiveView() {
     }
     return [
       ...playlists.filter(p => p.kind === 'post'),
-      ...sp.map(p => ({ id: `spotify:${p.id}`, name: `${p.name} · Spotify` }) as unknown as Playlist),
+      // A Spotify playlist set to Pre-Service / Special isn't offered here.
+      ...sp.filter(p => { const k = spotifyPlSettings?.[p.id]?.kind; return !k || k === 'post'; }).map(p => ({ id: `spotify:${p.id}`, name: `${p.name} · Spotify` }) as unknown as Playlist),
     ];
-  }, [playlists, spotifyMine, spotifyCache]);
+  }, [playlists, spotifyMine, spotifyCache, spotifyPlSettings]);
   const [chosenPostId, setChosenPostId] = useState<string>('');
   const [postPickerOpen, setPostPickerOpen] = useState(false);
   // Auto-track the active service's post-service playlist so the

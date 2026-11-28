@@ -15,7 +15,7 @@
  */
 
 import { compatibleKeys } from '@shared/music';
-import type { KeyName, SpotifyPlaylistTrack, SpotifyTrackEdit } from '@shared/types';
+import type { KeyName, SpotifyPlaylistSettings, SpotifyPlaylistTrack, SpotifyTrackEdit } from '@shared/types';
 import { planSpotifyRun, songBounds, type SpotifyRunSegment } from './spotifyTestRun';
 
 export interface SpotifyArrangement {
@@ -103,4 +103,38 @@ export function arrangeSpotifyRunway(opts: {
 
   const segments = planSpotifyRun(seq, opts.targetSec, opts.targetMs, edits, opts.lastFadeSec);
   return { segments, landInKey, anchorTitle: anchor.title, skipPadBridge, warning };
+}
+
+/**
+ * A Spotify playlist's settings applied to a planned run. Only the fades and
+ * (with "Don't trim opening song") how early the first song starts change:
+ * every song still starts and ends where the plan put it, so the landing on
+ * 0:00 doesn't move.
+ */
+export function applySpotifyPlaylistSettings(
+  segs: SpotifyRunSegment[],
+  ps: SpotifyPlaylistSettings | undefined,
+  edits: Record<string, SpotifyTrackEdit>,
+  defaultCrossfadeSec: number,
+): SpotifyRunSegment[] {
+  if (!ps || segs.length === 0) return segs;
+  let out = segs.map(x => ({ ...x }));
+  if (ps.transitionMode === 'crossfade') {
+    const half = Math.max(0, ps.crossfadeSec ?? defaultCrossfadeSec) / 2;
+    const last = out.length - 1;
+    out = out.map((x, i) => ({
+      ...x,
+      // A song's own fades (Editor) win.
+      fadeInSec: i > 0 ? (x.fadeInSec ?? half) : x.fadeInSec,
+      fadeOutSec: i < last ? (x.fadeOutSec ?? half) : x.fadeOutSec,
+    }));
+  }
+  if (ps.playFirstSongFromStart) {
+    const f = out[0];
+    const top = songBounds(f.songDurSec, edits[f.uri]).start;
+    if (f.startPosSec > top + 0.5) {
+      out[0] = { ...f, startAt: f.startAt - (f.startPosSec - top) * 1000, startPosSec: top };
+    }
+  }
+  return out;
 }

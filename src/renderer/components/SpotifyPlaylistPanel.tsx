@@ -92,7 +92,7 @@ export function SpotifyImportButton({ onImported }: { onImported: (id: string) =
  * Playlists › a Spotify playlist: its songs with album art, keys and trims,
  * plus Reload / Download artwork / Remove and a test run.
  */
-export function SpotifyPlaylistPanel({ playlistId, onRemoved }: { playlistId: string; onRemoved: () => void }) {
+export function SpotifyPlaylistPanel({ playlistId, onRemoved, settings }: { playlistId: string; onRemoved: () => void; settings?: React.ReactNode }) {
   const playlist = useAppStore(s => s.config.spotify?.playlistCache?.[playlistId]);
   const edits = useAppStore(s => s.config.spotify?.trackEdits) ?? {};
   const artCache = useAppStore(s => s.config.spotify?.artCache) ?? {};
@@ -109,6 +109,17 @@ export function SpotifyPlaylistPanel({ playlistId, onRemoved }: { playlistId: st
     [tracks, edits],
   );
   const keysCovered = new Set(tracks.map(t => edits[t.uri]?.key).filter(Boolean)).size;
+  // Editor target (playlist setting), else the longest lead of a service
+  // using this playlist, else the default: does the playlist fill it?
+  const plSettings = useAppStore(s => s.config.spotify?.playlistSettings?.[playlistId]);
+  const services = useAppStore(s => s.config.services);
+  const defaultLead = useAppStore(s => s.config.defaults.autoStartTargetSec);
+  const targetSec = (() => {
+    if (plSettings?.kind && plSettings.kind !== 'pre') return 0;
+    if (plSettings?.targetLeadSec && plSettings.targetLeadSec > 0) return plSettings.targetLeadSec;
+    const leads = services.filter(sv => sv.spotifyPlaylistId === playlistId).map(sv => sv.autoStartTargetSec);
+    return leads.length ? Math.max(...leads) : (defaultLead ?? 0);
+  })();
 
   if (!playlist?.ok) return <div className="empty-state"><p>That Spotify playlist isn’t imported.</p></div>;
 
@@ -152,6 +163,13 @@ export function SpotifyPlaylistPanel({ playlistId, onRemoved }: { playlistId: st
           <div><div className="settings-field-sub">TRACKS</div><strong>{tracks.length}</strong></div>
           <div><div className="settings-field-sub">TOTAL RUNTIME</div><strong>{formatDuration(totalSec)}</strong></div>
           <div><div className="settings-field-sub">KEYS COVERED</div><strong style={{ color: 'var(--accent-bright)' }}>{keysCovered} of 24</strong></div>
+          {targetSec > 0 && (
+            <div><div className="settings-field-sub">TARGET {formatDuration(targetSec)}</div>
+              <strong style={{ color: totalSec >= targetSec ? 'var(--accent-bright)' : 'var(--warn, #f5a524)' }}>
+                {totalSec >= targetSec ? 'Fills it' : `${formatDuration(targetSec - totalSec)} short`}
+              </strong>
+            </div>
+          )}
           <div style={{ flex: 1 }} />
           <button className="btn-secondary" onClick={() => void reload()} disabled={busy !== null}
             title="Pick up songs added or removed in Spotify">{busy === 'reload' ? 'Reloading…' : '↻ Reload from Spotify'}</button>
@@ -172,6 +190,7 @@ export function SpotifyPlaylistPanel({ playlistId, onRemoved }: { playlistId: st
         {note && <div className="settings-field-sub" style={{ marginTop: 8 }}>{note}</div>}
         {playlist.skipped ? <div className="settings-field-sub">{playlist.skipped} item(s) skipped: podcasts or local files can’t be played by Runway.</div> : null}
       </div>
+      {settings}
       <div style={{ padding: '12px 32px' }}>
         <SpotifySongList tracks={tracks} />
         {tracks.length > 0 && <SpotifyTestRunPanel playlist={playlist} />}

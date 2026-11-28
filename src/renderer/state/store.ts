@@ -8,7 +8,7 @@ import {
 } from '@shared/types';
 import { compatibleKeys } from '@shared/music';
 import type { SpotifyRunSegment } from '../lib/spotifyTestRun';
-import { arrangeSpotifyRunway } from '../lib/spotifyArrange';
+import { arrangeSpotifyRunway, applySpotifyPlaylistSettings } from '../lib/spotifyArrange';
 import { todayISO } from '../lib/format';
 import { describeLoadError } from '../lib/audioEngine';
 import { rememberScroll, restoreScroll } from '../lib/editorReturn';
@@ -1054,23 +1054,29 @@ export const useAppStore = create<AppStoreState>((set, get) => ({
         return { ok: false, reason: 'Service start time has already passed. Pick a later service or use Quick Test.' };
       }
       const targetSec = opts?.leadOverrideSec ?? service.autoStartTargetSec;
-      const { value: requestedKey } = resolveServiceFirstSongKey(service, state.config.services);
+      const { value: serviceKey } = resolveServiceFirstSongKey(service, state.config.services);
+      // The playlist's own settings (Playlists › Spotify).
+      const ps = state.config.spotify?.playlistSettings?.[spId];
+      // Auto-arrange to land in key off: the playlist lands on its last song as is.
+      const requestedKey = (ps?.autoArrangeToKey ?? true) ? serviceKey : undefined;
       const d = state.config.defaults;
       const lastFadeSec = d.musicFadeToPadSec ?? 5;
       const firstFadeInSec = d.musicFadeInSec ?? 6;
+      const spEdits = state.config.spotify?.trackEdits ?? {};
       const arr = arrangeSpotifyRunway({
         tracks: spTracks,
-        edits: state.config.spotify?.trackEdits ?? {},
+        edits: spEdits,
         requestedKey,
         targetSec,
         targetMs,
         repeatToFill: opts?.repeatToFill ?? d.repeatToFill ?? true,
-        shuffle: !!opts?.shuffle,
+        shuffle: !!opts?.shuffle || ps?.playbackOrder === 'shuffle',
         lastFadeSec,
         // The service's chosen last song (not for an action's playlist override).
         pinnedUri: spOverride ? undefined : service.spotifyLastSongUri,
       });
       if (arr.segments.length === 0) return { ok: false, reason: 'Nothing to play in that Spotify playlist.' };
+      arr.segments = applySpotifyPlaylistSettings(arr.segments, ps, spEdits, d.crossfadeSec ?? 5);
       const musicStartMs = arr.segments[0].startAt;
       // Spotify's last song plays at full volume to 0:00 and fades after it,
       // so the pad only needs its lead-in to be fully up at service start.
@@ -1097,8 +1103,8 @@ export const useAppStore = create<AppStoreState>((set, get) => ({
           padStartMs,
           transitionMode: 'gapless',
           crossfadeSec: 0,
-          padBridgeSec: d.padBridgeSec,
-          padFadeOutSec: d.padFadeOutSec,
+          padBridgeSec: ps?.padBridgeSec ?? d.padBridgeSec,
+          padFadeOutSec: ps?.padFadeOutSec ?? d.padFadeOutSec,
           tailSec,
           skipPadBridge: arr.skipPadBridge || undefined,
           phase: 'queued',
