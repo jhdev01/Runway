@@ -952,3 +952,7 @@
 .pp-card .pp-actions {
   margin-top: 14px;
 }
+
+/* New look */
+.settings-nav-item { border-radius: 9px; }
+.settings-nav-item.active { color: #ffffff; background: #1c2a3d; font-weight: 600; }

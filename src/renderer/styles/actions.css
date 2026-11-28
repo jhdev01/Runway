@@ -714,3 +714,6 @@
   text-align: right;
   text-transform: none;
 }
+
+/* New look */
+.actions-sidebar-item.active { background: #1c2a3d; border-color: rgba(0, 122, 209, 0.5); }

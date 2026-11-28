@@ -1571,3 +1571,9 @@
   font-weight: 500;
   opacity: 0.6;
 }
+
+/* New look: title, toolbar that wraps, and a lighter table. */
+.library-toolbar { flex-wrap: wrap; row-gap: 10px; background: #0e1013; }
+.library-title strong { font-family: var(--font-display); font-weight: 800; font-size: 24px; letter-spacing: -0.02em; }
+.library-row { padding: 10px 14px; border-bottom-color: #16191e; border-radius: 10px; }
+.library-row:hover:not(.library-head) { background: #121418; }

@@ -451,3 +451,8 @@ input[type="checkbox"]:indeterminate::after {
 }
 input[type="checkbox"]:focus-visible { outline: 2px solid var(--accent-bright); outline-offset: 2px; }
 input[type="checkbox"]:disabled { opacity: 0.4; cursor: default; }
+
+/* ───────── New look · shared polish for every screen (phase 3) ───────── */
+.btn-primary, .btn-secondary { border-radius: 9px; padding: 8px 14px; font-weight: 600; }
+.btn-secondary { background: var(--bg-elev-2); color: #d5dae1; }
+input, select, textarea { border-radius: 9px; }
