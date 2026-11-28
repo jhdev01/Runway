@@ -740,9 +740,34 @@ export class ServiceController {
     }, 0);
     // A few seconds for Spotify to load the first song silently.
     const startAt = Date.now() + 3200;
-    const endAt = startAt + totalSec * 1000;
-    const segments = planSpotifyRun(tracks, null, endAt, edits, lastFadeSec);
+    let endAt = startAt + totalSec * 1000;
+    let segments = planSpotifyRun(tracks, null, endAt, edits, lastFadeSec);
     if (segments.length === 0) return { ok: false, reason: 'Nothing to play in that Spotify playlist.' };
+    // An "Arm playlist" / "Change playlist" action in this post-service's
+    // sequence ends it early (e.g. after one song): only plan the songs
+    // before it, so the last one fades out at its end like a Runway
+    // post-service, and the next song never starts underneath the switch.
+    {
+      const probe = {
+        serviceId: null, originServiceId, isPostService: true, sourcePlaylistId: undefined,
+        targetMs: endAt, musicStartMs: segments[0].startAt, trackIds: [] as string[], startOffsetSec: 0,
+        spotify: { segments },
+      } as unknown as NonNullable<ReturnType<Store['getState']>['currentRunway']>;
+      const seq = this.resolveSequence(state, probe);
+      let cutAt = Infinity;
+      for (const a of seq?.actions ?? []) {
+        if (!a.enabled) continue;
+        if (a.payload.type !== 'arm_playlist' && a.payload.type !== 'change_setlist') continue;
+        const at = resolveActionFireMs(a, seq!.anchor, probe, state.config.tracks);
+        if (at != null && at < cutAt) cutAt = at;
+      }
+      const kept = segments.filter(sg => sg.startAt < cutAt - 500);
+      if (kept.length > 0 && kept.length < segments.length) {
+        console.log('[spotify] post-service ends early for an action', { songs: kept.length, of: segments.length });
+        endAt = kept[kept.length - 1].endAt;
+        segments = planSpotifyRun(tracks.filter(t => kept.some(k => k.uri === t.uri)), null, endAt, edits, lastFadeSec);
+      }
+    }
 
     // Spotify plays one thing at a time: let anything else on it stop first.
     if (spotifyServiceRun.isActive()) await spotifyServiceRun.stop(1);
@@ -754,7 +779,7 @@ export class ServiceController {
     this.store.getState().setCurrentRunway({
       serviceId: null,
       trackIds: [],
-      totalSec,
+      totalSec: Math.max(0, (endAt - startAt) / 1000),
       landInKey: undefined,
       plannedStartTime: new Date(segments[0].startAt).toISOString(),
       startOffsetSec: 0,

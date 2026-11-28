@@ -270,8 +270,14 @@ export function LiveView() {
       cumSec += t ? effectiveDuration(t) : 0;
     }
     const effectiveTotalSec = Math.max(0, (earliest.fireMs - currentRunway.musicStartMs) / 1000);
+    // Spotify runway / post-service: same cut, on its planned songs.
+    const fireAt = earliest.fireMs;
+    const visibleSpotifySegments = currentRunway.spotify
+      ? currentRunway.spotify.segments.filter(sg => sg.startAt < fireAt)
+      : undefined;
     return {
       fireMs: earliest.fireMs,
+      visibleSpotifySegments,
       swapToPlaylistId: earliest.targetId,
       swapToPlaylistName: earliest.targetName,
       missing: earliest.missing,
@@ -295,7 +301,7 @@ export function LiveView() {
     // Spotify post-service: the Spotify app plays the playlist in order, so
     // the end is its start plus the playlist's length (an hour if unknown).
     // Spotify post-service played song by song: it ends when its plan ends.
-    if (currentRunway.spotify) return currentRunway.targetMs;
+    if (currentRunway.spotify) return Math.min(currentRunway.targetMs, runwayTruncation?.fireMs ?? Infinity);
     if (currentRunway.spotifyPost) {
       return currentRunway.musicStartMs + (currentRunway.totalSec > 0 ? currentRunway.totalSec : 3600) * 1000;
     }
@@ -1172,7 +1178,7 @@ export function LiveView() {
                 <div><strong>Music playing</strong> <span>· {currentRunway?.spotify ? currentRunway.spotify.playlistName : playlistInUse ? playlistInUse.name : ''}</span></div>
                 <div className="auto-start-detail">
                   {currentRunway
-                    ? `${currentRunway.spotify ? currentRunway.spotify.segments.length : queueTracks.length} ${currentRunway.spotify ? 'songs' : 'tracks'} · ${formatDuration(currentRunway.totalSec)} runway`
+                    ? `${currentRunway.spotify ? (runwayTruncation?.visibleSpotifySegments ?? currentRunway.spotify.segments).length : queueTracks.length} ${currentRunway.spotify ? 'songs' : 'tracks'} · ${formatDuration(currentRunway.totalSec)} runway`
                     : 'manual playback'}
                 </div>
               </>
@@ -1211,7 +1217,7 @@ export function LiveView() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
               <div className="runway-title">
                 {currentRunway
-                  ? `${currentRunway.isPostService ? 'Post-Service' : 'Runway'} · ${currentRunway.spotify ? `Spotify · ${currentRunway.spotify.playlistName} · ${currentRunway.spotify.segments.length} songs` : currentRunway.spotifyPost ? `Spotify · ${currentRunway.spotifyPost.playlistName}` : `${queueTracks.length} tracks`} · ${formatDuration(runwayTruncation?.effectiveTotalSec ?? currentRunway.totalSec)}`
+                  ? `${currentRunway.isPostService ? 'Post-Service' : 'Runway'} · ${currentRunway.spotify ? `Spotify · ${currentRunway.spotify.playlistName} · ${(runwayTruncation?.visibleSpotifySegments ?? currentRunway.spotify.segments).length} songs` : currentRunway.spotifyPost ? `Spotify · ${currentRunway.spotifyPost.playlistName}` : `${queueTracks.length} tracks`} · ${formatDuration(runwayTruncation?.effectiveTotalSec ?? currentRunway.totalSec)}`
                   : 'Runway · empty'}
                 {(currentRunway?.spotify || currentRunway?.spotifyPost) && <> <SpotifyBadge /></>}
               </div>
@@ -1306,12 +1312,18 @@ export function LiveView() {
               return (
                 <div className="runway-list">
                   <SpotifyRunwayList
-                    segments={currentRunway.spotify.segments}
+                    segments={runwayTruncation?.visibleSpotifySegments ?? currentRunway.spotify.segments}
                     landInKey={currentRunway.landInKey}
                     showPad={!svc?.disablePadBridge && !currentRunway.skipPadBridge && (currentRunway.padBridgeSec || 0) > 0}
                     padPlaying={currentRunway.phase === 'pad'}
                     keyMode={keyDisplayModeForSpotify}
                     showPlayed={showPlayedTracks}
+                    padSec={currentRunway.padBridgeSec || 0}
+                    markers={(pctFor) => (
+                      <TimelineActionMarkers
+                        markers={armedActions.map(({ action, fireMs }) => ({ action, fireMs, ...pctFor(fireMs) }))}
+                      />
+                    )}
                   />
                 </div>
               );

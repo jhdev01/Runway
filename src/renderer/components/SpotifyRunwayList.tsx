@@ -10,13 +10,20 @@ import { spotifyServiceRun, spotifyNowPlaying, type SpotifyRunSegment, type Spot
  * playlist. Same chip strip as the Runway-track runway (title, artist,
  * length, key badge, progress bar, pad chip) plus album art.
  */
-export function SpotifyRunwayList({ segments, landInKey, showPad, padPlaying, keyMode, showPlayed }: {
+/** Where a wall-clock time sits across the visible chips (percent of the strip). */
+export type SpotifyPctFor = (ms: number) => { pct: number; clamped: 'before' | 'after' | null };
+
+export function SpotifyRunwayList({ segments, landInKey, showPad, padPlaying, keyMode, showPlayed, padSec = 0, markers }: {
   segments: SpotifyRunSegment[];
   landInKey?: KeyName;
   showPad: boolean;
   padPlaying: boolean;
   keyMode: 'sharp' | 'flat';
   showPlayed: boolean;
+  /** Pad bridge length (for placing actions over the pad chip). */
+  padSec?: number;
+  /** Action markers drawn over the chips, as on a Runway playlist's timeline. */
+  markers?: (pctFor: SpotifyPctFor) => React.ReactNode;
 }) {
   // The pad that will actually play: same pick as the pad bridge (exact
   // key, else a compatible one, else the first pad loaded).
@@ -37,9 +44,35 @@ export function SpotifyRunwayList({ segments, landInKey, showPad, padPlaying, ke
   const live = run.status === 'running' ? spotifyNowPlaying(segments, now) : null;
   const lastIdx = segments.length - 1;
 
+  // Action markers: each visible chip is one equal slot (like the Runway
+  // timeline); a time inside a song's window maps proportionally into its slot.
+  const slots: { from: number; to: number }[] = [];
+  segments.forEach((s, i) => {
+    const isPlayed = live ? i < live.index : now >= s.stopAt;
+    if (isPlayed && !showPlayed) return;
+    slots.push({ from: s.startAt, to: i < lastIdx ? segments[i + 1].startAt : s.stopAt });
+  });
+  if (showPad && segments.length) {
+    const end = segments[lastIdx].stopAt;
+    slots.push({ from: end, to: end + Math.max(1, padSec) * 1000 });
+  }
+  const pctFor: SpotifyPctFor = (ms) => {
+    if (slots.length === 0) return { pct: 0, clamped: null };
+    if (ms < slots[0].from) return { pct: 0, clamped: 'before' };
+    for (let k = slots.length - 1; k >= 0; k--) {
+      const sl = slots[k];
+      if (ms >= sl.from && ms <= sl.to) {
+        const within = sl.to > sl.from ? (ms - sl.from) / (sl.to - sl.from) : 0;
+        return { pct: ((k + within) / slots.length) * 100, clamped: null };
+      }
+    }
+    return { pct: 100, clamped: 'after' };
+  };
+
   return (
     <>
       <div className="timeline">
+        {markers?.(pctFor)}
         {segments.map((s, i) => {
           const isCurrent = live?.index === i;
           const isPlayed = live ? i < live.index : now >= s.stopAt;
