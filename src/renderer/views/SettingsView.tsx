@@ -415,31 +415,43 @@ function MidiSettings() {
 
   return (
     <>
-      <section className="settings-section">
-        <div className="settings-section-title">MIDI devices<InfoTip>Choose which devices Runway listens to and sends to. A device with input off is ignored: it won't show in the activity log or trigger anything. Turn one off if it floods Runway with messages. New devices start with both directions on.</InfoTip></div>
-        {devices.length === 0 ? (
-          <div className="empty-state">No MIDI devices detected.</div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 6 }}>
-            {devices.map(d => (
-              <MidiDeviceRow
-                key={d.name}
-                device={d}
-                onToggleInput={(v) => setDevicePref(d.name, d.manufacturer, { inputEnabled: v })}
-                onToggleOutput={(v) => setDevicePref(d.name, d.manufacturer, { outputEnabled: v })}
-                onToggleBoth={(v) => setBothDirections(d.name, d.manufacturer, v)}
-                onForget={!d.connected ? () => clearDevicePref(d.name) : undefined}
-              />
-            ))}
-          </div>
-        )}
+      <div className="set-cards-2 midi-top">
+      <section className="settings-section set-card">
+        <div className="settings-section-title">Devices<InfoTip>Choose which devices Runway listens to (In) and sends to (Out). A device with In off is ignored: it won't show in the activity log or trigger anything. Turn one off if it floods Runway with messages. New devices start with both on.</InfoTip></div>
+        {(() => {
+          const row = (d: MidiDeviceSnapshot) => (
+            <MidiDeviceRow
+              key={d.name}
+              device={d}
+              onToggleInput={(v) => setDevicePref(d.name, d.manufacturer, { inputEnabled: v })}
+              onToggleOutput={(v) => setDevicePref(d.name, d.manufacturer, { outputEnabled: v })}
+              onToggleBoth={(v) => setBothDirections(d.name, d.manufacturer, v)}
+              onForget={!d.connected ? () => clearDevicePref(d.name) : undefined}
+            />
+          );
+          const live = devices.filter(d => d.connected);
+          const gone = devices.filter(d => !d.connected);
+          return (
+            <>
+              {live.length === 0
+                ? <div className="set-card-note">No MIDI devices connected. Plug in a controller, or turn on an IAC bus or network session in Audio MIDI Setup.</div>
+                : <div className="midi-devs">{live.map(row)}</div>}
+              {gone.length > 0 && (
+                <details className="midi-gone">
+                  <summary>Not connected right now ({gone.length})</summary>
+                  <div className="midi-devs">{gone.map(row)}</div>
+                </details>
+              )}
+            </>
+          );
+        })()}
       </section>
 
-
-      <section className="settings-section">
-        <div className="settings-section-title">MIDI activity<InfoTip>Every incoming MIDI message, newest first. Use it to check that your controller reaches Runway and to see which note or CC each button sends.</InfoTip></div>
+      <section className="settings-section set-card">
+        <div className="settings-section-title">Activity<InfoTip>Every incoming MIDI message, newest first. Use it to check that your controller reaches Runway and to see which note or CC each button sends.</InfoTip></div>
         <MidiActivityLog />
       </section>
+      </div>
 
       <section className="settings-section">
         <div className="settings-section-title">Quick assign<InfoTip>Click Learn next to an action, then press the button or key on your MIDI controller. Runway captures the channel and note (or CC) and assigns it to that action.</InfoTip></div>
@@ -673,27 +685,33 @@ function ProPresenterSettings() {
     ppStatus === 'unknown' ? 'Checking…' :
     'Disabled';
 
-  return (
-    <section className="settings-section">
-      <div className="settings-section-title">ProPresenter sync<InfoTip>When you arm a service, Runway sets the chosen ProPresenter timer to count down to service start. The four cards below can also trigger a slide or clear ProPresenter at set moments. Turn on Network in ProPresenter under <em>Preferences → Network</em>.</InfoTip></div>
+  const connHeadline =
+    ppStatus === 'ok' ? 'Connected to ProPresenter' :
+    ppStatus === 'err' ? 'Can’t reach ProPresenter' :
+    ppStatus === 'unknown' ? 'Checking ProPresenter…' :
+    'ProPresenter sync is off';
+  const timerMissing = !!cfg.timerUuid && !timers.some(t => t.uuid === cfg.timerUuid);
 
-      {/* Connection card */}
-      <div className="pp-card">
-        <div className="pp-card-head">
-          <span className="pp-card-icon" aria-hidden>⌁</span>
-          <div className="pp-card-text">
-            <div className="pp-card-title">Connection</div>
-            <div className="pp-card-sub">
-              ProPresenter's network connection.
+  return (
+    <>
+      <section className={`settings-section pp-conn ${connDotClass}`}>
+        <div className="pp-conn-head">
+          <span className="pp-conn-dot" aria-hidden />
+          <div className="pp-conn-text">
+            <div className="pp-conn-title">{connHeadline}</div>
+            <div className="pp-conn-sub">
+              {testStatus.kind === 'ok' ? testStatus.msg
+                : testStatus.kind === 'err' ? testStatus.msg
+                : `${cfg.host || 'localhost'} · port ${cfg.port}`}
             </div>
           </div>
-          <span className={`pp-card-status ${connDotClass}`} title={connText}>
-            <span className="pp-card-status-dot" aria-hidden /> {connText}
-          </span>
+          <button className={ppStatus === 'ok' ? 'btn-secondary' : 'btn-primary'} onClick={onTest} disabled={testStatus.kind === 'busy'}>
+            {testStatus.kind === 'busy' ? 'Testing…' : ppStatus === 'ok' ? 'Test again' : ppStatus === 'err' ? 'Try again' : 'Test connection'}
+          </button>
         </div>
-        <div className="pp-grid">
-          <div className="pp-field" style={{ gridColumn: 'span 2' }}>
-            <label className="pp-label">Host</label>
+        <div className="pp-conn-grid">
+          <div className="pp-field">
+            <label className="pp-label">Computer</label>
             <input
               type="text"
               value={cfg.host}
@@ -718,44 +736,62 @@ function ProPresenterSettings() {
               onChange={e => update({ password: e.target.value })}
             />
           </div>
-
-          <div className="pp-field" style={{ gridColumn: 'span 3' }}>
-            <label className="pp-label">Timer</label>
-            <select
-              value={cfg.timerUuid ?? ''}
-              onChange={e => onPickTimer(e.target.value)}
-            >
-              <option value="">{timers.length === 0 ? 'Test connection to load timers' : 'Choose a timer'}</option>
-              {timers.map(t => (
-                <option key={t.uuid} value={t.uuid}>{t.name}</option>
-              ))}
-              {cfg.timerUuid && cfg.timerName && !timers.some(t => t.uuid === cfg.timerUuid) && (
-                <option value={cfg.timerUuid}>{cfg.timerName} (not found in PP)</option>
-              )}
-            </select>
-          </div>
-          <div className="pp-field">
-            <label className="pp-label">Sync</label>
-            <button
-              className={`pp-toggle ${cfg.enabled ? 'on' : 'off'}`}
-              onClick={() => update({ enabled: !cfg.enabled })}
-              disabled={!cfg.timerUuid}
-              title={!cfg.timerUuid ? 'Pick a timer first' : ''}
-            >
-              {cfg.enabled ? 'Enabled' : 'Disabled'}
-            </button>
-          </div>
         </div>
+        {ppStatus !== 'ok' && (
+          <div className="pp-conn-help">
+            Is ProPresenter open? In ProPresenter on {cfg.host && cfg.host !== 'localhost' && cfg.host !== '127.0.0.1' ? 'that computer' : 'this Mac'}: Settings › Network › turn on <strong>Enable Network</strong>, and use the port shown there.
+          </div>
+        )}
+      </section>
 
-        <div className="pp-actions">
-          <button className="btn-secondary" onClick={onTest} disabled={testStatus.kind === 'busy'}>
-            {testStatus.kind === 'busy' ? 'Testing…' : 'Test connection'}
-          </button>
-          {testStatus.kind === 'ok' && <span className="pp-status ok">{testStatus.msg}</span>}
-          {testStatus.kind === 'err' && <span className="pp-status err">{testStatus.msg}</span>}
-        </div>
+      <div className="set-cards-2 pp-cards">
+        <section className="settings-section set-card">
+          <div className="settings-section-title">Countdown<InfoTip>When you arm a service, Runway sets this ProPresenter timer to count down to service start, and keeps it running while pre-service music plays.</InfoTip></div>
+          <SettingRow
+            label="Timer"
+            sub={timerMissing ? 'Not found in ProPresenter right now' : 'The ProPresenter timer Runway counts down'}
+            control={
+              <select
+                className="pp-timer-select"
+                value={cfg.timerUuid ?? ''}
+                onChange={e => onPickTimer(e.target.value)}
+              >
+                <option value="">{timers.length === 0 ? 'Connect to load timers' : 'Choose a timer'}</option>
+                {timers.map(t => (
+                  <option key={t.uuid} value={t.uuid}>{t.name}</option>
+                ))}
+                {cfg.timerUuid && cfg.timerName && timerMissing && (
+                  <option value={cfg.timerUuid}>{cfg.timerName}</option>
+                )}
+              </select>
+            }
+          />
+          <SettingRow
+            label="Count down to service start"
+            sub={!cfg.timerUuid ? 'Pick a timer first' : cfg.enabled ? 'On for every armed service' : 'Off: ProPresenter isn’t touched'}
+            control={
+              <Toggle
+                checked={cfg.enabled}
+                disabled={!cfg.timerUuid}
+                ariaLabel="Count down to service start in ProPresenter"
+                onChange={v => update({ enabled: v })}
+              />
+            }
+          />
+        </section>
+        <section className="settings-section set-card">
+          <div className="settings-section-title">How it works</div>
+          <div className="pp-explain">
+            <div><span className="pp-explain-dot music" />Music starts: optional slide cue</div>
+            <div><span className="pp-explain-dot timer" />Countdown runs to service start</div>
+            <div><span className="pp-explain-dot service" />0:00: optional slide cue (e.g. Welcome)</div>
+            <div><span className="pp-explain-dot post" />Post-service and disarm cues below</div>
+          </div>
+        </section>
       </div>
 
+      <section className="settings-section">
+      <div className="settings-section-title">Slide cues<InfoTip>Each moment can trigger a ProPresenter playlist item or clear ProPresenter. Turn on Network in ProPresenter under <em>Settings → Network</em>.</InfoTip></div>
       {/* Hooks — each gets its own colored card so the operator can scan
           the four moments at a glance. Functionality is identical to the
           old flat layout. */}
@@ -793,7 +829,8 @@ function ProPresenterSettings() {
           loadItems={loadItemsForHook}
         />
       </div>
-    </section>
+      </section>
+    </>
   );
 }
 
@@ -936,16 +973,7 @@ function MidiDeviceRow({ device, onToggleInput, onToggleOutput, onToggleBoth, on
   // a quick visual scan tells you which ports are actually active.
   const isLive = device.connected && (device.inputEnabled || device.outputEnabled);
   return (
-    <div
-      className="device-card"
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 14,
-        padding: '10px 14px',
-        opacity: dim ? 0.6 : 1,
-      }}
-    >
+    <div className={`midi-dev ${dim ? 'gone' : ''} ${isLive ? 'live' : ''}`}>
       <div
         className="device-icon"
         role={device.connected && (device.hasInput || device.hasOutput) ? 'button' : undefined}
@@ -994,37 +1022,30 @@ function MidiDeviceRow({ device, onToggleInput, onToggleOutput, onToggleBoth, on
       <div className="device-info" style={{ flex: 1, minWidth: 0 }}>
         <div className="device-name">
           {device.name}
-          {!device.connected && <span className="device-badge" style={{ background: 'var(--bg-elev-2)', color: 'var(--text-faint)' }}>Disconnected</span>}
         </div>
         <div className="device-meta">{device.manufacturer || 'Unknown manufacturer'}</div>
       </div>
-      <label
-        style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: device.connected && device.hasInput ? 'pointer' : 'default' }}
-        title={device.hasInput ? 'Listen to incoming MIDI from this device' : 'No input port on this device'}
-      >
-        <input
-          type="checkbox"
-          checked={device.inputEnabled}
-          disabled={!device.connected || !device.hasInput}
-          onChange={e => onToggleInput(e.target.checked)}
-          style={{ accentColor: 'var(--accent)' }}
-        />
-        <span style={{ fontSize: 13, color: 'var(--text-dim)' }}>In</span>
-      </label>
-      <label
-        style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: device.connected && device.hasOutput ? 'pointer' : 'default' }}
-        title={device.hasOutput ? 'Allow outgoing MIDI to this device' : 'No output port on this device'}
-      >
-        <input
-          type="checkbox"
-          checked={device.outputEnabled}
-          disabled={!device.connected || !device.hasOutput}
-          onChange={e => onToggleOutput(e.target.checked)}
-          style={{ accentColor: 'var(--accent)' }}
-        />
-        <span style={{ fontSize: 13, color: 'var(--text-dim)' }}>Out</span>
-      </label>
-      <button
+      {device.connected && (
+        <div className="midi-dirs">
+          <button
+            type="button"
+            className={`midi-dir ${device.inputEnabled ? 'on' : ''}`}
+            aria-pressed={device.inputEnabled}
+            disabled={!device.hasInput}
+            onClick={() => onToggleInput(!device.inputEnabled)}
+            title={device.hasInput ? 'Listen to incoming MIDI from this device' : 'No input port on this device'}
+          >In</button>
+          <button
+            type="button"
+            className={`midi-dir ${device.outputEnabled ? 'on' : ''}`}
+            aria-pressed={device.outputEnabled}
+            disabled={!device.hasOutput}
+            onClick={() => onToggleOutput(!device.outputEnabled)}
+            title={device.hasOutput ? 'Allow outgoing MIDI to this device' : 'No output port on this device'}
+          >Out</button>
+        </div>
+      )}
+      {device.connected && <button
         className="btn-secondary"
         onClick={sendTestNote}
         disabled={!device.connected || !device.hasOutput || !device.outputEnabled}
@@ -1047,7 +1068,7 @@ function MidiDeviceRow({ device, onToggleInput, onToggleOutput, onToggleBoth, on
         }
       >
         Test
-      </button>
+      </button>}
       {onForget && (
         <button
           className="btn-secondary"

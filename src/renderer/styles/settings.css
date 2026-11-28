@@ -1051,3 +1051,60 @@
   padding: 6px 0;
 }
 .settings-section label:has(> .toggle-switch:first-child) > :not(.toggle-switch) { flex: 1; min-width: 0; }
+
+/* ── ProPresenter (new look) ── */
+.pp-conn { padding: 20px 24px; }
+.pp-conn.err { border-color: rgba(248, 113, 113, 0.45); }
+.pp-conn.on { border-color: rgba(74, 222, 128, 0.3); }
+.pp-conn-head { display: flex; align-items: center; gap: 14px; margin-bottom: 16px; }
+.pp-conn-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--text-faint); flex-shrink: 0; }
+.pp-conn.on .pp-conn-dot { background: #4ade80; box-shadow: 0 0 0 4px rgba(74, 222, 128, 0.15); }
+.pp-conn.err .pp-conn-dot { background: #f87171; box-shadow: 0 0 0 4px rgba(248, 113, 113, 0.15); }
+.pp-conn.unknown .pp-conn-dot { background: #f59e0b; }
+.pp-conn-text { flex: 1; min-width: 0; }
+.pp-conn-title { font-family: var(--font-display); font-size: 19px; font-weight: 800; color: var(--text); }
+.pp-conn-sub { font-size: 13.5px; color: var(--text-dim); margin-top: 2px; }
+.pp-conn-grid { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 14px; }
+.pp-conn-help { margin-top: 14px; padding: 12px 14px; border-radius: 10px; background: #0d0f12; border: 1px solid var(--border); font-size: 14px; color: var(--text-dim); }
+.pp-conn-help strong { color: var(--text); }
+.pp-cards { margin-bottom: 20px; }
+.pp-timer-select { width: 240px; }
+.pp-explain { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; font-size: 14px; color: var(--text-dim); }
+.pp-explain > div { display: flex; align-items: center; gap: 10px; }
+.pp-explain-dot { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+.pp-explain-dot.music { background: var(--accent); }
+.pp-explain-dot.timer { background: #f59e0b; }
+.pp-explain-dot.service { background: #22c55e; }
+.pp-explain-dot.post { background: hsl(300, 68%, 70%); }
+
+/* Slide cues: one row per moment, label on the left, choices on the right */
+.settings-section .pp-hook { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 24px; align-items: start; }
+.settings-section .pp-hook .pp-card-head { margin-bottom: 0; }
+.pp-hook .pp-card-icon { width: 34px; height: 34px; border-radius: 10px; font-size: 15px; background: color-mix(in srgb, currentColor 14%, transparent); }
+.pp-hook.inactive { opacity: 0.75; }
+@media (max-width: 1150px) { .settings-section .pp-hook { grid-template-columns: 1fr; gap: 12px; } .pp-conn-grid { grid-template-columns: 1fr 1fr; } }
+
+/* ── MIDI (new look) ── */
+.midi-top { margin-bottom: 20px; }
+.midi-devs { display: flex; flex-direction: column; }
+.midi-dev { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border); }
+.midi-dev:last-child { border-bottom: none; }
+.midi-dev .device-icon { width: 36px; height: 36px; border-radius: 10px; background: #0d0f12; border: 1px solid var(--border); }
+.midi-dev.live .device-icon { background: rgba(0, 122, 209, 0.14); border-color: rgba(0, 122, 209, 0.4); }
+.midi-dev .device-name { font-size: 15px; font-weight: 600; }
+.midi-dev .device-meta { font-family: var(--font-ui); font-size: 13px; color: var(--text-dim); }
+.midi-dev.gone { opacity: 0.65; padding: 8px 0; }
+.midi-dev.gone .device-icon { width: 28px; height: 28px; }
+.midi-dirs { display: inline-flex; background: #0d0f12; border: 1px solid var(--border); border-radius: 9px; padding: 2px; gap: 2px; }
+.midi-dir { border: none; background: none; color: var(--text-faint); font-size: 13px; font-weight: 600; padding: 5px 11px; border-radius: 7px; cursor: pointer; }
+.midi-dir.on { background: var(--accent); color: #fff; }
+.midi-dir:disabled { opacity: 0.35; cursor: default; }
+.midi-gone { margin-top: 10px; border-top: 1px solid var(--border); padding-top: 10px; }
+.midi-gone > summary { cursor: pointer; font-size: 13.5px; color: var(--text-dim); list-style: none; }
+.midi-gone > summary::-webkit-details-marker { display: none; }
+.midi-gone > summary::before { content: '▸ '; }
+.midi-gone[open] > summary::before { content: '▾ '; }
+.set-card .midi-log { margin: 8px 0 0; max-height: 320px; min-height: 140px; border-radius: 10px; background: #0d0f12; }
+.midi-learn-row { padding: 12px 4px; }
+.midi-learn-btn { border-radius: 9px; font-weight: 600; }
+.midi-bindings-table { border: none !important; background: transparent !important; }
