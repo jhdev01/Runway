@@ -42,6 +42,20 @@ const SETTINGS_NAV: { group: string; items: { id: SettingsTab; label: string }[]
   ] },
 ];
 
+const SETTINGS_SUB: Record<SettingsTab, string> = {
+  service: 'When pre-service music starts, how it fades, and when services get set up.',
+  audio: 'Where the music and pad play out, and how loud.',
+  pads: 'One looping pad per key, to bridge into the service.',
+  library: 'Where your songs live and how new ones come in.',
+  spotify: 'Play Spotify playlists as service music on this computer.',
+  propresenter: 'Countdown timer and slide cues in ProPresenter.',
+  planningcenter: 'Song keys and service times from Planning Center.',
+  midi: 'Controllers and cues that trigger Runway.',
+  remote: 'Run Runway from a phone on the same network.',
+  display: 'How the Live page looks.',
+  about: 'Version, timing log, and backing up your setup.',
+};
+
 /** Rarely touched settings, folded away until asked for. */
 function Advanced({ children }: { children: React.ReactNode }) {
   return (
@@ -88,6 +102,7 @@ export function SettingsView() {
       <div className="settings-content">
         <div className="settings-page">
           <h1 className="settings-page-title">{title}</h1>
+          <p className="settings-page-sub">{SETTINGS_SUB[tab]}</p>
           {tab === 'service' && <EngineSettings parts={['preservice', 'fades', 'autoschedule']} />}
           {tab === 'audio' && (
             <>
@@ -1597,14 +1612,15 @@ function EngineSettings({ parts }: { parts: EnginePart[] }) {
             </button>
           </div>
         )}
-        <button
-          className="btn-primary"
-          onClick={onReimportAll}
-          disabled={importing}
-          style={{ width: 'fit-content', marginTop: 12 }}
-        >
-          {importing ? 'Consolidating…' : 'Consolidate'}
-        </button>
+        <SettingRow
+          label="Consolidate songs"
+          sub="Copy older songs that still play from their original location into the library folder"
+          control={
+            <button className="btn-secondary" onClick={onReimportAll} disabled={importing}>
+              {importing ? 'Consolidating…' : 'Consolidate'}
+            </button>
+          }
+        />
         {importStatus && (
           <div className="settings-section-sub" style={{ marginTop: 10, fontSize: 12 }}>
             {importStatus}
@@ -1638,7 +1654,7 @@ function EngineSettings({ parts }: { parts: EnginePart[] }) {
       </section>
       </>)}
 
-      {show('preservice') && (<>
+      {show('preservice') && !show('fades') && (<>
       <section className="settings-section">
         <div className="settings-section-title">Pre-service music<InfoTip><p>When a playlist is shorter than the auto-start lead time:</p><p><strong>Repeat to fill</strong>: songs repeat to fill the time. The song in the service key plays last.</p><p><strong>Start late</strong>: the playlist plays once and music starts later.</p><p>Either way, music ends at service start.</p></InfoTip></div>
         <div className="pl-toggle" style={{ width: 'fit-content' }}>
@@ -1699,83 +1715,99 @@ function EngineSettings({ parts }: { parts: EnginePart[] }) {
       )}
 
       {show('fades') && (<>
-      <section className="settings-section">
-        <div className="settings-section-title">Default fade times<InfoTip>Used when creating new playlists. Existing playlists keep their own settings.</InfoTip></div>
-        <div className="settings-grid">
-          <DefaultsField label="Crossfade" value={config.defaults.crossfadeSec}
-                         onChange={v => updateDefault('crossfadeSec', v)} />
-          <DefaultsField label="Pad hold" value={config.defaults.padBridgeSec}
-                         onChange={v => updateDefault('padBridgeSec', v)} />
-          <DefaultsField label="Pad fade out" value={config.defaults.padFadeOutSec}
-                         onChange={v => updateDefault('padFadeOutSec', v)} />
-          <DefaultsField label="Panic fade" value={config.defaults.panicFadeSec}
-                         onChange={v => updateDefault('panicFadeSec', v)} />
-          <DefaultsField label="Post-service fade-in" value={config.defaults.postServiceFadeInSec}
-                         onChange={v => updateDefault('postServiceFadeInSec', v)} />
-          <DefaultsField label="Music start fade-in" value={config.defaults.musicFadeInSec}
-                         onChange={v => updateDefault('musicFadeInSec', v)} />
-          <DefaultsField label="Auto-start lead time"
-                         value={config.defaults.autoStartTargetSec / 60}
-                         onChange={v => updateDefault('autoStartTargetSec', v * 60)}
-                         unit="min" step={1} max={60} />
+      <div className="set-cards-2">
+        <section className="settings-section set-card">
+          <div className="settings-section-title">Timing<InfoTip>Defaults for new services and playlists. Existing playlists keep their own settings.</InfoTip></div>
+          <StepRow label="Music starts before service" sub="Default for new services" unit="min" step={1} max={60}
+                   value={config.defaults.autoStartTargetSec / 60} onChange={v => updateDefault('autoStartTargetSec', v * 60)} />
+          <StepRow label="Pad hold" sub="Pad keeps playing into the service" value={config.defaults.padBridgeSec}
+                   onChange={v => updateDefault('padBridgeSec', v)} />
+          <SettingRow
+            label="Short playlists"
+            sub={repeatToFill ? 'Songs repeat to fill the time; the song in the service key plays last' : 'The playlist plays once and music starts later'}
+            tip={<><p>When a playlist is shorter than the time before the service:</p><p><strong>Repeat to fill</strong>: songs repeat to fill the time. The song in the service key plays last.</p><p><strong>Start late</strong>: the playlist plays once and music starts later.</p><p>Either way, music ends at service start.</p></>}
+            control={
+              <div className="set-seg" role="radiogroup" aria-label="Short playlists">
+                <button type="button" role="radio" aria-checked={repeatToFill} className={repeatToFill ? 'on' : ''} onClick={() => setRepeatToFill(true)}>Repeat to fill</button>
+                <button type="button" role="radio" aria-checked={!repeatToFill} className={!repeatToFill ? 'on' : ''} onClick={() => setRepeatToFill(false)}>Start late</button>
+              </div>
+            }
+          />
+        </section>
+        <section className="settings-section set-card">
+          <div className="settings-section-title">Fades<InfoTip>Used when creating new playlists. Existing playlists keep their own settings.</InfoTip></div>
+          <StepRow label="Song crossfade" sub="Between songs in a runway" value={config.defaults.crossfadeSec}
+                   onChange={v => updateDefault('crossfadeSec', v)} />
+          <StepRow label="First song fade-in" sub="When the music starts" value={config.defaults.musicFadeInSec}
+                   onChange={v => updateDefault('musicFadeInSec', v)} />
+          <StepRow label="Pad fade out" sub="After the pad hold" value={config.defaults.padFadeOutSec}
+                   onChange={v => updateDefault('padFadeOutSec', v)} />
+          <StepRow label="Post-service fade-in" sub="Start Post-Service" value={config.defaults.postServiceFadeInSec}
+                   onChange={v => updateDefault('postServiceFadeInSec', v)} />
+          <StepRow label="Panic fade" sub="Fade everything out" value={config.defaults.panicFadeSec}
+                   onChange={v => updateDefault('panicFadeSec', v)} />
+        </section>
+      </div>
+      <section className="settings-section set-explain">
+        <div className="settings-section-title">What this means</div>
+        <div className="set-explain-bar" aria-hidden>
+          <span className="music">Music {Math.round(config.defaults.autoStartTargetSec / 60)}:00</span>
+          <span className="pad">Pad</span>
+          <span className="service">Service</span>
+        </div>
+        <div className="set-card-note">
+          Music starts {Math.round(config.defaults.autoStartTargetSec / 60)} minutes before the service, fading in over {fmtSec(config.defaults.musicFadeInSec)}, with
+          {' '}{fmtSec(config.defaults.crossfadeSec)} crossfades between songs, and ends right at service start. The pad holds
+          {' '}{fmtSec(config.defaults.padBridgeSec)} into the service, then fades over {fmtSec(config.defaults.padFadeOutSec)}.
         </div>
       </section>
       </>)}
       {show('autoschedule') && (<>
       <section className="settings-section">
         <div className="settings-section-title">Auto-schedule services<InfoTip>When the weekly pattern is set to <strong>Auto rotate</strong>, Runway adds services from it to the schedule. Days ahead sets how far out (2 = today and tomorrow). If Runway stays open overnight, it adds the next day's services at the daily check time, e.g. 03:00.</InfoTip></div>
+        <SettingRow
+          label="Days ahead"
+          sub="How far out Runway adds services (2 = today and tomorrow)"
+          control={
+            <input
+              id="autoScheduleDaysAhead"
+              type="number"
+              min={1}
+              max={60}
+              value={autoScheduleDaysAhead}
+              onChange={e => {
+                const n = Math.max(1, Math.min(60, Math.floor(Number(e.target.value) || 1)));
+                updateConfig({ defaults: { ...config.defaults, autoScheduleDaysAhead: n } });
+              }}
+              style={{ width: 90 }}
+            />
+          }
+        />
+        <SettingRow
+          label="Daily check at"
+          sub="If Runway stays open overnight, it adds the next day’s services then"
+          control={
+            <input
+              id="autoScheduleTime"
+              type="time"
+              value={autoScheduleTime}
+              onChange={e => {
+                updateConfig({ defaults: { ...config.defaults, autoScheduleTime: e.target.value || '00:00' } });
+              }}
+              style={{ width: 140 }}
+            />
+          }
+        />
         <div
           style={{
-            display: 'grid',
-            gridTemplateColumns: 'auto 1fr',
-            columnGap: 14,
-            rowGap: 10,
-            alignItems: 'center',
-            marginTop: 14,
-            maxWidth: 520,
-          }}
-        >
-          <label htmlFor="autoScheduleDaysAhead" style={{ color: 'var(--text-dim)' }}>
-            Days ahead
-          </label>
-          <input
-            id="autoScheduleDaysAhead"
-            type="number"
-            min={1}
-            max={60}
-            value={autoScheduleDaysAhead}
-            onChange={e => {
-              const n = Math.max(1, Math.min(60, Math.floor(Number(e.target.value) || 1)));
-              updateConfig({ defaults: { ...config.defaults, autoScheduleDaysAhead: n } });
-            }}
-            style={{ maxWidth: 96 }}
-          />
-
-          <label htmlFor="autoScheduleTime" style={{ color: 'var(--text-dim)' }}>
-            Daily check at
-          </label>
-          <input
-            id="autoScheduleTime"
-            type="time"
-            value={autoScheduleTime}
-            onChange={e => {
-              updateConfig({ defaults: { ...config.defaults, autoScheduleTime: e.target.value || '00:00' } });
-            }}
-            style={{ maxWidth: 160 }}
-          />
-        </div>
-
-        <div
-          style={{
-            marginTop: 18,
-            padding: 12,
+            marginTop: 10,
+            padding: 14,
             background: 'var(--bg-elev-2)',
             border: '1px solid var(--border)',
-            borderRadius: 6,
+            borderRadius: 10,
             display: 'flex',
             alignItems: 'center',
             gap: 14,
-            maxWidth: 520,
           }}
         >
           <div style={{ flex: 1, fontSize: 12, color: 'var(--text-dim)' }}>
@@ -1914,6 +1946,28 @@ function EngineSettings({ parts }: { parts: EnginePart[] }) {
 
 // Lets Runway close Spotify's window before each song so it never flashes
 // on screen. macOS requires Runway to be allowed under Accessibility.
+/** One settings row (new look): label and a short line on the left, the control on the right. */
+function SettingRow({ label, sub, tip, control, children }: {
+  label: React.ReactNode;
+  sub?: React.ReactNode;
+  tip?: React.ReactNode;
+  control?: React.ReactNode;
+  children?: React.ReactNode;
+}) {
+  return (
+    <div className="set-row">
+      <div className="set-row-main">
+        <div className="set-row-text">
+          <div className="set-row-label">{label}{tip && <InfoTip>{tip}</InfoTip>}</div>
+          {sub && <div className="set-row-sub">{sub}</div>}
+        </div>
+        {control && <div className="set-row-control">{control}</div>}
+      </div>
+      {children}
+    </div>
+  );
+}
+
 function SpotifyWindowPermission() {
   const [allowed, setAllowed] = useState<boolean | null>(null);
   const check = (prompt: boolean) =>
@@ -1930,19 +1984,14 @@ function SpotifyWindowPermission() {
   }, []);
   if (allowed === null) return null;
   return (
-    <div className="pp-actions" style={{ marginTop: 10 }}>
-      {allowed ? (
-        <span className="pp-status ok">Runway closes Spotify’s window before each song, so it doesn’t flash on screen.</span>
-      ) : (
-        <>
-          <span className="settings-field-sub">
-            Spotify may flash on screen when songs change.
-            <InfoTip>Let Runway close Spotify’s window so it doesn’t flash on screen. Allow it in System Settings › Privacy &amp; Security › Accessibility.</InfoTip>
-          </span>
-          <button className="btn-secondary" onClick={() => void check(true)}>Allow…</button>
-        </>
-      )}
-    </div>
+    <SettingRow
+      label="Keep Spotify’s window hidden"
+      sub={allowed ? 'Runway closes Spotify’s window before each song, so it doesn’t flash on screen.' : 'Spotify may flash on screen when songs change.'}
+      tip={<>Let Runway close Spotify’s window so it doesn’t flash on screen. Allow it in System Settings › Privacy &amp; Security › Accessibility.</>}
+      control={allowed
+        ? <span className="set-pill ok">Allowed</span>
+        : <button className="btn-secondary" onClick={() => void check(true)}>Allow…</button>}
+    />
   );
 }
 
@@ -1960,36 +2009,29 @@ function KeyLearningStatus() {
         ? `Using settings learned from ${kl.examples} of your songs. On songs it didn’t learn from, it now gets ${kl.after} right (standard settings: ${kl.before}).`
         : `Checked against ${kl.examples} of your songs: the standard settings do as well (${kl.before}), so they’re still in use.`;
   return (
-    <div style={{ marginTop: 14 }}>
-      <div style={{ fontSize: 14, color: 'var(--text)', fontWeight: 600, display: 'flex', alignItems: 'center' }}>
-        Key learning
-        <InfoTip>Keys you set or fix yourself teach Runway’s key detection. It re-checks on its own and only switches when it clearly gets more right.</InfoTip>
-      </div>
-      <div className="settings-section-sub" style={{ marginTop: 2 }}>{text}</div>
-      <div className="pp-actions">
-        <button className="btn-secondary" disabled={busy} onClick={async () => { setBusy(true); try { await relearnKeys(); } finally { setBusy(false); } }}>
-          {busy ? 'Learning…' : 'Learn now'}
-        </button>
-        {kl?.adopted && (
-          <button className="btn-secondary" onClick={() => updateConfig({ keyLearning: { ...kl, adopted: false } })}>Use standard settings</button>
-        )}
-      </div>
-    </div>
+    <SettingRow
+      label="Key learning"
+      sub={text}
+      tip="Keys you set or fix yourself teach Runway’s key detection. It re-checks on its own and only switches when it clearly gets more right."
+      control={
+        <div className="set-row-buttons">
+          {kl?.adopted && (
+            <button className="btn-secondary" onClick={() => updateConfig({ keyLearning: { ...kl, adopted: false } })}>Use standard</button>
+          )}
+          <button className="btn-secondary" disabled={busy} onClick={async () => { setBusy(true); try { await relearnKeys(); } finally { setBusy(false); } }}>
+            {busy ? 'Learning…' : 'Learn now'}
+          </button>
+        </div>
+      }
+    />
   );
 }
 
 // Draw waveforms of Spotify songs (Mac): Runway listens to the Spotify app's
 // loudness as songs play (never the sound itself) and draws it in the song
 // editor. macOS asks for Screen & System Audio Recording permission first.
-function SpotifyWaveformSetting() {
-  const on = useAppStore(s => !!s.config.spotify?.waveforms);
-  const updateConfig = useAppStore(s => s.updateConfig);
+function useSpotifyWaveformStatus() {
   const [st, setSt] = useState<SpotifyWaveformStatus | null>(null);
-  const scan = useWaveformScan();
-  const scanMode = useAppStore(s => s.config.spotify?.waveformScan ?? 'edges');
-  const scanSec = useAppStore(s => s.config.spotify?.waveformScanSec ?? 30);
-  const [custom, setCustom] = useState(false);
-  const scanChoice = scanMode === 'whole' ? 'whole' : (custom || ![10, 20, 30].includes(scanSec)) ? 'custom' : String(scanSec);
   useEffect(() => {
     let alive = true;
     const read = () => window.runway?.spotify?.waveformStatus?.().then(x => { if (alive) setSt(x); }).catch(() => undefined);
@@ -1997,16 +2039,27 @@ function SpotifyWaveformSetting() {
     const t = window.setInterval(read, 2000);
     return () => { alive = false; window.clearInterval(t); };
   }, []);
+  return st;
+}
+
+function SpotifyWaveformToggleRow() {
+  const on = useAppStore(s => !!s.config.spotify?.waveforms);
+  const updateConfig = useAppStore(s => s.updateConfig);
+  const st = useSpotifyWaveformStatus();
   if (st && st.tap === 'unavailable' && !on) {
-    return st.reason ? <div className="settings-section-sub" style={{ marginTop: 12 }}>Waveforms: {st.reason}</div> : null;
+    return <SettingRow label="Draw waveforms while songs play" sub={st.reason ?? 'Not available on this computer.'} />;
   }
-  const label = !on ? null
-    : st?.tap === 'on' ? { ok: true, text: 'Listening to Spotify. Songs get a waveform as they play through.' }
-    : st?.tap === 'denied' || st?.tap === 'error' || st?.tap === 'unavailable' ? { ok: false, text: st.reason ?? 'Couldn’t listen to Spotify.' }
-    : { ok: true, text: 'On. Starts listening when Spotify plays.' };
+  const status = !on ? 'Needs a one-time macOS permission'
+    : st?.tap === 'on' ? 'Listening to Spotify. Songs get a waveform as they play through.'
+    : st?.tap === 'denied' || st?.tap === 'error' || st?.tap === 'unavailable' ? (st.reason ?? 'Couldn’t listen to Spotify.')
+    : 'On. Starts listening when Spotify plays.';
+  const bad = on && (st?.tap === 'denied' || st?.tap === 'error' || st?.tap === 'unavailable');
   return (
-    <div style={{ marginTop: 12 }}>
-      <label style={{ display: 'flex', gap: 14, alignItems: 'center', cursor: 'pointer' }}>
+    <SettingRow
+      label="Draw waveforms while songs play"
+      sub={<span className={bad ? 'set-row-err' : undefined}>{status}</span>}
+      tip={<>Runway listens to how loud Spotify is as each song plays (never the sound itself, nothing is recorded) and draws the song’s waveform in its Edit panel. A song needs to play through once. macOS asks you to allow Runway under Screen &amp; System Audio Recording; Runway only listens to Spotify, never your screen.</>}
+      control={
         <Toggle
           checked={on}
           ariaLabel="Draw waveforms of Spotify songs"
@@ -2015,37 +2068,80 @@ function SpotifyWaveformSetting() {
             updateConfig({ spotify: { ...latest, waveforms: v } });
           }}
         />
-        <span style={{ fontSize: 14, color: 'var(--text)', fontWeight: 600 }}>Draw waveforms of Spotify songs (Mac)</span>
-        <InfoTip>Runway listens to how loud Spotify is as each song plays (never the sound itself, nothing is recorded) and draws the song’s waveform in its Edit panel. A song needs to play through once. macOS asks you to allow Runway under Screen &amp; System Audio Recording; Runway only listens to Spotify, never your screen.</InfoTip>
-      </label>
-      {label && <div className={`pp-status ${label.ok ? 'ok' : 'err'}`}>{label.text}</div>}
-      {on && (
-        <div className="pp-actions" style={{ marginTop: 8 }}>
-          {scan.running ? (
-            <>
-              <span className="pp-status ok">Scanning {scan.idx} of {scan.total}: {scan.title} ({Math.floor(scan.posSec / 60)}:{String(Math.floor(scan.posSec % 60)).padStart(2, '0')} of {Math.floor(scan.durSec / 60)}:{String(Math.floor(scan.durSec % 60)).padStart(2, '0')})</span>
-              <button className="btn-secondary" onClick={() => waveformScanner.stop()}>Stop</button>
-            </>
-          ) : (
-            <>
-              <select
-                value={scanChoice}
-                onChange={e => {
-                  const v = e.target.value;
-                  const latest = useAppStore.getState().config.spotify;
-                  if (v === 'whole') updateConfig({ spotify: { ...latest, waveformScan: 'whole' } });
-                  else if (v === 'custom') { setCustom(true); updateConfig({ spotify: { ...latest, waveformScan: 'edges' } }); }
-                  else { setCustom(false); updateConfig({ spotify: { ...latest, waveformScan: 'edges', waveformScanSec: Number(v) } }); }
-                }}
-                title="What the scan buttons play"
-              >
-                <option value="10">Scan first &amp; last 10 seconds</option>
-                <option value="20">Scan first &amp; last 20 seconds</option>
-                <option value="30">Scan first &amp; last 30 seconds</option>
-                <option value="custom">Scan first &amp; last … seconds</option>
-                <option value="whole">Scan whole songs</option>
-              </select>
-              {scanChoice === 'custom' && (
+      }
+    />
+  );
+}
+
+const SCAN_DONE_AT = 0.95; // matches the scanner: a song counts as scanned at this coverage
+
+function SpotifyScanCard() {
+  const on = useAppStore(s => !!s.config.spotify?.waveforms);
+  const updateConfig = useAppStore(s => s.updateConfig);
+  const playlistCache = useAppStore(s => s.config.spotify?.playlistCache);
+  const scan = useWaveformScan();
+  const scanMode = useAppStore(s => s.config.spotify?.waveformScan ?? 'edges');
+  const scanSec = useAppStore(s => s.config.spotify?.waveformScanSec ?? 30);
+  const [custom, setCustom] = useState(false);
+  const scanChoice = scanMode === 'whole' ? 'whole' : (custom || ![10, 20, 30].includes(scanSec)) ? 'custom' : String(scanSec);
+  const songs = useMemo(() => allImportedSpotifySongs(), [playlistCache]);
+  const [done, setDone] = useState<number | null>(null);
+  useEffect(() => {
+    let alive = true;
+    const uris = [...new Set(songs.map(t => t.uri))];
+    const read = async () => {
+      if (uris.length === 0) { if (alive) setDone(0); return; }
+      try {
+        const edges = scanMode === 'whole' ? undefined : scanSec;
+        const [cov, keys] = await Promise.all([
+          window.runway.spotify.waveformCoverage(uris, edges),
+          window.runway.spotify.waveformKeys(uris).catch(() => ({} as Record<string, unknown>)),
+        ]);
+        if (alive) setDone(uris.filter(u => (cov?.[u] ?? 0) >= SCAN_DONE_AT && keys?.[u]).length);
+      } catch { /* keep the last count */ }
+    };
+    void read();
+    const t = window.setInterval(read, scan.running ? 4000 : 15000);
+    return () => { alive = false; window.clearInterval(t); };
+  }, [songs, scan.running, scanMode, scanSec]);
+
+  const total = new Set(songs.map(t => t.uri)).size;
+  const missing = done === null ? null : Math.max(0, total - done);
+  const pct = total > 0 && done !== null ? Math.round((done / total) * 100) : 0;
+  const setChoice = (v: string) => {
+    const latest = useAppStore.getState().config.spotify;
+    if (v === 'whole') updateConfig({ spotify: { ...latest, waveformScan: 'whole' } });
+    else if (v === 'custom') { setCustom(true); updateConfig({ spotify: { ...latest, waveformScan: 'edges' } }); }
+    else { setCustom(false); updateConfig({ spotify: { ...latest, waveformScan: 'edges', waveformScanSec: Number(v) } }); }
+  };
+  const mmss = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+
+  return (
+    <section className="settings-section set-card">
+      <div className="settings-section-title">Waveforms &amp; keys</div>
+      <div className="set-scan-count">
+        <strong>{done ?? '–'} / {total}</strong>
+        <span>songs scanned</span>
+      </div>
+      <div className="set-scan-bar" aria-hidden><span style={{ width: `${pct}%` }} /></div>
+      {!on ? (
+        <div className="set-card-note">Turn on <strong>Draw waveforms while songs play</strong> to scan songs for waveforms and keys.</div>
+      ) : (
+        <>
+          <SettingRow
+            label="Scan length"
+            sub={scanMode === 'whole' ? 'Every song, start to finish' : `First and last ${scanSec} seconds of each song`}
+            control={
+              <div className="set-seg" role="radiogroup" aria-label="Scan length">
+                {[['10', '10 s'], ['20', '20 s'], ['30', '30 s'], ['custom', 'Custom'], ['whole', 'Whole']].map(([v, l]) => (
+                  <button key={v} type="button" role="radio" aria-checked={scanChoice === v}
+                    className={scanChoice === v ? 'on' : ''} disabled={scan.running} onClick={() => setChoice(v)}>{l}</button>
+                ))}
+              </div>
+            }
+          >
+            {scanChoice === 'custom' && (
+              <div className="set-row-extra">
                 <input
                   type="number"
                   min={5}
@@ -2057,45 +2153,61 @@ function SpotifyWaveformSetting() {
                     const latest = useAppStore.getState().config.spotify;
                     updateConfig({ spotify: { ...latest, waveformScan: 'edges', waveformScanSec: Math.min(600, Math.max(5, n)) } });
                   }}
-                  style={{ width: 70 }}
+                  style={{ width: 80 }}
                   title="Seconds of each song's start and end to scan"
                 />
-              )}
-              <button
-                className="btn-secondary"
-                onClick={() => void waveformScanner.start(allImportedSpotifySongs())}
-                disabled={allImportedSpotifySongs().length === 0}
-                title="Plays every imported Spotify song that doesn’t have a waveform yet, one after another"
-              >
-                Scan all songs
-              </button>
-              <InfoTip>
-                {scanMode === 'edges'
-                  ? `Plays the first and last ${scanSec} seconds of every imported Spotify song (about ${scanSec * 2 + 5} seconds each). `
-                  : 'Plays every imported Spotify song start to finish. '}
-                Mute your Mac and walk away; it keeps going on other screens and stops by itself before a service
-                starts. Unmute when it’s done.
-              </InfoTip>
-            </>
+                <span className="set-row-sub">seconds from each end</span>
+              </div>
+            )}
+          </SettingRow>
+          {scan.running ? (
+            <div className="set-scan-running">
+              <div>
+                <div className="set-row-label">Scanning {scan.idx} of {scan.total}</div>
+                <div className="set-row-sub">{scan.title} · {mmss(scan.posSec)} of {mmss(scan.durSec)}</div>
+              </div>
+              <button className="btn-secondary" onClick={() => waveformScanner.stop()}>Stop</button>
+            </div>
+          ) : (
+            <button
+              className="btn-primary set-scan-btn"
+              onClick={() => void waveformScanner.start(allImportedSpotifySongs())}
+              disabled={total === 0 || missing === 0}
+              title="Plays every imported Spotify song that doesn’t have a waveform yet, one after another"
+            >
+              {total === 0 ? 'Import a Spotify playlist first' : missing === 0 ? 'All songs scanned' : missing === null ? 'Scan missing songs' : `Scan the ${missing} missing song${missing === 1 ? '' : 's'}`}
+            </button>
           )}
-        </div>
+          <div className="set-card-note">
+            {scan.note ?? 'Mute your Mac and walk away. It keeps going on other screens and stops by itself before a service starts.'}
+          </div>
+        </>
       )}
-      {on && !scan.running && scan.note && <div className="settings-section-sub">{scan.note}</div>}
-    </div>
+      <KeyLearningStatus />
+    </section>
   );
 }
 
-// Experimental: sign in to Spotify and read a playlist's song list.
-// Read-only — nothing here plays audio or touches services.
+// Sign in to Spotify (reads playlists) and the Spotify playback settings.
 function SpotifyAccountSection() {
   const config = useAppStore(s => s.config);
   const updateConfig = useAppStore(s => s.updateConfig);
   const clientId = config.spotify?.clientId ?? '';
   const [status, setStatus] = useState<SpotifyStatus>({ connected: false });
-  const [busy, setBusy] = useState<null | 'connect' | 'read'>(null);
-  const [link, setLink] = useState(config.spotify?.lastPlaylistLink ?? '');
-  const [playlist, setPlaylist] = useState<SpotifyPlaylistResult | null>(config.spotify?.lastPlaylist ?? null);
+  const [busy, setBusy] = useState<null | 'connect'>(null);
+  const [appOpen, setAppOpen] = useState<boolean | null>(null);
+  const isMac = navigator.userAgent.includes('Mac');
   useEffect(() => { void window.runway?.spotify?.status().then(setStatus); }, []);
+  useEffect(() => {
+    if (!isMac || !status.connected) return;
+    let alive = true;
+    const read = () => window.runway.spotify.player({ op: 'check' })
+      .then(r => { if (alive) setAppOpen(!!r?.ok); })
+      .catch(() => { if (alive) setAppOpen(false); });
+    void read();
+    const t = window.setInterval(read, 5000);
+    return () => { alive = false; window.clearInterval(t); };
+  }, [isMac, status.connected]);
 
   const connect = async () => {
     setBusy('connect');
@@ -2105,111 +2217,100 @@ function SpotifyAccountSection() {
   const disconnect = async () => {
     setStatus(await window.runway.spotify.disconnect());
   };
-  const [mine, setMine] = useState<SpotifyPlaylistList | null>(null);
-  const loadMine = async () => {
-    setMine(null);
-    setMine(await window.runway.spotify.listPlaylists());
-  };
-  useEffect(() => { if (status.connected) void loadMine(); }, [status.connected]);
-
-  const readLink = async (target: string) => {
-    setBusy('read');
-    try {
-      const result = await window.runway.spotify.readPlaylist(target);
-      setPlaylist(result);
-      if (result.ok) {
-        // Keep it (and the link) so it survives leaving Settings or a restart,
-        // and cache it by id so services can arm from it.
-        const latest = useAppStore.getState().config.spotify;
-        updateConfig({ spotify: {
-          ...latest,
-          lastPlaylistLink: target.trim(),
-          lastPlaylist: result,
-          playlistCache: result.playlistId
-            ? { ...(latest?.playlistCache ?? {}), [result.playlistId]: result }
-            : latest?.playlistCache,
-        } });
-      }
-    } finally { setBusy(null); }
-  };
-  const read = () => readLink(link);
-  const pick = (id: string) => {
-    if (!id) return;
-    const target = `spotify:playlist:${id}`;
-    setLink(target);
-    void readLink(target);
-  };
-  const totalSec = (playlist?.tracks ?? []).reduce((s, t) => s + t.durationMs, 0) / 1000;
+  const name = status.displayName || 'Spotify';
+  const quiet = !!status.quietStart && !!status.canControl;
 
   return (
-    <section className="settings-section">
-      <div className="settings-section-title">Account<InfoTip>Sign in so Runway can read the songs in your Spotify playlists. Spotify only lets Runway read playlists you created or collaborate on.</InfoTip></div>
-      {!status.connected && (
-        <div className="settings-section-sub">
-          One-time setup: at developer.spotify.com/dashboard create an app, add the Redirect URI{' '}
-          <code>http://127.0.0.1:7813/callback</code>, tick “Web API”, then paste the app’s Client ID here.
-        </div>
-      )}
-      <div className="pp-actions">
-        {!status.connected ? (
+    <>
+      <section className="settings-section set-account">
+        {status.connected ? (
           <>
-            <input
-              type="text"
-              value={clientId}
-              onChange={e => updateConfig({ spotify: { ...config.spotify, clientId: e.target.value.trim() } })}
-              placeholder="Spotify Client ID"
-              style={{ flex: 1, minWidth: 260 }}
-              disabled={busy !== null}
-            />
-            <button className="btn-secondary" onClick={connect} disabled={busy !== null || !clientId}>
-              {busy === 'connect' ? 'Waiting for sign-in…' : 'Connect Spotify'}
-            </button>
+            <div className="set-avatar" aria-hidden>{name.trim().charAt(0).toUpperCase()}</div>
+            <div className="set-account-text">
+              <div className="set-account-title">Signed in{status.displayName ? ` as ${status.displayName}` : ''}</div>
+              <div className="set-account-sub">
+                {status.signInLost
+                  ? <span className="set-row-err">Spotify refused the saved sign-in. Sign in again.</span>
+                  : 'Runway reads your playlists; songs play in this computer’s Spotify app.'}
+              </div>
+            </div>
+            <div className="set-account-status">
+              {isMac && appOpen !== null && (
+                <div className={appOpen ? 'ok' : 'warn'}><i />{appOpen ? 'Spotify app open' : 'Spotify app closed'}</div>
+              )}
+              <div className={quiet ? 'ok' : 'off'}><i />{quiet ? 'Quiet start ready' : 'Quiet start off'}</div>
+            </div>
+            {status.signInLost
+              ? <button className="btn-primary" onClick={connect} disabled={busy !== null || !clientId}>{busy === 'connect' ? 'Waiting for sign-in…' : 'Sign in again'}</button>
+              : <button className="btn-secondary" onClick={disconnect} disabled={busy !== null}>Sign out</button>}
           </>
         ) : (
-          <>
-            <span className="pp-status ok">
-              Connected{status.displayName ? ` as ${status.displayName}` : ''}
-            </span>
-            <button className="btn-secondary" onClick={disconnect} disabled={busy !== null}>Disconnect</button>
-          </>
-        )}
-      </div>
-      {!status.connected && status.reason && <div className="pp-status err">{status.reason}</div>}
-
-      {status.connected && (
-        <div style={{ marginTop: 12 }}>
-          <label style={{ display: 'flex', gap: 14, alignItems: 'center', cursor: 'pointer' }}>
-            <Toggle
-              checked={!!status.quietStart}
-              ariaLabel="Start songs without showing Spotify"
-              onChange={async on => {
-                await window.runway.spotify.player({ op: 'quietStart', on });
-                setStatus(await window.runway.spotify.status());
-              }}
-            />
-            <span style={{ fontSize: 14, color: 'var(--text)', fontWeight: 600 }}>Start songs without showing Spotify (Spotify Premium)</span>
-            <InfoTip>Runway starts each song through Spotify’s own remote control (like your phone does), so the Spotify window never comes forward. Volume, jumps and timing work the same. If it can’t reach Spotify that way, Runway starts the song the usual way instead.</InfoTip>
-          </label>
-          {status.quietStart && !status.canControl && (
+          <div className="set-account-setup">
+            <div className="set-account-title">Connect Spotify</div>
+            <div className="set-account-sub">
+              One-time setup: at developer.spotify.com/dashboard create an app, add the Redirect URI{' '}
+              <code>http://127.0.0.1:7813/callback</code>, tick “Web API”, then paste the app’s Client ID here.
+              <InfoTip>Sign in so Runway can read the songs in your Spotify playlists. Spotify only lets Runway read playlists you created or collaborate on.</InfoTip>
+            </div>
             <div className="pp-actions">
-              <span className="pp-status err">Sign in to Spotify again once so Runway is allowed to start songs this way.</span>
-              <button className="btn-secondary" onClick={connect} disabled={busy !== null || !clientId}>
-                {busy === 'connect' ? 'Waiting for sign-in…' : 'Sign in again'}
+              <input
+                type="text"
+                value={clientId}
+                onChange={e => updateConfig({ spotify: { ...config.spotify, clientId: e.target.value.trim() } })}
+                placeholder="Spotify Client ID"
+                style={{ flex: 1, minWidth: 260 }}
+                disabled={busy !== null}
+              />
+              <button className="btn-primary" onClick={connect} disabled={busy !== null || !clientId}>
+                {busy === 'connect' ? 'Waiting for sign-in…' : 'Connect Spotify'}
               </button>
             </div>
-          )}
-        </div>
-      )}
-      {!(status.quietStart && status.canControl) && <SpotifyWindowPermission />}
-      {status.connected && <SpotifyWaveformSetting />}
-      <KeyLearningStatus />
+            {status.reason && <div className="pp-status err">{status.reason}</div>}
+          </div>
+        )}
+      </section>
+
       {status.connected && (
-        <div className="pp-actions" style={{ marginTop: 10 }}>
-          <span style={{ fontSize: 13, color: 'var(--text-dim)' }}>Import playlists, set keys and download artwork in</span>
-          <button className="btn-secondary" onClick={() => useAppStore.getState().setView('playlists')}>Playlists › Spotify</button>
+        <div className="set-cards-2">
+          <section className="settings-section set-card">
+            <div className="settings-section-title">Playback</div>
+            <SettingRow
+              label="Quiet start"
+              sub={status.quietStart && !status.canControl
+                ? <span className="set-row-err">Sign in to Spotify again once so Runway is allowed to start songs this way.</span>
+                : 'Songs start without bringing Spotify forward (Spotify Premium)'}
+              tip="Runway starts each song through Spotify’s own remote control (like your phone does), so the Spotify window never comes forward. Volume, jumps and timing work the same. If it can’t reach Spotify that way, Runway starts the song the usual way instead."
+              control={
+                <Toggle
+                  checked={!!status.quietStart}
+                  ariaLabel="Start songs without showing Spotify"
+                  onChange={async on => {
+                    await window.runway.spotify.player({ op: 'quietStart', on });
+                    setStatus(await window.runway.spotify.status());
+                  }}
+                />
+              }
+            >
+              {status.quietStart && !status.canControl && (
+                <div className="set-row-extra">
+                  <button className="btn-secondary" onClick={connect} disabled={busy !== null || !clientId}>
+                    {busy === 'connect' ? 'Waiting for sign-in…' : 'Sign in again'}
+                  </button>
+                </div>
+              )}
+            </SettingRow>
+            {!quiet && isMac && <SpotifyWindowPermission />}
+            <SpotifyWaveformToggleRow />
+            <SettingRow
+              label="Playlists, keys and artwork"
+              sub="Import playlists and set song keys in Playlists › Spotify"
+              control={<button className="btn-secondary" onClick={() => useAppStore.getState().setView('playlists')}>Open</button>}
+            />
+          </section>
+          <SpotifyScanCard />
         </div>
       )}
-    </section>
+    </>
   );
 }
 
@@ -3156,6 +3257,33 @@ function FactoryResetModal({ onClose, onExport, exporting }: {
         </div>
       </div>
     </div>
+  );
+}
+
+const fmtSec = (v: number) => `${+v.toFixed(1)} s`;
+
+/** A settings row with a − value + stepper (new look). */
+function StepRow({ label, sub, value, onChange, unit = 's', step = 0.5, max = 30 }: {
+  label: string;
+  sub?: string;
+  value: number;
+  onChange: (v: number) => void;
+  unit?: string;
+  step?: number;
+  max?: number;
+}) {
+  return (
+    <SettingRow
+      label={label}
+      sub={sub}
+      control={
+        <div className="set-stepper">
+          <button type="button" aria-label={`Less ${label}`} onClick={() => onChange(Math.max(0, +(value - step).toFixed(1)))}>−</button>
+          <span>{unit === 'min' ? value.toFixed(0) : +value.toFixed(1)} {unit}</span>
+          <button type="button" aria-label={`More ${label}`} onClick={() => onChange(Math.min(max, +(value + step).toFixed(1)))}>+</button>
+        </div>
+      }
+    />
   );
 }
 

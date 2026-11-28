@@ -216,6 +216,14 @@ html { scrollbar-color: var(--border-bright) transparent; scrollbar-width: thin;
 }
 
 
+/* New look: bigger, solid switches */
+.toggle-switch { width: 46px; height: 26px; border: none; background: #2a2f37; }
+.toggle-switch:hover { background: #343a44; }
+.toggle-switch.on, .toggle-switch.on:hover { background: var(--accent); border: none; }
+.toggle-thumb { top: 3px; left: 3px; width: 20px; height: 20px; background: #fff; }
+.toggle-switch.on .toggle-thumb { transform: translateX(20px); box-shadow: 0 1px 3px rgba(0,0,0,0.35); }
+
+
 /* Album art lightbox — full-screen overlay used by the Live now-
    playing card and the Library mini-player to view artwork at a
    useful size during a service. Rendered into document.body via
