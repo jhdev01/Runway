@@ -27,7 +27,10 @@ const PREROLL_MS = 4000;          // gap between pressing Start and the first so
 const LOAD_LEAD_MS = 700;         // start each song this early, silent
 const LOAD_TIMEOUT_MS = 5000;
 const RESTART_MAX_SEC = 5;        // "loaded" = playing near the top of the song
-const LANDING_FIX_MS = 250;       // landing song steadily further off than this: put it back in time
+const LANDING_FIX_MS = 400;       // landing song steadily further off than this: put it back in time
+const LANDING_FIX_READINGS = 6;   // …for this many readings in a row
+const LANDING_FIXES_MAX = 2;      // at most this many fixes per landing (restarts included)
+const READ_FAILS_MAX = 12;        // Spotify not answering this many times in a row (~3 s+) = lost contact
 const START_ATTEMPTS = 3;         // a song that won't start: try this many times, then skip it
 const SEEK_AIM_AHEAD_SEC = 0.1;   // starting aim: jumps landed ~0.07–0.13 s late in testing
 const AIM_MIN_SEC = 0;
@@ -277,6 +280,8 @@ export class SpotifyTestRunner {
   private state: SpotifyRunState = IDLE;
   private listeners = new Set<(s: SpotifyRunState) => void>();
   private runId = 0;
+  /** Landing fixes already made, by landing time: a failsafe restart doesn't get a fresh allowance. */
+  private landingFixesByEnd = new Map<number, number>();
   private originalVolume = 70;
   private audio: AudioEngine | null = null;
   private lastFadeSec = 5;
@@ -498,9 +503,19 @@ export class SpotifyTestRunner {
       const halfCmd = () => (cmdTimes.length ? median(cmdTimes) : 120) / 2;
       // + = Spotify is behind the plan = the song would end late. Only
       // pure reads are used: a read that also sets the volume answers late.
-      const readErr = async (): Promise<number | null> => {
+      let readFails = 0;
+      // A single read that fails (macOS / Spotify busy for a moment) is skipped,
+      // not treated as Spotify gone: only many in a row stop the runway.
+      // 'skip' = no answer this time.
+      const readErr = async (): Promise<number | null | 'skip'> => {
         const r = await this.cmd({ op: 'state' });
-        if (!r.ok) throw new Error(r.reason ?? 'Lost contact with Spotify.');
+        if (!r.ok) {
+          readFails++;
+          if (readFails >= READ_FAILS_MAX) throw new Error(r.reason ?? 'Lost contact with Spotify.');
+          if (readFails === 1) console.log('[spotify] Spotify didn’t answer a reading; carrying on', { title: seg.title, reason: r.reason });
+          return 'skip';
+        }
+        readFails = 0;
         if (!r.sentAt || !r.answeredAt) return null;
         cmdTimes.push(r.answeredAt - r.sentAt);
         if (cmdTimes.length > 20) cmdTimes.shift();
@@ -533,7 +548,7 @@ export class SpotifyTestRunner {
           const reads: number[] = [];
           for (let k = 0; k < 3; k++) {
             const e = await readErr();
-            if (e !== null) reads.push(e);
+            if (typeof e === 'number') reads.push(e);
           }
           if (reads.length === 0) break;
           const off = median(reads);
@@ -558,7 +573,7 @@ export class SpotifyTestRunner {
       let resumedAt: number | null = null;
       // Landing song only: a steady big miss gets fixed (see below).
       let bigOffs: number[] = [];
-      let landingFixes = 0;
+      let landingFixes = this.landingFixesByEnd.get(seg.endAt) ?? 0;
       this.cutRequested = false;
       while (Date.now() < stopAt) {
         if (!live()) return;
@@ -582,14 +597,23 @@ export class SpotifyTestRunner {
         this.lastSentVolume = this.manualGain > 0 ? Math.round(vol / this.manualGain) : this.lastSentVolume;
         if (vol !== sentVolume) {
           const r = await this.cmd({ op: 'volume', volume: vol });
-          if (!r.ok) throw new Error(r.reason ?? 'Lost contact with Spotify.');
+          if (!r.ok) {
+            // Try again next step; only many failures in a row stop the runway.
+            readFails++;
+            if (readFails >= READ_FAILS_MAX) throw new Error(r.reason ?? 'Lost contact with Spotify.');
+            await sleep(FADE_STEP_MS - (Date.now() - loopStart));
+            continue;
+          }
+          readFails = 0;
           sentVolume = vol;
           // Mid-fade: come back soon for the next small step.
           await sleep(FADE_STEP_MS - (Date.now() - loopStart));
           continue;
         } else {
           const e = await readErr();
-          if (e === null) {
+          if (e === 'skip') {
+            // No answer this time: try again next step.
+          } else if (e === null) {
             notPlayingSince ??= loopStart;
             const timeLeft = (i === last ? seg.stopAt : seg.endAt) - loopStart;
             if (loopStart - notPlayingSince > RECOVER_AFTER_MS && timeLeft > 3000
@@ -639,9 +663,10 @@ export class SpotifyTestRunner {
               // short fade back in. Never in the last 15 s, at most twice.
               if (i === last) {
                 bigOffs = Math.abs(e) > LANDING_FIX_MS ? [...bigOffs, e] : [];
-                if (bigOffs.length >= 4 && landingFixes < 2 && seg.endAt - loopStart > 15_000) {
+                if (bigOffs.length >= LANDING_FIX_READINGS && landingFixes < LANDING_FIXES_MAX && seg.endAt - loopStart > 15_000) {
                   const off = median(bigOffs);
                   landingFixes++;
+                  this.landingFixesByEnd.set(seg.endAt, landingFixes);
                   bigOffs = [];
                   console.log('[spotify] landing song off; putting it back in time', { title: seg.title, offMs: Math.round(off), fix: landingFixes });
                   this.set({ message: `“${seg.title}” was ${(Math.abs(off) / 1000).toFixed(2)}s ${off > 0 ? 'late' : 'early'}; Runway put it back in time so it lands on 0:00.` });

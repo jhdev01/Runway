@@ -50,6 +50,7 @@ export function SpotifyStatusPill() {
     let lastHealthAt = 0;
     let health: SpotifyHealth | null = null;
     let appMisses = 0;   // the app must be missing from the account twice in a row before we say so
+    let appClosedMisses = 0; // …and not answering twice in a row before we say it's closed
     const check = async () => {
       try {
         const account = await window.runway.spotify.status();
@@ -89,6 +90,8 @@ export function SpotifyStatusPill() {
           });
           return;
         }
+        appClosedMisses = isMac && !app?.ok ? appClosedMisses + 1 : 0;
+        if (isMac && !app?.ok && appClosedMisses < 2) return; // one missed answer: check again next time
         if (isMac && !app?.ok) {
           setLight({ state: 'err', detail: `Signed in${who}, but ${app?.reason ?? 'the Spotify app isn’t answering.'}` });
           setSpotifyAlert(spotifyServiceSoon()
