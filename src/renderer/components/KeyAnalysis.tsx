@@ -329,7 +329,7 @@ export function KeyAnalysisPanel({ currentKey, heard, onSetKey, lookupMultitrack
   const maxP = prof ? Math.max(...prof) : 0;
   const scale = scaleOf(heard?.key);
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(260px, 1fr) auto', gap: 18, alignItems: 'start' }}>
+    <div className="key-analysis" style={{ display: 'grid', gridTemplateColumns: 'minmax(260px, 1fr) auto', gap: 18, alignItems: 'start' }}>
       <div>
         <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.6, color: 'var(--text-faint)', fontWeight: 600, marginBottom: 6 }}>Key</div>
         <div className="pp-actions" style={{ flexWrap: 'wrap' }}>

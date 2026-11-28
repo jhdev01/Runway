@@ -405,3 +405,29 @@
   font-size: 13px;
   color: var(--text-dim);
 }
+
+/* ── New look: song header, side key card ── */
+.editor-toolbar { padding: 16px 24px; gap: 12px; }
+.editor-song { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.editor-song img, .editor-song-art { width: 52px; height: 52px; border-radius: 10px; object-fit: cover; flex-shrink: 0; }
+.editor-song-art { background: linear-gradient(135deg, var(--accent-dim), #16191e); display: grid; place-items: center; color: rgba(255,255,255,0.6); font-size: 20px; }
+.editor-song-text { min-width: 0; }
+.editor-song-title { font-family: var(--font-display); font-size: 26px; font-weight: 800; letter-spacing: -0.02em; color: var(--text); line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 620px; }
+.editor-song-sub { font-size: 14px; color: var(--text-dim); margin-top: 2px; }
+.editor-toolbar-right { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+.editor-track-select.compact { max-width: 260px; }
+.editor-back { white-space: nowrap; }
+
+.editor-body { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 20px; padding: 20px 24px; overflow-y: auto; align-items: start; }
+.editor-main { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.editor-wave-card, .editor-fields-card { background: var(--bg-elev); border: 1px solid var(--border); border-radius: 16px; padding: 16px 18px; }
+.editor-key-card { background: var(--bg-elev); border: 1px solid var(--border); border-radius: 16px; padding: 18px 20px; position: sticky; top: 0; }
+.editor-key-card .key-analysis { grid-template-columns: 1fr !important; }
+.editor-key-card .settings-field-sub { font-family: var(--font-ui); font-size: 13px; }
+@media (max-width: 1150px) { .editor-body { grid-template-columns: 1fr; } .editor-key-card { position: static; } }
+
+.editor-footer-2col { display: grid !important; grid-template-columns: minmax(0, 1fr) 380px; gap: 20px; align-items: start; }
+.editor-footer-main { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.editor-footer-2col .editor-key-card { position: static; background: var(--bg-elev-2); }
+@media (max-width: 1150px) { .editor-footer-2col { grid-template-columns: 1fr; } }
+.editor-wave-card { display: flex; flex-direction: column; height: clamp(340px, 50vh, 480px); }

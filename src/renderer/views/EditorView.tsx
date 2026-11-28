@@ -576,12 +576,20 @@ export function EditorView() {
   return (
     <div className="editor-view">
       <div className="editor-toolbar">
-        <h2 className="editor-title">Audio Editor</h2>
+        {selectedTrack ? (
+          <div className="editor-song">
+            {selectedTrack.albumArtUrl ? <img src={selectedTrack.albumArtUrl} alt="" /> : <div className="editor-song-art" aria-hidden>♪</div>}
+            <div className="editor-song-text">
+              <div className="editor-song-title">{selectedTrack.title}</div>
+              <div className="editor-song-sub">{[selectedTrack.artist, formatDuration(selectedTrack.durationSec)].filter(Boolean).join(' · ')}</div>
+            </div>
+          </div>
+        ) : <h2 className="editor-title">Audio Editor</h2>}
         <InfoTip>Your original file is never changed. Trims and fades are saved with the track.</InfoTip>
         <select
           value={trackId}
           onChange={e => setTrackId(e.target.value)}
-          className="editor-track-select"
+          className={`editor-track-select ${selectedTrack ? 'compact' : ''}`}
         >
           <option value="">Pick a track</option>
           {tracks.map(t => (
@@ -773,7 +781,8 @@ export function EditorView() {
       )}
 
       {buffer && (
-        <div className="editor-footer" style={{ maxHeight: '45vh', overflowY: 'auto' }}>
+        <div className="editor-footer editor-footer-2col" style={{ maxHeight: '45vh', overflowY: 'auto' }}>
+          <div className="editor-footer-main">
           {selectedTrack && stillApplied(selectedTrack.suggestApplied, { startSec: selectedTrack.trimStartSec, endSec: selectedTrack.trimEndSec, landSec: selectedTrack.editServiceLandSec }) && (
             <div className="edit-suggestions">
               <span className="edit-suggestions-label">This song has suggested edits applied.</span>
@@ -868,7 +877,9 @@ export function EditorView() {
             </span>
             {saveStatus && <span style={{ color: 'var(--accent-bright)', fontSize: 13 }}>{saveStatus}</span>}
           </div>
+          </div>
           {selectedTrack && (
+            <aside className="editor-key-card">
             <KeyAnalysisPanel
               currentKey={selectedTrack.key}
               analysing={notes.busy}
@@ -880,6 +891,7 @@ export function EditorView() {
               onSetKey={k => updateTrack(selectedTrack.id, { key: k })}
               lookupMultitracks={() => window.runway.files.multitracksLookup(selectedTrack.artist ?? '', selectedTrack.title, buffer.duration)}
             />
+            </aside>
           )}
         </div>
       )}

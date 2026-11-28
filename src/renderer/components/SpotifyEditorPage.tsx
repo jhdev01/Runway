@@ -7,6 +7,7 @@ import { KeyAnalysisPanel } from './KeyAnalysis';
 import { KeyTesterPiano } from './KeyTesterPiano';
 import { saveSpotifyEdit } from '../lib/spotifyEdits';
 import { effectiveGuess } from '../lib/keyLearning';
+import { formatDuration } from '../lib/format';
 
 const VIEW_LABEL: Record<string, string> = { library: 'Library', playlists: 'Playlists', live: 'Live', schedule: 'Schedule', actions: 'Actions', settings: 'Settings' };
 
@@ -78,23 +79,30 @@ export function SpotifyEditorPage({ uri, onPick, onExit }: {
   const art = artCache?.[track.uri] ?? track.albumArtUrl;
   return (
     <div className="editor-view">
-      <div className="editor-toolbar">
-        <h2 className="editor-title">Audio Editor</h2>
-        <span className="editor-subtitle">Spotify</span>
-        <select
-          className="editor-track-select"
-          value={uri}
-          onChange={e => onPick(e.target.value)}
-          title="Spotify song to edit (from your imported playlists)"
-        >
-          {groups.map(g => (
-            <optgroup key={g.name} label={g.name}>
-              {g.tracks.map((t, i) => <option key={`${t.uri}-${i}`} value={t.uri}>{t.title}{t.artist ? ` — ${t.artist}` : ''}</option>)}
-            </optgroup>
-          ))}
-        </select>
-        {art && <img src={art} alt="" style={{ width: 34, height: 34, borderRadius: 4, objectFit: 'cover' }} />}
-        <span style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+      <div className="editor-toolbar editor-toolbar-song">
+        {returnView && returnView !== 'editor' && (
+          <button className="btn-secondary editor-back" onClick={() => useAppStore.getState().backFromEditor()}>‹ {VIEW_LABEL[returnView] ?? 'Back'}</button>
+        )}
+        <div className="editor-song">
+          {art ? <img src={art} alt="" /> : <div className="editor-song-art" aria-hidden>♪</div>}
+          <div className="editor-song-text">
+            <div className="editor-song-title">{track.title}</div>
+            <div className="editor-song-sub">{[track.artist, 'Spotify', formatDuration(track.durationMs / 1000)].filter(Boolean).join(' · ')}</div>
+          </div>
+        </div>
+        <span className="editor-toolbar-right">
+          <select
+            className="editor-track-select compact"
+            value={uri}
+            onChange={e => onPick(e.target.value)}
+            title="Spotify song to edit (from your imported playlists)"
+          >
+            {groups.map(g => (
+              <optgroup key={g.name} label={g.name}>
+                {g.tracks.map((t, i) => <option key={`${t.uri}-${i}`} value={t.uri}>{t.title}{t.artist ? ` — ${t.artist}` : ''}</option>)}
+              </optgroup>
+            ))}
+          </select>
           <button
             className={padOpen ? 'btn-primary' : 'btn-secondary'}
             onClick={() => setPadOpen(o => !o)}
@@ -102,31 +110,33 @@ export function SpotifyEditorPage({ uri, onPick, onExit }: {
           >
             Pad player
           </button>
-          {returnView && returnView !== 'editor' && (
-            <button className="btn-secondary" onClick={() => useAppStore.getState().backFromEditor()}>← Back to {VIEW_LABEL[returnView] ?? 'previous'}</button>
-          )}
           <button className="btn-secondary" onClick={onExit} title="Edit tracks from your own library">Your songs</button>
         </span>
       </div>
 
-      <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', padding: '16px 24px' }}>
-        <SpotifyWaveformView track={track} edit={edit} onChange={onChange} full showNotes />
-      </div>
-
-      <div className="editor-footer" style={{ maxHeight: '42vh', overflowY: 'auto' }}>
-        <SpotifySongFields track={track} edit={edit} onChange={onChange} wide />
-        <KeyAnalysisPanel
-          currentKey={edit.key}
-          heard={heard ? {
-            key: heard.key, confidence: heard.confidence, candidates: heard.candidates, endKey: heard.endKey,
-            heardSec: heard.heardSec, profile: heard.profile, source: 'Runway heard',
-          } : null}
-          onSetKey={k => onChange({ ...edit, key: k })}
-          emptyNote={noKeyWhy}
-          lookupMultitracks={() => window.runway.files.multitracksLookup(
-            spotifyLookupArtist(track.artist), spotifyLookupTitle(track.title), track.durationMs / 1000,
-          )}
-        />
+      <div className="editor-body">
+        <div className="editor-main">
+          <div className="editor-wave-card">
+            <SpotifyWaveformView track={track} edit={edit} onChange={onChange} full showNotes />
+          </div>
+          <div className="editor-fields-card">
+            <SpotifySongFields track={track} edit={edit} onChange={onChange} wide />
+          </div>
+        </div>
+        <aside className="editor-key-card">
+          <KeyAnalysisPanel
+            currentKey={edit.key}
+            heard={heard ? {
+              key: heard.key, confidence: heard.confidence, candidates: heard.candidates, endKey: heard.endKey,
+              heardSec: heard.heardSec, profile: heard.profile, source: 'Runway heard',
+            } : null}
+            onSetKey={k => onChange({ ...edit, key: k })}
+            emptyNote={noKeyWhy}
+            lookupMultitracks={() => window.runway.files.multitracksLookup(
+              spotifyLookupArtist(track.artist), spotifyLookupTitle(track.title), track.durationMs / 1000,
+            )}
+          />
+        </aside>
       </div>
       {padOpen && <KeyTesterPiano controlSpotify songKey={edit.key} onClose={() => setPadOpen(false)} />}
     </div>
