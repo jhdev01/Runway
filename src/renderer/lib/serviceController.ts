@@ -255,6 +255,11 @@ export class ServiceController {
     const runway = state.currentRunway;
     if (!runway || runway.phase !== 'music') return;
     if (runway.spotify) { this.spotifySkipOrJump(null, !!keepLanding); return; }
+    if (keepLanding && runway.serviceId !== null && !runway.isPostService
+      && runway.currentTrackIndex + 1 < runway.trackIds.length) {
+      void this.regularKeepLanding(runway.currentTrackIndex + 1);
+      return;
+    }
     const isLast = runway.currentTrackIndex >= runway.trackIds.length - 1;
     if (isLast) {
       void this.beginPad();
@@ -2327,9 +2332,137 @@ export class ServiceController {
     const runway = state.currentRunway;
     if (!runway || runway.phase !== 'music') return;
     if (runway.spotify) { this.spotifySkipOrJump(trackId, keepLanding); return; }
+    if (keepLanding && runway.serviceId !== null && !runway.isPostService) {
+      void this.regularKeepLanding(trackId);
+      return;
+    }
     const idx = runway.trackIds.indexOf(trackId);
     if (idx < 0) return;
     void this.clickTimeline(idx, 0);
+  }
+
+  /**
+   * "Still land on 0:00" for a Runway (non-Spotify) pre-service runway:
+   * the chosen song (an index in the runway, or a song id from the
+   * playlist) starts now from its top and plays whole; the rest of the
+   * runway is re-planned so the landing song still reaches its landing
+   * point exactly at the service start, the same way the runway is planned
+   * when it's armed:
+   *   - after the chosen song: the songs that were still to come, then
+   *     unused songs from the playlist if more time is needed;
+   *   - the same landing song last (a new one in the service key if the
+   *     chosen song was the landing song);
+   *   - any extra time is taken off the start of the song right after the
+   *     chosen one (as arming takes it off the first song).
+   * The service start, the pad and the landing don't move. If the time
+   * left can't hold the chosen song plus the landing song, it falls back
+   * to the normal skip (everything moves earlier; the pad covers the end).
+   */
+  private async regularKeepLanding(target: number | string): Promise<void> {
+    const state = this.store.getState();
+    const runway = state.currentRunway;
+    if (!runway || runway.phase !== 'music' || runway.spotify) return;
+    const byId = (id: string) => state.config.tracks.find(t => t.id === id);
+    const effDur = (t: Track) => effectiveDuration(t);
+    const landing = (t: Track) => {
+      const start = t.trimStartSec ?? 0;
+      const end = t.trimEndSec ?? t.durationSec;
+      if (t.editServiceLandSec === undefined) return Math.max(0, end - start);
+      return Math.max(0, Math.max(start, Math.min(end, t.editServiceLandSec)) - start);
+    };
+    const chosen = typeof target === 'number' ? byId(runway.trackIds[target]) : byId(target);
+    if (!chosen) return;
+    const lastIdx = runway.trackIds.length - 1;
+    let anchor = byId(runway.trackIds[lastIdx]);
+    const playlist = runway.sourcePlaylistId ? state.config.playlists.find(p => p.id === runway.sourcePlaylistId) : undefined;
+    const pool = (playlist?.trackIds ?? runway.trackIds).map(byId).filter((t): t is Track => !!t);
+    if (anchor && anchor.id === chosen.id) {
+      // The landing song was chosen: land on another song in the service key.
+      const key = runway.landInKey;
+      const inKey = pool.filter(t => t.id !== chosen.id && key && t.key === key);
+      anchor = inKey[inKey.length - 1] ?? pool.filter(t => t.id !== chosen.id).pop();
+    }
+    const fallback = (why: string) => {
+      console.warn('[keepLanding] can’t keep the landing; normal skip instead', { why });
+      this.notifyActionError?.(`Couldn’t keep the landing on 0:00 (${why}). Played the song now; the pad covers the end.`);
+      const idx = runway.trackIds.indexOf(chosen.id);
+      if (idx > runway.currentTrackIndex) {
+        state.patchCurrentRunway({ currentTrackIndex: idx });
+        this.reanchorMusicStart(idx, 0);
+        void this.startTrack(idx);
+      }
+    };
+    if (!anchor) { fallback('no landing song'); return; }
+    const xf = runway.transitionMode === 'crossfade' ? (runway.crossfadeSec ?? 0) : 0;
+
+    // A quick fade on the song that's playing, then the new plan starts.
+    const FADE_SEC = 0.6;
+    this.audio.fadeOutMusic(FADE_SEC);
+    await new Promise(r => setTimeout(r, FADE_SEC * 1000));
+    const cur = this.store.getState().currentRunway;
+    if (!cur || cur.armEpoch !== runway.armEpoch || cur.phase !== 'music') return;
+
+    const startMs = Date.now();
+    const T = (runway.targetMs - startMs) / 1000;   // wall-clock seconds to the service start
+    const base = effDur(chosen) - xf + landing(anchor);
+    if (base > T) { fallback('not enough time left for the whole song'); return; }
+
+    // Fill: songs still to come, then unused playlist songs, repeating if needed.
+    const comeIds = runway.trackIds.slice(runway.currentTrackIndex + 1, lastIdx);
+    const played = new Set(runway.trackIds.slice(0, runway.currentTrackIndex + 1));
+    const cands: Track[] = [];
+    for (const id of comeIds) { const t = byId(id); if (t && t.id !== chosen.id && t.id !== anchor.id) cands.push(t); }
+    for (const t of pool) if (t.id !== chosen.id && t.id !== anchor.id && !played.has(t.id) && !cands.some(c => c.id === t.id)) cands.push(t);
+    if (cands.length === 0) for (const t of pool) if (t.id !== chosen.id && t.id !== anchor.id) cands.push(t);
+    const fill: Track[] = [];
+    let total = base;
+    for (let i = 0; total < T && i < 200 && cands.length > 0; i++) {
+      const t = cands[i % cands.length];
+      fill.push(t);
+      total += effDur(t) - xf;
+    }
+    if (total < T) { fallback('not enough songs to fill the time'); return; }
+    // Take the extra off the start of the song after the chosen one; drop
+    // songs the trim would skip entirely.
+    let over = total - T;
+    while (fill.length > 0 && over >= effDur(fill[0]) - xf - 1) {
+      over -= effDur(fill[0]) - xf;
+      fill.shift();
+    }
+    if (over < 0 || (fill.length === 0 && over > 0.25)) { fallback('could not fit the songs'); return; }
+    const plan = [chosen, ...fill, anchor];
+    const trims = plan.map((t, i) => ({
+      filePath: t.filePath,
+      trackId: t.id,
+      trimStartSec: (t.trimStartSec ?? 0) + (i === 1 && fill.length > 0 ? over : 0),
+      trimEndSec: t.trimEndSec,
+      fadeOutSec: t.editFadeOutSec,
+    }));
+    const tailSec = Math.max(0, effDur(anchor) - landing(anchor));
+    const totalSec = plan.reduce((a, t) => a + effDur(t), 0);
+    console.log('[keepLanding] re-planned to land on 0:00', {
+      chosen: chosen.title, songs: plan.map(t => t.title), headTrimSec: +over.toFixed(2),
+      landsAt: new Date(runway.targetMs).toLocaleTimeString(), msUntilService: runway.targetMs - startMs,
+    });
+    // Bookkeeping: as if armed now with the extra taken off the start
+    // (keeps the landing math, the action times and the list consistent).
+    this.store.getState().patchCurrentRunway({
+      trackIds: plan.map(t => t.id),
+      currentTrackIndex: 0,
+      musicStartMs: startMs,
+      startOffsetSec: fill.length > 0 ? over : 0,
+      totalSec,
+      tailSec,
+    });
+    await this.audio.scheduleRunway({
+      tracks: trims,
+      crossfadeSec: xf,
+      firstTrackOffsetSec: 0,
+      musicFadeInSec: FADE_SEC,
+    }).catch(err => {
+      const { reason, detail } = describeLoadError(err);
+      console.warn(`[keepLanding] re-planned runway did NOT start — a song couldn't load (${reason})`, { detail });
+    });
   }
 
   /**

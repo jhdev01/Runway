@@ -788,7 +788,7 @@ function PayloadEditor({
             </select>
           )}
           {(payload.op === 'skip_to_next' || payload.op === 'jump_to_track') && (
-            <label className="action-toggle-field" title="On: the rest of the runway is re-planned so the last song still lands exactly on 0:00. Off: everything after moves earlier and the music ends before 0:00 (the pad covers the rest). Re-planning works on Spotify playlists now; regular playlists keep moving earlier until that's added.">
+            <label className="action-toggle-field" title="On: the rest of the runway is re-planned so the last song still lands exactly on 0:00. Off: everything after moves earlier and the music ends before 0:00 (the pad covers the rest). Works on Spotify and Runway playlists.">
               <input
                 type="checkbox"
                 checked={!!payload.keepLanding}
