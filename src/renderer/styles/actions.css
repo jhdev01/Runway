@@ -717,3 +717,15 @@
 
 /* New look */
 .actions-sidebar-item.active { background: #1c2a3d; border-color: rgba(0, 122, 209, 0.5); }
+
+/* ── New look ── */
+.actions-name-input { font-family: var(--font-display); font-size: 34px !important; font-weight: 800 !important; letter-spacing: -0.02em; }
+.action-row { border-radius: 14px; padding: 14px 18px; gap: 18px; }
+.action-row:hover { border-color: var(--border-bright); }
+.action-row-icon { width: 36px; height: 36px; border-radius: 10px; display: inline-flex; align-items: center; justify-content: center; background: color-mix(in srgb, var(--tone, var(--accent)) 16%, transparent); font-size: 17px; }
+.actions-rows { gap: 10px; }
+.actions-add-action-btn { border-radius: 14px; border: 1px dashed var(--border-bright); letter-spacing: 0; font-size: 15px; }
+.actions-add-action-btn:focus { outline: none; }
+.actions-add-action-btn:focus-visible { outline: 2px solid var(--accent-bright); outline-offset: 2px; }
+.actions-sidebar-name { font-size: 15px; }
+.actions-sidebar-row.active, .actions-sidebar-item.active { border-radius: 10px; }

@@ -354,7 +354,7 @@ function ActionRow({
   return (
     <div
       className={`action-row ${action.enabled ? '' : 'disabled'}`}
-      style={{ borderLeft: `3px solid ${meta.color}` }}
+      style={{ ['--tone' as string]: meta.color } as React.CSSProperties}
     >
       <div className="action-row-left">
         <Toggle
