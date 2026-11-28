@@ -197,6 +197,9 @@ export class RemoteServer {
   private bindHost: string;
   private staticRoot: string;
   private latestSnapshot: RemoteSnapshot | null = null;
+  /** What Settings › Phone remote shows: is the server actually up, and if not, why. */
+  private listenState: { listening: boolean; error?: string } = { listening: false };
+  private listenRetry: NodeJS.Timeout | null = null;
   private commandListeners: Set<CommandListener> = new Set();
   private clients: WeakMap<WebSocket, ClientState> = new WeakMap();
   private heartbeatTimer: NodeJS.Timeout | null = null;
@@ -278,8 +281,25 @@ export class RemoteServer {
       });
     });
 
-    this.server.on('error', (err) => {
+    this.server.on('error', (err: NodeJS.ErrnoException) => {
       console.warn('[remote] http server error', err);
+      if (err.code === 'EADDRINUSE' || err.code === 'EACCES' || err.code === 'EADDRNOTAVAIL') {
+        this.listenState = {
+          listening: false,
+          error: err.code === 'EADDRINUSE'
+            ? `Port ${this.port} is already in use, most likely by another copy of Runway (for example a test version) that is still open. Quit it, or pick another port.`
+            : err.code === 'EACCES'
+              ? `macOS didn't allow Runway to use port ${this.port}. Pick another port.`
+              : `The chosen network address isn't available. Pick another network.`,
+        };
+        // Keep trying, so quitting the other copy brings the remote back.
+        if (this.listenRetry) clearTimeout(this.listenRetry);
+        this.listenRetry = setTimeout(() => {
+          this.listenRetry = null;
+          if (!this.server || this.server.listening) return;
+          try { this.server.close(); this.server.listen(this.port, actualBindHost); } catch (e) { console.warn('[remote] retry listen failed', e); }
+        }, 5000);
+      }
     });
 
     // Resilient bind: if the persisted bindHost references an IP that
@@ -298,6 +318,7 @@ export class RemoteServer {
       }
     }
 
+    this.server.on('listening', () => { this.listenState = { listening: true }; });
     this.server.listen(this.port, actualBindHost, () => {
       const urls = listLanUrls(this.port, actualBindHost);
       console.log('[remote] listening on', urls.length ? urls : `http://localhost:${this.port}`);
@@ -473,7 +494,20 @@ export class RemoteServer {
     }
   }
 
+  /** Is the server answering, why not, how many phones are connected, and is the page there. */
+  status(): { listening: boolean; error?: string; phones: number; pageFound: boolean } {
+    const pageFound = fs.existsSync(path.join(this.staticRoot, 'index.html'));
+    return {
+      ...this.listenState,
+      ...(pageFound ? {} : { error: this.listenState.error ?? 'The phone page is missing from this copy of Runway (reinstall it).' }),
+      phones: this.wss ? this.wss.clients.size : 0,
+      pageFound,
+    };
+  }
+
   stop(): void {
+    if (this.listenRetry) { clearTimeout(this.listenRetry); this.listenRetry = null; }
+    this.listenState = { listening: false };
     if (this.heartbeatTimer) {
       clearInterval(this.heartbeatTimer);
       this.heartbeatTimer = null;

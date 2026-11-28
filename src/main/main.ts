@@ -839,11 +839,12 @@ function registerIpcHandlers() {
     remoteServer?.pushSnapshot(snap);
   });
 
-  ipcMain.handle(IPC.REMOTE_LAN_URLS, async (): Promise<{ urls: string[]; port: number }> => {
+  ipcMain.handle(IPC.REMOTE_LAN_URLS, async () => {
     const cfg = config.read();
     return {
       urls: listLanUrls(cfg.remote.port, cfg.remote.bindHost),
       port: cfg.remote.port,
+      status: remoteServer?.status() ?? { listening: false, error: 'The remote server didn’t start.', phones: 0, pageFound: true },
     };
   });
 

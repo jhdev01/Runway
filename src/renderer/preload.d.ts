@@ -70,7 +70,7 @@ declare global {
       };
       remote: {
         pushSnapshot: (snap: unknown) => Promise<void>;
-        lanUrls: () => Promise<{ urls: string[]; port: number }>;
+        lanUrls: () => Promise<{ urls: string[]; port: number; status?: { listening: boolean; error?: string; phones: number; pageFound: boolean } }>;
         networkInterfaces: () => Promise<RemoteNetworkInterface[]>;
         onCommand: (callback: (cmd: { type: string; pct?: number; muted?: boolean; key?: string }) => void) => () => void;
       };

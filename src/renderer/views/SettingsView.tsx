@@ -2401,6 +2401,7 @@ function RemoteSettings() {
   const [lanUrls, setLanUrls] = useState<string[]>([]);
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const [interfaces, setInterfaces] = useState<Array<{ name: string; address: string }>>([]);
+  const [srv, setSrv] = useState<{ listening: boolean; error?: string; phones: number } | null>(null);
 
   // Refresh LAN URLs every few seconds — the network can change (Wi-Fi
   // toggle, joining a different SSID) without us being notified. Also
@@ -2416,6 +2417,7 @@ function RemoteSettings() {
       ]);
       if (cancelled) return;
       setLanUrls(urlRes.urls);
+      setSrv(urlRes.status ?? null);
       setInterfaces(ifaces ?? []);
     };
     void refresh();
@@ -2475,13 +2477,16 @@ function RemoteSettings() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <div className="settings-section-title">Remote control<InfoTip>Open one of these addresses on a phone or iPad on the same Wi-Fi to see the live timer. Anyone on the network can watch; controlling Runway needs the PIN. It's on whenever Runway is open.</InfoTip></div>
           <span
-            className="pp-card-status on"
-            title="Always on while Runway is open."
+            className={`pp-card-status ${!srv ? 'unknown' : srv.listening ? 'on' : 'err'}`}
+            title={srv?.error ?? 'On whenever Runway is open.'}
           >
-            <span className="pp-card-status-dot" aria-hidden /> Server on
+            <span className="pp-card-status-dot" aria-hidden /> {!srv ? 'Checking…' : srv.listening ? (srv.phones > 0 ? `On · ${srv.phones} phone${srv.phones === 1 ? '' : 's'} connected` : 'On') : 'Not running'}
           </span>
         </div>
 
+        {srv?.error && (
+          <div className="pp-conn-help" style={{ borderColor: 'rgba(248, 113, 113, 0.45)', color: '#fca5a5' }}>{srv.error}</div>
+        )}
         <div style={{ display: 'flex', gap: 28, alignItems: 'flex-start', marginTop: 18, flexWrap: 'wrap' }}>
           <div style={{ minWidth: 320 }}>
             {lanUrls.length === 0 ? (
