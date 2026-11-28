@@ -1108,3 +1108,26 @@
 .midi-learn-row { padding: 12px 4px; }
 .midi-learn-btn { border-radius: 9px; font-weight: 600; }
 .midi-bindings-table { border: none !important; background: transparent !important; }
+
+/* Slide cues: one tight line per moment */
+.pp-cues { display: flex; flex-direction: column; margin-top: 4px; }
+.pp-cue-head, .pp-cue { display: grid; grid-template-columns: 250px 200px minmax(0, 1fr) minmax(0, 1.3fr); gap: 12px; align-items: center; }
+.pp-cue-head { padding: 0 0 8px; font-size: 11.5px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-faint); border-bottom: 1px solid var(--border); }
+.pp-cue { padding: 10px 0; border-bottom: 1px solid var(--border); }
+.pp-cue:last-child { border-bottom: none; padding-bottom: 0; }
+.pp-cue select, .pp-cue-item select, .pp-cue-item button { width: 100%; min-width: 0; padding: 7px 10px; font-size: 14px; border-radius: 8px; }
+.pp-cue-moment { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.pp-cue-icon { width: 30px; height: 30px; border-radius: 9px; display: inline-flex; align-items: center; justify-content: center; font-size: 13px; flex-shrink: 0; background: color-mix(in srgb, currentColor 14%, transparent); }
+.pp-cue.tone-music .pp-cue-icon { color: #3ba0e6; }
+.pp-cue.tone-service .pp-cue-icon { color: #22c55e; }
+.pp-cue.tone-post .pp-cue-icon { color: hsl(300, 68%, 70%); }
+.pp-cue.tone-disarm .pp-cue-icon { color: #ef4444; }
+.pp-cue.inactive .pp-cue-icon { color: var(--text-faint); }
+.pp-cue-text { min-width: 0; }
+.pp-cue-title { font-size: 14.5px; font-weight: 600; color: var(--text); white-space: nowrap; }
+.pp-cue-sub { font-size: 12.5px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pp-cue.inactive .pp-cue-title { color: var(--text-dim); }
+.pp-cue-none { grid-column: span 2; font-size: 13px; color: var(--text-faint); }
+.pp-cue-item { min-width: 0; }
+@media (max-width: 1150px) { .pp-cue-head { display: none; } .pp-cue { grid-template-columns: 1fr 1fr; } .pp-cue-moment { grid-column: 1 / -1; } }
+.pp-cue.tone-disarm .pp-cue-icon { font-size: 11px; }

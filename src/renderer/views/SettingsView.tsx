@@ -795,9 +795,12 @@ function ProPresenterSettings() {
       {/* Hooks — each gets its own colored card so the operator can scan
           the four moments at a glance. Functionality is identical to the
           old flat layout. */}
-      <div className="pp-hooks">
+      <div className="pp-cues" role="table" aria-label="Slide cues">
+        <div className="pp-cue-head" role="row">
+          <span role="columnheader">Moment</span><span role="columnheader">Action</span><span role="columnheader">Playlist</span><span role="columnheader">Item</span>
+        </div>
         <HookCard
-          hook="musicStart" label="When music starts" icon="♪" tone="music"
+          hook="musicStart" label="When music starts" short="Pre-service music begins" icon="♪" tone="music"
           description="When pre-service music begins."
           cfg={cfg} update={update}
           playlists={playlists}
@@ -805,7 +808,7 @@ function ProPresenterSettings() {
           loadItems={loadItemsForHook}
         />
         <HookCard
-          hook="serviceStart" label="When service starts" icon="▶" tone="service"
+          hook="serviceStart" label="When service starts" short="Countdown hits 0:00" icon="▶" tone="service"
           description="When the countdown reaches 0:00 at the scheduled service start."
           cfg={cfg} update={update}
           playlists={playlists}
@@ -813,7 +816,7 @@ function ProPresenterSettings() {
           loadItems={loadItemsForHook}
         />
         <HookCard
-          hook="postServiceStart" label="When post-service starts" icon="✦" tone="post"
+          hook="postServiceStart" label="When post-service starts" short="Start Post-Service pressed" icon="✦" tone="post"
           description="When Start Post-Service is pressed. The timer is not touched."
           cfg={cfg} update={update}
           playlists={playlists}
@@ -821,7 +824,7 @@ function ProPresenterSettings() {
           loadItems={loadItemsForHook}
         />
         <HookCard
-          hook="disarm" label="When disarmed" icon="◯" tone="disarm"
+          hook="disarm" label="When disarmed" short="Stop All or Disarm before start" icon="◯" tone="disarm"
           description="When you press Stop All or Disarm before service start. Choose 'Do nothing' to leave the ProPresenter timer running."
           cfg={cfg} update={update}
           playlists={playlists}
@@ -838,6 +841,7 @@ interface HookCardProps {
   hook: HookKey;
   label: string;
   description: string;
+  short: string;
   icon: string;
   tone: 'music' | 'service' | 'post' | 'disarm';
   cfg: ProPresenterSyncConfig;
@@ -848,7 +852,7 @@ interface HookCardProps {
   loadItems: (hook: HookKey, playlistUuid: string | null) => Promise<void>;
 }
 
-function HookCard({ hook, label, description, icon, tone, cfg, update, playlists, items, busy, loadItems }: HookCardProps) {
+function HookCard({ hook, label, description, short, icon, tone, cfg, update, playlists, items, busy, loadItems }: HookCardProps) {
   const k = HOOK_KEYS[hook];
   const action = cfg[k.action] as 'none' | 'clear_timer' | 'clear_all' | 'trigger_item';
   const playlistUuid = cfg[k.playlistUuid] as string | null;
@@ -883,63 +887,57 @@ function HookCard({ hook, label, description, icon, tone, cfg, update, playlists
   const inactive = action === 'none';
 
   return (
-    <div className={`pp-card pp-hook tone-${tone} ${inactive ? 'inactive' : ''}`}>
-      <div className="pp-card-head">
-        <span className="pp-card-icon" aria-hidden>{icon}</span>
-        <div className="pp-card-text">
-          <div className="pp-card-title">{label}</div>
-          <div className="pp-card-sub">{description}</div>
+    <div className={`pp-cue tone-${tone} ${inactive ? 'inactive' : ''}`} role="row">
+      <div className="pp-cue-moment" title={description} role="cell">
+        <span className="pp-cue-icon" aria-hidden>{icon}</span>
+        <div className="pp-cue-text">
+          <div className="pp-cue-title">{label}</div>
+          <div className="pp-cue-sub">{short}</div>
         </div>
       </div>
-
-      <div className="pp-grid">
-        <div className="pp-field" style={{ gridColumn: action === 'trigger_item' ? 'span 1' : 'span 4' }}>
-          <label className="pp-label">Action</label>
+      <select
+        role="cell"
+        aria-label={`${label}: action`}
+        value={action}
+        onChange={e => update({ [k.action]: e.target.value } as Partial<ProPresenterSyncConfig>)}
+      >
+        <option value="none">Do nothing</option>
+        <option value="clear_timer">Clear PP timer only</option>
+        <option value="clear_all">Clear all PP layers</option>
+        <option value="trigger_item">Trigger playlist item</option>
+      </select>
+      {action === 'trigger_item' ? (
+        <>
           <select
-            value={action}
-            onChange={e => update({ [k.action]: e.target.value } as Partial<ProPresenterSyncConfig>)}
+            role="cell"
+            aria-label={`${label}: ProPresenter playlist`}
+            value={playlistUuid ?? ''}
+            onChange={e => onPickPlaylist(e.target.value)}
           >
-            <option value="none">Do nothing</option>
-            <option value="clear_timer">Clear PP timer only</option>
-            <option value="clear_all">Clear all PP layers</option>
-            <option value="trigger_item">Trigger playlist item</option>
+            <option value="">{playlists.length === 0 ? 'Connect to load playlists' : 'Choose a playlist'}</option>
+            {playlists.map(p => (
+              <option key={p.uuid} value={p.uuid}>{p.name}</option>
+            ))}
+            {playlistUuid && playlistName && !playlists.some(p => p.uuid === playlistUuid) && (
+              <option value={playlistUuid}>{playlistName} (not found)</option>
+            )}
           </select>
-        </div>
-        {action === 'trigger_item' && (
-          <>
-            <div className="pp-field" style={{ gridColumn: 'span 1' }}>
-              <label className="pp-label">Playlist</label>
-              <select
-                value={playlistUuid ?? ''}
-                onChange={e => onPickPlaylist(e.target.value)}
-              >
-                <option value="">{playlists.length === 0 ? 'Test connection to load playlists' : 'Choose a playlist'}</option>
-                {playlists.map(p => (
-                  <option key={p.uuid} value={p.uuid}>{p.name}</option>
-                ))}
-                {playlistUuid && playlistName && !playlists.some(p => p.uuid === playlistUuid) && (
-                  <option value={playlistUuid}>{playlistName} (not found)</option>
-                )}
-              </select>
-            </div>
-            <div className="pp-field" style={{ gridColumn: 'span 2' }}>
-              <label className="pp-label">Item</label>
-              <PpItemPicker
-                items={items}
-                value={itemIndex !== null ? String(itemIndex) : ''}
-                onChange={onPickItem}
-                disabled={!playlistUuid || busy}
-                placeholder={!playlistUuid ? 'Choose a playlist first'
-                  : busy ? 'Loading items…'
-                  : items.length === 0 ? 'No items in this playlist'
-                  : 'Choose an item'}
-                savedIndex={itemIndex}
-                savedName={itemName}
-              />
-            </div>
-          </>
-        )}
-      </div>
+          <div className="pp-cue-item" role="cell">
+            <PpItemPicker
+              items={items}
+              value={itemIndex !== null ? String(itemIndex) : ''}
+              onChange={onPickItem}
+              disabled={!playlistUuid || busy}
+              placeholder={!playlistUuid ? 'Choose a playlist first'
+                : busy ? 'Loading items…'
+                : items.length === 0 ? 'No items in this playlist'
+                : 'Choose an item'}
+              savedIndex={itemIndex}
+              savedName={itemName}
+            />
+          </div>
+        </>
+      ) : <span className="pp-cue-none" role="cell"></span>}
     </div>
   );
 }
