@@ -798,6 +798,7 @@ function ServiceCard({ service, onEditKey, onUpdate, onDelete }: {
   // needed.
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [editingTime, setEditingTime] = useState(false);
   const keyMode = useAppStore(s => s.config.defaults.keyDisplayMode ?? 'sharp');
 
   return (
@@ -863,8 +864,36 @@ function ServiceCard({ service, onEditKey, onUpdate, onDelete }: {
           <>
             <div className="svc-a-top">
               <div className="svc-a-when">
-                <div className="svc-a-time">{formatTime12h(parseTime(service.startTime))}</div>
-                <div className="svc-a-name">{service.name || 'Service'}</div>
+                {editingTime ? (
+                  <input
+                    className="svc-a-time-input"
+                    type="time"
+                    autoFocus
+                    defaultValue={service.startTime}
+                    aria-label="Service start time"
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                      if (e.key === 'Escape') { (e.target as HTMLInputElement).value = service.startTime; setEditingTime(false); }
+                    }}
+                    onBlur={e => {
+                      const v = e.target.value;
+                      if (v && v !== service.startTime) onUpdate({ startTime: v, status: 'scheduled' });
+                      setEditingTime(false);
+                    }}
+                  />
+                ) : (
+                  <button type="button" className="svc-a-time" onClick={() => setEditingTime(true)} title="Click to change the start time">
+                    {formatTime12h(parseTime(service.startTime))}
+                  </button>
+                )}
+                <input
+                  className="svc-a-name"
+                  type="text"
+                  value={service.name ?? ''}
+                  placeholder="Service name"
+                  aria-label="Service name"
+                  onChange={e => onUpdate({ name: e.target.value || undefined })}
+                />
               </div>
               <div className="svc-a-info">
                 <span className="svc-a-lbl">Before</span>

@@ -977,3 +977,11 @@
 .sched-a-aside-note, .sched-a-aside-foot { font-size: 12.5px; color: var(--text-faint); line-height: 1.5; }
 .sched-a-aside-foot { margin-top: auto; padding-top: 16px; }
 @media (max-width: 900px) { .sched-a-aside { display: none; } .svc-a-top { grid-template-columns: 1fr; } .svc-a-side { align-items: flex-start; } }
+
+/* Time and name edit right on the card */
+button.svc-a-time { background: none; border: 1px solid transparent; border-radius: 10px; padding: 2px 8px; margin: -3px -9px; color: var(--text); cursor: text; text-align: left; font-family: var(--font-display); }
+button.svc-a-time:hover { border-color: var(--border-bright); background: var(--bg-elev-2); }
+.svc-a-time-input { font-family: var(--font-display); font-size: 24px; font-weight: 800; width: 190px; padding: 4px 8px; border-radius: 10px; border: 1px solid var(--accent); background: var(--bg); color: var(--text); color-scheme: dark; }
+input.svc-a-name { display: block; width: 100%; background: none; border: 1px solid transparent; border-radius: 8px; padding: 2px 8px; margin: 2px -9px 0; font-size: 14px; color: var(--text-dim); font-family: var(--font-ui); }
+input.svc-a-name:hover { border-color: var(--border); }
+input.svc-a-name:focus { outline: none; border-color: var(--accent); color: var(--text); background: var(--bg); }
