@@ -2749,3 +2749,17 @@
 .pad-hold-bar i { position: absolute; top: -5px; width: 4px; height: 20px; border-radius: 2px; background: #fff; transform: translateX(-2px); box-shadow: 0 0 0 3px rgba(21, 18, 38, 0.8); }
 .pad-hold-legend { display: flex; justify-content: space-between; font-size: 12.5px; color: #8b80b8; }
 .pad-hold-next { font-size: 13.5px; color: var(--text-dim); margin-top: 2px; }
+
+/* Pad view: charcoal + Runway blue (no purple) */
+.stage > .hero.hero-pad { background: var(--bg-elev); border-color: var(--border-bright); }
+.pad-hold .pad-key-badge { background: rgba(0, 122, 209, 0.12); border: 2px solid var(--accent); }
+.pad-hold .pad-key-badge span { color: #ffffff; }
+.pad-hold .pad-key-badge small { color: #7cc0ee; }
+.pad-hold-eyebrow { color: var(--accent-bright); }
+.pad-hold-dot { background: var(--accent-bright); box-shadow: 0 0 0 4px rgba(59, 160, 230, 0.18); }
+.pad-hold-label, .pad-hold-legend { color: var(--text-faint); }
+.pad-hold-digits { color: #ffffff; }
+.pad-hold-ms { color: rgba(255, 255, 255, 0.65); }
+.pad-hold-bar .hold { background: var(--accent); }
+.pad-hold-bar .fade { background: linear-gradient(90deg, var(--accent), rgba(0, 122, 209, 0.12)); }
+.pad-hold-bar i { box-shadow: 0 0 0 3px rgba(18, 20, 24, 0.9); }
