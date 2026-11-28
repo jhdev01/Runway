@@ -97,6 +97,8 @@ export function installMockState(): void {
   store.setView('live');
   // Direct-set pattern — avoids the store's individual setters which
   // would each write to disk via saveConfig.
+  // Mock preview only: lets screenshot scripts set state directly.
+  (window as unknown as { __rwStore?: typeof useAppStore }).__rwStore = useAppStore;
   useAppStore.setState({
     configLoaded: true,
     config: {

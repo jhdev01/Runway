@@ -2230,3 +2230,100 @@
   transform: translateX(-1px);
   z-index: 2;
 }
+
+
+/* ───────────────── New look · Live page (phase 2) ─────────────────
+   Layout only: cards on a black stage, the playing song on top while
+   music plays, the countdown as a compact row of tiles, and the action
+   buttons pinned along the bottom like a music player's transport bar.
+   Nothing here changes what any control does. */
+.stage {
+  gap: 16px;
+  background: var(--bg);
+}
+.stage > * { order: 0; }
+.stage > .service-header { order: -10; }
+.stage > .not-armed-banner,
+.stage > .auto-arm-pending { order: -9; margin-left: 28px; margin-right: 28px; }
+.stage.music-on > .now-playing { order: -8; }
+.stage > .actions { order: 10; }
+
+.stage > .hero,
+.stage > .auto-start,
+.stage > .runway,
+.stage > .now-playing,
+.stage > .test-controls {
+  margin: 0 28px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+}
+.stage > .hero { margin-top: 4px; }
+
+/* Now playing: a music-player card. Bigger while music plays. */
+.now-playing { padding: 20px 24px; gap: 26px; }
+.np-label { color: var(--accent-bright); letter-spacing: 0.1em; }
+.np-title {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 22px;
+  letter-spacing: -0.02em;
+}
+.np-progress-bar { height: 6px; border-radius: 3px; background: #23272e; }
+.np-progress-fill { background: var(--accent); border-radius: 3px; }
+.np-key { border-radius: 12px; padding: 10px 16px; background: var(--bg-elev-2); }
+.stage.music-on > .now-playing { padding: 24px; }
+.stage.music-on .np-art { width: 168px; height: 168px; border-radius: 12px; box-shadow: 0 18px 40px rgba(0,0,0,0.5); }
+.stage.music-on .np-title { font-size: 34px; white-space: normal; line-height: 1.1; }
+.stage.music-on .np-progress { margin-top: 18px; }
+
+/* Countdown: big while waiting; compact tiles while music plays. */
+.hero-meta { gap: 12px; flex-wrap: wrap; }
+.hero-meta-item {
+  background: var(--bg-elev-2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 16px;
+}
+.hero.hero-compact { padding: 18px 24px; }
+.hero.hero-compact .hero-label { margin-bottom: 2px; font-size: 12px; }
+.hero.hero-compact .midi-clock { padding: 0; }
+.hero.hero-compact .midi-clock-digit,
+.hero.hero-compact .midi-clock-sep { font-size: 52px; min-width: 0; text-shadow: none; }
+.hero.hero-compact .midi-clock-ms { font-size: 20px; }
+.hero.hero-compact .hero-meta { margin-top: 12px; }
+
+/* Status line and runway as cards. */
+.auto-start { padding: 14px 22px; }
+.runway { padding: 18px 22px; }
+.runway-title { font-family: var(--font-display); font-weight: 700; letter-spacing: 0.02em; }
+
+/* Transport bar: the action buttons stay at the bottom of the window. */
+.stage > .actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  margin-top: auto;
+  padding: 14px 28px 16px;
+  background: #0e1013;
+  border-top: 1px solid var(--border);
+}
+
+/* Compact countdown: clock on the left, tiles on the right, one row. */
+.hero.hero-compact {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: 28px;
+  align-items: center;
+  text-align: left;
+}
+.hero.hero-compact > * { grid-column: 1 / -1; }
+.hero.hero-compact > .hero-label,
+.hero.hero-compact > .midi-clock { grid-column: 1; }
+.hero.hero-compact > .hero-meta {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  justify-content: flex-end;
+  margin-top: 0;
+}
+.hero.hero-compact > .sub-countdown-row { display: none; }

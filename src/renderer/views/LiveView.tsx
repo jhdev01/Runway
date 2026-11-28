@@ -704,7 +704,7 @@ export function LiveView() {
   return (
     <div className="live-view">
 
-      <main className="stage">
+      <main className={`stage ${anyMusicPlaying ? 'music-on' : ''}`}>
 
         {/* Active service header — automatically advances when one completes. */}
         <div className="service-header">
@@ -908,7 +908,7 @@ export function LiveView() {
 
         {/* Hero — amber-tint everything in here while armed-but-waiting. */}
         <section
-          className={`hero ${
+          className={`hero ${anyMusicPlaying ? 'hero-compact' : ''} ${
             activeService
             && currentRunway?.serviceId === activeService.id
             && currentRunway?.phase === 'queued'
