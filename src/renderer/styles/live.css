@@ -2710,3 +2710,11 @@
 .hero-early-cancel:hover:not(:disabled) { border-color: var(--accent) !important; }
 .hero-early-buttons button { display: inline-flex; align-items: center; gap: 8px; border-radius: 10px; }
 .hero-early-icon { width: 15px; height: 15px; flex-shrink: 0; }
+
+/* Milliseconds: larger and easier to read (production timing). */
+.midi-clock-ms { font-size: 46px; margin: 0 0 0.42em 0.18em; min-width: 2.7em; opacity: 1; }
+.midi-clock-pre-music .midi-clock-ms { color: rgba(124, 192, 238, 0.75); }
+.midi-clock-music .midi-clock-ms, .midi-clock:not(.midi-clock-pre-music):not(.midi-clock-not-armed):not(.midi-clock-idle) .midi-clock-ms { color: rgba(242, 244, 247, 0.7); }
+.midi-clock-not-armed .midi-clock-ms { color: rgba(252, 165, 165, 0.75); }
+.midi-clock-idle .midi-clock-ms { color: hsla(300, 50%, 82%, 0.75); }
+.hero.hero-compact .midi-clock-ms { font-size: 28px; color: rgba(255, 255, 255, 0.8); }
