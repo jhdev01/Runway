@@ -2575,3 +2575,98 @@
 .np-wave { gap: 1.5px; align-items: center; }
 .np-wave span { border-radius: 1px; background: #343a44; }
 .np-wave span.on { background: var(--accent); }
+
+/* ═════ New look · Live, final pass (matches the Main mockup) ═════ */
+
+/* Countdown: clean display numerals, no glow. State colours kept, softer. */
+.midi-clock-digit, .midi-clock-sep {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 104px;
+  letter-spacing: -0.03em;
+  color: var(--text);
+  text-shadow: none !important;
+  font-variant-numeric: tabular-nums;
+  min-width: 0;
+}
+.midi-clock-sep { color: var(--text-faint); opacity: 1; margin: 0 2px; }
+.midi-clock-ms {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 30px;
+  color: var(--text-faint);
+  opacity: 1;
+  text-shadow: none !important;
+  min-width: 64px;
+}
+.midi-clock-pre-music .midi-clock-digit { color: #c4b5fd; }
+.midi-clock-pre-music .midi-clock-sep, .midi-clock-pre-music .midi-clock-ms { color: rgba(196, 181, 253, 0.5); }
+.midi-clock-not-armed .midi-clock-digit { color: #fca5a5; }
+.midi-clock-not-armed .midi-clock-sep, .midi-clock-not-armed .midi-clock-ms { color: rgba(252, 165, 165, 0.5); }
+.midi-clock-idle .midi-clock-digit { color: hsl(300, 50%, 82%); }
+.midi-clock-idle .midi-clock-sep, .midi-clock-idle .midi-clock-ms { color: hsla(300, 50%, 82%, 0.5); }
+.hero.hero-compact .midi-clock-digit, .hero.hero-compact .midi-clock-sep { font-size: 56px; }
+.hero.hero-compact .midi-clock-ms { font-size: 20px; min-width: 40px; }
+.hero-label { font-family: var(--font-ui); font-size: 12.5px; font-weight: 700; letter-spacing: 0.12em; }
+.sub-countdown { font-family: var(--font-ui); border-radius: 999px; }
+.sub-countdown-label { font-family: var(--font-ui); font-weight: 700; letter-spacing: 0.08em; }
+.sub-countdown-value { font-family: var(--font-display); font-weight: 800; }
+
+/* Target / Land in / Pad hold as tiles */
+.hero-meta { gap: 10px; }
+.hero-meta-item {
+  background: var(--bg-elev-2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 16px;
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
+  min-width: 120px;
+}
+.hero-meta-label { font-family: var(--font-ui); font-size: 11px; font-weight: 700; letter-spacing: 0.1em; color: var(--text-faint); }
+.hero-meta-value { font-family: var(--font-display); font-size: 21px; font-weight: 800; letter-spacing: -0.01em; }
+
+/* Top strip */
+.service-header { font-family: var(--font-ui); }
+.service-header-time { font-family: var(--font-display); font-size: 17px; font-weight: 800; letter-spacing: -0.01em; }
+.service-header-status { font-family: var(--font-ui); font-size: 11.5px; font-weight: 700; letter-spacing: 0.06em; border-radius: 999px; padding: 3px 10px; }
+.service-header-next, .service-header-next-label { font-family: var(--font-ui); text-transform: none; letter-spacing: 0; font-size: 13px; }
+.service-header-next-label { color: var(--text-faint); }
+.arm-toggle { font-family: var(--font-ui); border-radius: 10px; font-weight: 700; letter-spacing: 0.02em; }
+
+/* "Armed · 4 tracks loaded" card */
+.auto-start { border-radius: 16px; }
+.auto-start-detail { font-family: var(--font-ui); font-size: 13px; letter-spacing: 0; }
+
+/* Right column: titles like the mockup (Today / Mixer / Pad) */
+.panel-title {
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  text-transform: none;
+  color: var(--text);
+}
+.right-panel .schedule-item { border-radius: 10px; font-family: var(--font-ui); }
+.right-panel .schedule-time, .right-panel .schedule-meta { font-family: var(--font-ui); letter-spacing: 0; }
+.right-panel .schedule-meta { text-transform: none; font-size: 12px; }
+.master-fader-channel, .bus-meter-label { font-family: var(--font-ui); letter-spacing: 0.04em; }
+.music-xfade-label { font-size: 14px; }
+
+/* Bottom buttons: still big and bold, solid colours, readable sub-lines */
+.stage > .actions .action-btn {
+  min-height: 60px;
+  padding: 10px 18px;
+  border-radius: 14px;
+  box-shadow: none;
+}
+.action-btn-label { font-size: 16px; font-weight: 800; letter-spacing: -0.01em; }
+.stage > .actions .action-btn-sub, .action-btn-sub { font-family: var(--font-ui); font-size: 12px; opacity: 0.8; }
+.action-btn.post { background: var(--accent); }
+.action-btn.post:hover:not(:disabled) { background: var(--accent-bright); box-shadow: none; }
+.action-btn.fade-to-pad { background: #7c3aed; box-shadow: none; }
+.action-btn.fade-to-pad:hover:not(:disabled) { background: #8b5cf6; box-shadow: none; }
+.action-btn.fade-to-pad.engaged { background: #a855f7; }
+.action-btn.panic { background: #e11d48; box-shadow: none; }
+.action-btn.panic:hover:not(:disabled) { background: #f43f5e; box-shadow: none; }
+.action-btn:disabled { opacity: 0.38; }
+.stage > .actions .time-shift-btn { height: 52px; border-radius: 12px; font-weight: 700; font-size: 14.5px; }
