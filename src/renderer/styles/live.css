@@ -2571,3 +2571,7 @@
 }
 .hero-pad .medium-countdown-header { color: #c4b5fd; }
 .hero-pad .medium-countdown-dot { background: #a78bfa; }
+/* Waveform style A: fine mirrored bars (centred), played part blue. */
+.np-wave { gap: 1.5px; align-items: center; }
+.np-wave span { border-radius: 1px; background: #343a44; }
+.np-wave span.on { background: var(--accent); }

@@ -443,7 +443,7 @@ export function LiveView() {
     setNpPeaks(null);
     const done = (env: { peaks: ArrayLike<number> } | null) => {
       if (!alive || !env || env.peaks.length === 0) return;
-      const BARS = 96;
+      const BARS = 160;
       const src = Array.from(env.peaks);
       const step = src.length / BARS;
       const out: number[] = [];

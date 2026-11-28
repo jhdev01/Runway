@@ -111,14 +111,19 @@ export function NpWaveform({ peaks, progressPct }: { peaks: number[] | null; pro
     );
   }
   const n = peaks.length;
-  const max = Math.max(...peaks, 0.0001);
+  // Scale from the song's quiet parts to its loudest (not from silence), so
+  // a loud modern master shows its shape instead of a flat wall.
+  const sorted = [...peaks].sort((x, y) => x - y);
+  const lo = sorted[Math.floor(n * 0.05)] ?? 0;
+  const hi = Math.max(sorted[Math.floor(n * 0.98)] ?? 0, lo + 0.0001);
+  const scale = (p: number) => 0.1 + 0.9 * Math.pow(Math.min(1, Math.max(0, (p - lo) / (hi - lo))), 1.3);
   return (
     <div className="np-wave" aria-hidden>
       {peaks.map((p, i) => (
         <span
           key={i}
           className={(i + 0.5) / n * 100 <= progressPct ? 'on' : ''}
-          style={{ height: `${Math.max(8, Math.round((p / max) * 100))}%` }}
+          style={{ height: `${Math.round(scale(p) * 100)}%` }}
         />
       ))}
     </div>

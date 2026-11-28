@@ -28,7 +28,7 @@ export function LibrarySongPanel({ track, playlists, previewing, onPreview, onEd
     void trackEnvelope(track.id, track.filePath).then(env => {
       if (!alive || !env?.peaks.length) return;
       const src = Array.from(env.peaks);
-      const BARS = 64;
+      const BARS = 90;
       const step = src.length / BARS;
       const out: number[] = [];
       for (let i = 0; i < BARS; i++) {
