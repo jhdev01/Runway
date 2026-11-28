@@ -1,3 +1,4 @@
+import { PlaylistHero } from './PlaylistHero';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useAppStore } from '../state/store';
 import type { SpotifyPlaylistResult, SpotifyPlaylistSummary, SpotifyStatus } from '@shared/types';
@@ -154,28 +155,28 @@ export function SpotifyPlaylistPanel({ playlistId, onRemoved, settings }: { play
 
   return (
     <div className="pl-editor" style={{ overflowY: 'auto' }}>
-      <div style={{ display: 'block', padding: '18px 32px', borderBottom: '1px solid var(--border)' }}>
-        <div className="settings-field-sub" style={{ letterSpacing: '0.12em', textTransform: 'uppercase', fontSize: 11, display: 'flex', gap: 8, alignItems: 'center' }}>
-          Spotify playlist <SpotifyBadge />
-        </div>
-        <div style={{ fontSize: 24, fontWeight: 700, margin: '4px 0 10px' }}>{playlist.name}</div>
-        <div style={{ display: 'flex', gap: 28, alignItems: 'flex-end', flexWrap: 'wrap' }}>
-          <div><div className="settings-field-sub">TRACKS</div><strong>{tracks.length}</strong></div>
-          <div><div className="settings-field-sub">TOTAL RUNTIME</div><strong>{formatDuration(totalSec)}</strong></div>
-          <div><div className="settings-field-sub">KEYS COVERED</div><strong style={{ color: 'var(--accent-bright)' }}>{keysCovered} of 24</strong></div>
-          {targetSec > 0 && (
-            <div><div className="settings-field-sub">TARGET {formatDuration(targetSec)}</div>
-              <strong style={{ color: totalSec >= targetSec ? 'var(--accent-bright)' : 'var(--warn, #f5a524)' }}>
-                {totalSec >= targetSec ? 'Fills it' : `${formatDuration(targetSec - totalSec)} short`}
-              </strong>
-            </div>
-          )}
-          <div style={{ flex: 1 }} />
+      <PlaylistHero
+        arts={tracks.map(t => artCache[t.uri] ?? t.albumArtUrl)}
+        eyebrow={<>Spotify playlist</>}
+        eyebrowTone="spotify"
+        title={playlist.name}
+        stats={[
+          { value: tracks.length, label: tracks.length === 1 ? 'song' : 'songs' },
+          { value: formatDuration(totalSec), label: 'total' },
+          { value: `${keysCovered} of 24`, label: 'keys' },
+          ...(targetSec > 0 ? [{
+            value: totalSec >= targetSec
+              ? `Fills a ${Math.round(targetSec / 60)}-minute target`
+              : `${formatDuration(targetSec - totalSec)} short of a ${Math.round(targetSec / 60)}-minute target`,
+            tone: (totalSec >= targetSec ? 'good' : 'warn') as 'good' | 'warn',
+          }] : []),
+        ]}
+        actions={<>
           <button className="btn-secondary" onClick={() => void reload()} disabled={busy !== null}
-            title="Pick up songs added or removed in Spotify">{busy === 'reload' ? 'Reloading…' : '↻ Reload from Spotify'}</button>
+            title="Pick up songs added or removed in Spotify">{busy === 'reload' ? 'Reloading…' : 'Reload'}</button>
           <button className="btn-secondary" onClick={() => void downloadArt()} disabled={busy !== null}
             title="Save album art in Runway so it shows without internet">
-            {artProgress ? `Artwork ${artProgress.done}/${artProgress.total}` : '⤓ Download artwork'}
+            {artProgress ? `Artwork ${artProgress.done}/${artProgress.total}` : 'Download artwork'}
           </button>
           <button className="btn-secondary"
             onClick={() => {
@@ -186,10 +187,14 @@ export function SpotifyPlaylistPanel({ playlistId, onRemoved, settings }: { play
             title="Remove from Runway. The playlist stays in Spotify; keys and trims are kept.">
             {confirmRemove ? 'Click again to remove' : 'Remove'}
           </button>
+        </>}
+      />
+      {(note || playlist.skipped) ? (
+        <div className="pl-hero-note">
+          {note}
+          {playlist.skipped ? ` ${playlist.skipped} item(s) skipped: podcasts or local files can’t be played by Runway.` : ''}
         </div>
-        {note && <div className="settings-field-sub" style={{ marginTop: 8 }}>{note}</div>}
-        {playlist.skipped ? <div className="settings-field-sub">{playlist.skipped} item(s) skipped: podcasts or local files can’t be played by Runway.</div> : null}
-      </div>
+      ) : null}
       {settings}
       <div style={{ padding: '12px 32px' }}>
         <SpotifySongList tracks={tracks} />

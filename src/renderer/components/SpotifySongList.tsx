@@ -376,7 +376,7 @@ export function SpotifySongList({ tracks }: { tracks: SpotifyPlaylistTrack[] }) 
           })}
         />
       )}
-      <div style={{ maxHeight: 460, overflowY: 'auto' }}>
+      <div className="sp-rows">
         {tracks.map((t, i) => {
           const e = edits[t.uri] ?? {};
           const key = e.key;
@@ -388,8 +388,8 @@ export function SpotifySongList({ tracks }: { tracks: SpotifyPlaylistTrack[] }) 
           const kc = keyColor(key);
           return (
             <div key={rowKey}>
-              <div style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '3px 0' }}>
-                <span style={{ width: 20, textAlign: 'right', opacity: 0.6 }}>{i + 1}</span>
+              <div className={`sp-row ${playingUri === t.uri ? 'playing' : ''}`}>
+                <span className="sp-row-n">{i + 1}</span>
                 <button
                   type="button"
                   className="btn-secondary"
@@ -400,10 +400,11 @@ export function SpotifySongList({ tracks }: { tracks: SpotifyPlaylistTrack[] }) 
                   {playingUri === t.uri ? '❚❚' : '▶'}
                 </button>
                 {(artCache[t.uri] ?? t.albumArtUrl)
-                  ? <img src={artCache[t.uri] ?? t.albumArtUrl} alt="" loading="lazy" style={{ width: 36, height: 36, borderRadius: 4, objectFit: 'cover', flex: 'none' }} />
-                  : <div aria-hidden style={{ width: 36, height: 36, borderRadius: 4, background: 'var(--bg-elev-2)', display: 'grid', placeItems: 'center', flex: 'none' }}>♪</div>}
-                <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {t.title}{t.artist ? <span style={{ opacity: 0.6 }}> — {t.artist}</span> : null}
+                  ? <img src={artCache[t.uri] ?? t.albumArtUrl} alt="" loading="lazy" style={{ width: 40, height: 40, borderRadius: 6, objectFit: 'cover', flex: 'none' }} />
+                  : <div aria-hidden style={{ width: 40, height: 40, borderRadius: 6, background: 'var(--bg-elev-2)', display: 'grid', placeItems: 'center', flex: 'none' }}>♪</div>}
+                <span className="sp-row-titles">
+                  <span className="sp-row-title">{t.title}</span>
+                  {t.artist ? <span className="sp-row-artist">{t.artist}</span> : null}
                 </span>
                 {waveformsOn && (() => {
                   const c = cov[t.uri] ?? 0;
@@ -496,7 +497,7 @@ export function SpotifySongList({ tracks }: { tracks: SpotifyPlaylistTrack[] }) 
                   );
                 })()}
                 {edited && <span className="pp-status ok" title="This song has trims, fades or a 0:00 you set">edited</span>}
-                <span style={{ width: 40, textAlign: 'right' }}>{formatDuration(b.end - b.start)}</span>
+                <span className="sp-row-time">{formatDuration(b.end - b.start)}</span>
                 <button className="btn-secondary" onClick={() => useAppStore.getState().openSpotifyEditor(t.uri)} title="Open in the Editor: waveform, zoom, trims, fades, 0:00 and key analysis">
                   Edit
                 </button>

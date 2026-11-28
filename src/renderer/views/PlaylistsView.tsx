@@ -1,3 +1,4 @@
+import { PlaylistHero } from '../components/PlaylistHero';
 import React, { useEffect, useMemo, useState } from 'react';
 import { SpotifyPlaylistPanel, SpotifyImportButton } from '../components/SpotifyPlaylistPanel';
 import { SpotifyBadge } from '../components/SpotifyBadge';
@@ -302,54 +303,33 @@ function PlaylistEditor({ playlist }: { playlist: Playlist }) {
 
   return (
     <main className="pl-editor">
-      <header className="pl-editor-header">
-        <div className="pl-editor-title-block">
-          <div className="pl-editor-eyebrow">Editing playlist</div>
+      <PlaylistHero
+        arts={playlistTracks.map(t => t.albumArtUrl)}
+        eyebrow={`${playlist.kind === 'post' ? 'Post-service' : playlist.kind === 'special' ? 'Special' : 'Pre-service'} playlist`}
+        title={
           <input
-            className="pl-editor-title"
             value={playlist.name}
+            aria-label="Playlist name"
             onChange={e => updatePlaylist(playlist.id, { name: e.target.value })}
           />
-          <div className="pl-editor-stats">
-            <div className="pl-editor-stat">
-              <span className="pl-stat-label">Tracks</span>
-              <span className="pl-stat-value">{playlistTracks.length}</span>
-            </div>
-            <div className="pl-editor-stat">
-              <span className="pl-stat-label">Total runtime</span>
-              <span className="pl-stat-value">{formatDuration(totalSec)}</span>
-            </div>
-            <div className="pl-editor-stat">
-              <span className="pl-stat-label">Keys covered</span>
-              <span className="pl-stat-value key">{keysCovered.size} of 24</span>
-            </div>
-            {targetSec > 0 && (
-              <div className="pl-editor-stat">
-                <span className="pl-stat-label">vs. {Math.round(targetSec / 60)}m target</span>
-                <span
-                  className="pl-stat-value"
-                  style={{
-                    color: fillsTarget
-                      ? 'var(--accent-bright, #007ad1)'
-                      : repeatToFill
-                        ? 'var(--text-dim)'
-                        : 'var(--amber, #f59e0b)',
-                  }}
-                >
-                  {fillsTarget
-                    ? '✓ fills'
-                    : repeatToFill
-                      ? `loops to fill (+${formatDuration(gapSec)})`
-                      : `~${songsNeeded} more song${songsNeeded === 1 ? '' : 's'} (+${formatDuration(gapSec)})`}
-                </span>
-              </div>
-            )}
-          </div>
-        </div>
-        <div className="pl-editor-actions">
-          <button className="btn" onClick={onRename}>Rename</button>
+        }
+        stats={[
+          { value: playlistTracks.length, label: playlistTracks.length === 1 ? 'song' : 'songs' },
+          { value: formatDuration(totalSec), label: 'total' },
+          { value: `${keysCovered.size} of 24`, label: 'keys' },
+          ...(targetSec > 0 ? [{
+            value: fillsTarget
+              ? `Fills the ${Math.round(targetSec / 60)}-minute target`
+              : repeatToFill
+                ? `Loops to fill the ${Math.round(targetSec / 60)}-minute target (+${formatDuration(gapSec)})`
+                : `~${songsNeeded} more song${songsNeeded === 1 ? '' : 's'} for the ${Math.round(targetSec / 60)}-minute target`,
+            tone: (fillsTarget ? 'good' : repeatToFill ? 'dim' : 'warn') as 'good' | 'dim' | 'warn',
+          }] : []),
+        ]}
+        actions={<>
+          <button className="btn-secondary" onClick={onRename}>Rename</button>
           <button
-            className="btn"
+            className="btn-secondary"
             onClick={() => {
               const id = duplicatePlaylist(playlist.id);
               if (id) setSelectedPlaylistId(id);
@@ -364,8 +344,8 @@ function PlaylistEditor({ playlist }: { playlist: Playlist }) {
           >
             {confirmDelete ? 'Click to confirm' : 'Delete'}
           </button>
-        </div>
-      </header>
+        </>}
+      />
 
       <div className="pl-add-row">
         <button className="pl-add-btn" onClick={onAddFiles} title="Upload audio files from disk">

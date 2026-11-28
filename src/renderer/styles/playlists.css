@@ -740,3 +740,49 @@
 /* New look: sidebar rows as rounded tiles, the open one tinted blue. */
 .pl-item { margin: 1px 10px; padding: 10px 12px; border-radius: 10px; border-left: none; }
 .pl-item.active { background: #1c2a3d; }
+
+/* ── New look: playlist header (art, big title, inline stats) ── */
+.pl-hero { display: flex; align-items: flex-end; gap: 24px; padding: 28px 32px 22px; border-bottom: 1px solid var(--border); }
+.pl-hero-art { width: 132px; height: 132px; border-radius: 14px; overflow: hidden; flex-shrink: 0; background: linear-gradient(135deg, var(--accent-dim), #16191e); display: grid; grid-template-columns: 1fr 1fr; place-items: stretch; box-shadow: 0 8px 28px rgba(0,0,0,0.45); }
+.pl-hero-art img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.pl-hero-art img.single { grid-column: 1 / -1; grid-row: 1 / -1; }
+.pl-hero-art > span { grid-column: 1 / -1; display: grid; place-items: center; font-size: 44px; color: rgba(255,255,255,0.55); }
+.pl-hero-text { flex: 1; min-width: 0; padding-bottom: 2px; }
+.pl-hero-eyebrow { font-size: 12px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; display: flex; align-items: center; gap: 8px; }
+.pl-hero-eyebrow.accent { color: var(--accent-bright); }
+.pl-hero-eyebrow.spotify { color: #1ed760; }
+.pl-hero-title { margin: 6px 0 10px; }
+.pl-hero-title, .pl-hero-title input { font-family: var(--font-display); font-size: 40px; font-weight: 800; letter-spacing: -0.02em; color: var(--text); line-height: 1.1; }
+.pl-hero-title input { background: transparent; border: 1px solid transparent; border-radius: 8px; padding: 0 6px; margin-left: -7px; width: 100%; }
+.pl-hero-title input:hover { border-color: var(--border); }
+.pl-hero-title input:focus { border-color: var(--accent); outline: none; }
+.pl-hero-stats { display: flex; flex-wrap: wrap; gap: 6px 22px; font-size: 15px; color: var(--text-dim); }
+.pl-hero-stats strong { color: var(--text); font-weight: 700; }
+.pl-hero-stats .tone-good, .pl-hero-stats .tone-good strong { color: #4ade80; font-weight: 500; }
+.pl-hero-stats .tone-warn, .pl-hero-stats .tone-warn strong { color: #f59e0b; font-weight: 500; }
+.pl-hero-stats .tone-dim strong { color: var(--text-dim); font-weight: 500; }
+.pl-hero-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; padding-bottom: 4px; }
+@media (max-width: 1150px) { .pl-hero { flex-wrap: wrap; } .pl-hero-actions { width: 100%; justify-content: flex-start; } }
+.pl-hero-note { padding: 10px 32px; font-size: 13px; color: var(--text-dim); border-bottom: 1px solid var(--border); }
+
+/* Spotify song rows (new look): title over artist, hover row */
+.sp-rows { margin-top: 6px; }
+.sp-row { display: flex; gap: 12px; align-items: center; padding: 8px 10px; border-radius: 10px; border-bottom: 1px solid var(--border); }
+.sp-row:hover { background: #111419; }
+.sp-row.playing { background: rgba(0, 122, 209, 0.12); }
+.sp-row-n { width: 22px; text-align: right; color: var(--text-faint); font-family: 'IBM Plex Mono', monospace; font-size: 13px; }
+.sp-row-titles { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.sp-row-title { font-size: 15px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sp-row-artist { font-size: 13px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sp-row-time { width: 44px; text-align: right; font-family: 'IBM Plex Mono', monospace; font-size: 13.5px; color: var(--text-dim); }
+
+/* Playlist settings as a card under the header */
+.pl-settings { margin: 18px 32px 6px; border: 1px solid var(--border); border-radius: 16px; padding: 18px 22px; }
+
+/* New look: add buttons as a compact toolbar */
+.pl-add-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 18px 32px 8px; }
+.pl-add-btn { padding: 8px 14px; border: 1px solid var(--border-bright); border-radius: 10px; background: #121418; color: var(--text); font-size: 14px; font-weight: 600; gap: 8px; }
+.pl-add-btn:hover { border-color: var(--accent); background: rgba(0, 122, 209, 0.1); color: var(--text); }
+.pl-add-icon { width: 16px; height: 16px; color: var(--text-dim); }
+.pl-sidebar-header, .pl-sidebar { background: var(--bg-elev); }
+.pl-item-name { font-size: 15px; font-weight: 600; }
